@@ -1,4 +1,5 @@
 import React from 'react'
+import { TEXT_STYLES } from '@/shared/ui/_internal/textStyles'
 import { Badge } from '@/shared/ui/badge'
 import { EmptyState } from '@/shared/ui/empty-state'
 import { Stack } from '@/shared/ui/stack'
@@ -49,11 +50,7 @@ export function IntelligenceEmpty({
           {normalizedHints.map(hint => (
             <div
               key={hint}
-              style={{
-                color: 'var(--text-tertiary)',
-                fontSize: 'var(--text-xs)',
-                lineHeight: 'var(--leading-normal)',
-              }}
+              style={TEXT_STYLES.supportXs}
             >
               {hint}
             </div>

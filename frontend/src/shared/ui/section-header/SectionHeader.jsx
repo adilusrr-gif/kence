@@ -1,5 +1,6 @@
 import React from 'react'
 import { cn } from '@/shared/lib/cn'
+import { TEXT_STYLES } from '@/shared/ui/_internal/textStyles'
 import { Inline } from '@/shared/ui/inline'
 import { Stack } from '@/shared/ui/stack'
 
@@ -40,10 +41,8 @@ export function SectionHeader({
         {title ? (
           <div
             style={{
-              color: 'var(--text-primary)',
+              ...(dense ? TEXT_STYLES.titleSm : TEXT_STYLES.titleMd),
               fontSize: density.titleSize,
-              fontWeight: 600,
-              lineHeight: 'var(--leading-snug)',
             }}
           >
             {title}
@@ -52,9 +51,8 @@ export function SectionHeader({
         {subtitle ? (
           <div
             style={{
-              color: 'var(--text-secondary)',
+              ...TEXT_STYLES.bodySm,
               fontSize: density.subtitleSize,
-              lineHeight: 'var(--leading-normal)',
             }}
           >
             {subtitle}

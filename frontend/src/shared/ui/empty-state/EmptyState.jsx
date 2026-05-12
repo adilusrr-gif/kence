@@ -1,5 +1,7 @@
 import React from 'react'
 import { cn } from '@/shared/lib/cn'
+import { TEXT_STYLES } from '@/shared/ui/_internal/textStyles'
+import { ActionGroup } from '@/shared/ui/action-group'
 import { Stack } from '@/shared/ui/stack'
 
 const SIZE_STYLES = {
@@ -67,10 +69,8 @@ export function EmptyState({
       {title ? (
         <div
           style={{
-            color: 'var(--text-primary)',
+            ...TEXT_STYLES.titleLg,
             fontSize: currentSize.titleSize,
-            fontWeight: 600,
-            lineHeight: 'var(--leading-snug)',
           }}
         >
           {title}
@@ -80,9 +80,8 @@ export function EmptyState({
       {description ? (
         <div
           style={{
-            color: 'var(--text-secondary)',
+            ...TEXT_STYLES.bodySm,
             fontSize: currentSize.descriptionSize,
-            lineHeight: 'var(--leading-normal)',
             maxWidth: '42rem',
           }}
         >
@@ -90,7 +89,7 @@ export function EmptyState({
         </div>
       ) : null}
 
-      {actions ? <div className="flex flex-wrap items-center gap-3">{actions}</div> : null}
+      {actions ? <ActionGroup align={align === 'center' ? 'center' : 'start'} fullWidth={false}>{actions}</ActionGroup> : null}
       {children}
     </Stack>
   )

@@ -1,5 +1,6 @@
 import React from 'react'
 import { cn } from '@/shared/lib/cn'
+import { TEXT_STYLES } from '@/shared/ui/_internal/textStyles'
 import { Badge } from '@/shared/ui/badge'
 import { Card } from '@/shared/ui/card'
 import { Inline } from '@/shared/ui/inline'
@@ -28,25 +29,12 @@ export function MetricCard({
         <Inline justify="space-between" align="flex-start" gap="md">
           <Stack gap="xs" className="min-w-0 flex-1">
             {label ? (
-              <div
-                style={{
-                  color: 'var(--text-secondary)',
-                  fontSize: 'var(--text-xs)',
-                  lineHeight: 'var(--leading-normal)',
-                }}
-              >
+              <div style={TEXT_STYLES.bodyXs}>
                 {label}
               </div>
             ) : null}
             {value ? (
-              <div
-                style={{
-                  color: 'var(--text-primary)',
-                  fontSize: 'clamp(1.5rem, 2vw, 2rem)',
-                  fontWeight: 700,
-                  lineHeight: 1,
-                }}
-              >
+              <div style={TEXT_STYLES.metricValue}>
                 {value}
               </div>
             ) : null}
@@ -75,13 +63,7 @@ export function MetricCard({
                 : delta
             ) : null}
             {support ? (
-              <div
-                style={{
-                  color: 'var(--text-secondary)',
-                  fontSize: 'var(--text-sm)',
-                  lineHeight: 'var(--leading-normal)',
-                }}
-              >
+              <div style={TEXT_STYLES.bodySm}>
                 {support}
               </div>
             ) : null}

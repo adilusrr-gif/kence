@@ -1,5 +1,6 @@
 import React from 'react'
 import { cn } from '@/shared/lib/cn'
+import { TEXT_STYLES } from '@/shared/ui/_internal/textStyles'
 import { Surface } from '@/shared/ui/surface'
 
 export function Panel({
@@ -41,23 +42,14 @@ export function Panel({
         >
           <div className="min-w-0 flex-1">
             {title && (
-              <div
-                style={{
-                  color: 'var(--text-primary)',
-                  fontSize: 'var(--text-md)',
-                  lineHeight: 'var(--leading-snug)',
-                  fontWeight: 600,
-                }}
-              >
+              <div style={TEXT_STYLES.titleMd}>
                 {title}
               </div>
             )}
             {subtitle && (
               <div
                 style={{
-                  color: 'var(--text-secondary)',
-                  fontSize: 'var(--text-sm)',
-                  lineHeight: 'var(--leading-normal)',
+                  ...TEXT_STYLES.bodySm,
                   marginTop: 'var(--space-1)',
                 }}
               >

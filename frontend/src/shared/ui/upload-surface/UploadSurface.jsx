@@ -1,5 +1,6 @@
 import React from 'react'
 import { cn } from '@/shared/lib/cn'
+import { TEXT_STYLES } from '@/shared/ui/_internal/textStyles'
 import { Badge } from '@/shared/ui/badge'
 import { Card } from '@/shared/ui/card'
 import { Divider } from '@/shared/ui/divider'
@@ -27,25 +28,12 @@ export function UploadSurface({
               </Badge>
             ) : null}
             {title ? (
-              <div
-                style={{
-                  color: 'var(--text-primary)',
-                  fontSize: 'var(--text-lg)',
-                  fontWeight: 600,
-                  lineHeight: 'var(--leading-snug)',
-                }}
-              >
+              <div style={TEXT_STYLES.titleLg}>
                 {title}
               </div>
             ) : null}
             {description ? (
-              <div
-                style={{
-                  color: 'var(--text-secondary)',
-                  fontSize: 'var(--text-sm)',
-                  lineHeight: 'var(--leading-normal)',
-                }}
-              >
+              <div style={TEXT_STYLES.bodySm}>
                 {description}
               </div>
             ) : null}

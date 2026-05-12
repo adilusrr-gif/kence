@@ -14,6 +14,7 @@ export function ActionGroup({
   wrap = true,
   gap = 'sm',
   stretch = false,
+  fullWidth = true,
   className,
   style,
   children,
@@ -26,7 +27,7 @@ export function ActionGroup({
       className={cn(stretch && '[&>*]:flex-1', className)}
       style={{
         justifyContent: ALIGNMENT_STYLES[align] || ALIGNMENT_STYLES.start,
-        width: '100%',
+        ...(fullWidth ? { width: '100%' } : null),
         ...style,
       }}
       {...props}

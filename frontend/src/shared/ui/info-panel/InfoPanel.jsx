@@ -1,5 +1,6 @@
 import React from 'react'
 import { cn } from '@/shared/lib/cn'
+import { TEXT_STYLES } from '@/shared/ui/_internal/textStyles'
 import { Badge } from '@/shared/ui/badge'
 import { Card } from '@/shared/ui/card'
 import { Divider } from '@/shared/ui/divider'
@@ -89,36 +90,17 @@ export function InfoPanelItem({
     >
       <Stack gap="xs" className="min-w-0 flex-1">
         {label ? (
-          <div
-            style={{
-              color: 'var(--text-secondary)',
-              fontSize: 'var(--text-xs)',
-              lineHeight: 'var(--leading-normal)',
-            }}
-          >
+          <div style={TEXT_STYLES.bodyXs}>
             {label}
           </div>
         ) : null}
         {value ? (
-          <div
-            style={{
-              color: 'var(--text-primary)',
-              fontSize: 'var(--text-sm)',
-              fontWeight: 600,
-              lineHeight: 'var(--leading-snug)',
-            }}
-          >
+          <div style={TEXT_STYLES.titleSm}>
             {value}
           </div>
         ) : null}
         {support ? (
-          <div
-            style={{
-              color: 'var(--text-tertiary)',
-              fontSize: 'var(--text-xs)',
-              lineHeight: 'var(--leading-normal)',
-            }}
-          >
+          <div style={TEXT_STYLES.supportXs}>
             {support}
           </div>
         ) : null}

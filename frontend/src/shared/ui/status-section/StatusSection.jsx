@@ -1,5 +1,6 @@
 import React from 'react'
 import { cn } from '@/shared/lib/cn'
+import { TEXT_STYLES } from '@/shared/ui/_internal/textStyles'
 import { Divider } from '@/shared/ui/divider'
 import { Inline } from '@/shared/ui/inline'
 import { Panel } from '@/shared/ui/panel'
@@ -50,22 +51,12 @@ export function StatusSection({
             {progress.label ? (
               <Inline justify="space-between" align="center" gap="sm">
                 <div
-                  style={{
-                    color: 'var(--text-secondary)',
-                    fontSize: 'var(--text-xs)',
-                    lineHeight: 'var(--leading-normal)',
-                  }}
+                  style={TEXT_STYLES.bodyXs}
                 >
                   {progress.label}
                 </div>
                 {progress.valueLabel ? (
-                  <div
-                    style={{
-                      color: 'var(--text-tertiary)',
-                      fontSize: 'var(--text-xs)',
-                      lineHeight: 'var(--leading-normal)',
-                    }}
-                  >
+                  <div style={TEXT_STYLES.supportXs}>
                     {progress.valueLabel}
                   </div>
                 ) : null}
