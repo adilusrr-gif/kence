@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Shield, ArrowRight, Lock } from 'lucide-react'
 import { SplineSceneBasic } from '@/components/ui/spline-scene-demo'
+import { Badge } from '@/shared/ui/badge'
+import { Card } from '@/shared/ui/card'
 
 const TERMINAL_LINES = [
   { delay: 500,  text: '> Инициализация KENCE.ai v2.0...',          color: '#57C5B6' },
@@ -135,10 +137,10 @@ export default function LandingPage() {
           initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, ease: 'easeOut' }}>
 
-          <div className="lp-badge">
+          <Badge variant="accent" size="md" className="lp-badge">
             <span className="lp-badge__dot" />
             AI · Document Intelligence
-          </div>
+          </Badge>
 
           <h1 className="lp-title">KENCE.ai</h1>
           <p className="lp-subtitle">
@@ -148,15 +150,17 @@ export default function LandingPage() {
 
           <div className="lp-features">
             {FEATURES.map((f, i) => (
-              <motion.div key={i} className="lp-feature"
+              <motion.div key={i}
                 initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.18 + i * 0.09, duration: 0.28 }}>
-                <span className="lp-feature__icon">{f.icon}</span>
-                <div>
-                  <div className="lp-feature__label">{f.label}</div>
-                  <div className="lp-feature__desc">{f.desc}</div>
-                </div>
-                <span className="lp-feature__check">✓</span>
+                <Card className="lp-feature" style={{ padding: 'var(--space-4)' }}>
+                  <span className="lp-feature__icon">{f.icon}</span>
+                  <div>
+                    <div className="lp-feature__label">{f.label}</div>
+                    <div className="lp-feature__desc">{f.desc}</div>
+                  </div>
+                  <span className="lp-feature__check">✓</span>
+                </Card>
               </motion.div>
             ))}
           </div>
@@ -177,15 +181,15 @@ export default function LandingPage() {
       {/* ── Stats bar ── */}
       <div className="lp-stats">
         {STATS.map((s, i) => (
-          <div key={i} className="lp-stat">
+          <Card key={i} className="lp-stat" style={{ padding: 'var(--space-4)' }}>
             <div className="lp-stat__val"><AnimatedCounter target={s.value} suffix={s.suffix} /></div>
             <div className="lp-stat__lbl">{s.label}</div>
-          </div>
+          </Card>
         ))}
-        <div className="lp-stat lp-stat--sec">
+        <Card className="lp-stat lp-stat--sec" style={{ padding: 'var(--space-4)' }}>
           <Shield size={14} style={{ color: '#57C5B6', flexShrink: 0 }} />
           <div className="lp-stat__lbl">Ollama · ChromaDB · Docker isolated</div>
-        </div>
+        </Card>
       </div>
 
     </div>

@@ -1,13 +1,26 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
+import { Badge } from '@/shared/ui/badge'
+import { Button } from '@/shared/ui/button'
+import { Card } from '@/shared/ui/card'
+import { Inline } from '@/shared/ui/inline'
+import { Input } from '@/shared/ui/input'
+import { SectionHeader } from '@/shared/ui/section-header'
+import { Stack } from '@/shared/ui/stack'
 import { apiChangePassword } from '../lib/api'
 
-const ROLE_LABELS = { admin: 'Администратор', manager: 'Менеджер', user: 'Пользователь' }
-const ROLE_COLORS = { admin: '#ef4444', manager: '#f59e0b', user: '#3b82f6' }
+const ROLE_LABELS = { admin: 'РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ', manager: 'РњРµРЅРµРґР¶РµСЂ', user: 'РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ' }
+const ROLE_VARIANTS = { admin: 'danger', manager: 'warning', user: 'info' }
+
+const FIELD_CONFIG = [
+  { name: 'current', label: 'РўРµРєСѓС‰РёР№ РїР°СЂРѕР»СЊ' },
+  { name: 'next', label: 'РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ' },
+  { name: 'confirm', label: 'РџРѕРґС‚РІРµСЂРґРёС‚Рµ РЅРѕРІС‹Р№ РїР°СЂРѕР»СЊ' },
+]
 
 export default function ProfilePage({ currentUser }) {
   const [form, setForm] = useState({ current: '', next: '', confirm: '' })
-  const [status, setStatus] = useState(null) // { ok: bool, msg: string }
+  const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(false)
 
   const handleChange = e => setForm(f => ({ ...f, [e.target.name]: e.target.value }))
@@ -17,22 +30,22 @@ export default function ProfilePage({ currentUser }) {
     setStatus(null)
 
     if (form.next.length < 6) {
-      setStatus({ ok: false, msg: 'Новый пароль должен содержать не менее 6 символов' })
+      setStatus({ ok: false, msg: 'РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ РґРѕР»Р¶РµРЅ СЃРѕРґРµСЂР¶Р°С‚СЊ РЅРµ РјРµРЅРµРµ 6 СЃРёРјРІРѕР»РѕРІ' })
       return
     }
     if (form.next !== form.confirm) {
-      setStatus({ ok: false, msg: 'Новый пароль и подтверждение не совпадают' })
+      setStatus({ ok: false, msg: 'РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ Рё РїРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ РЅРµ СЃРѕРІРїР°РґР°СЋС‚' })
       return
     }
     if (form.next === form.current) {
-      setStatus({ ok: false, msg: 'Новый пароль совпадает с текущим' })
+      setStatus({ ok: false, msg: 'РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ СЃРѕРІРїР°РґР°РµС‚ СЃ С‚РµРєСѓС‰РёРј' })
       return
     }
 
     setLoading(true)
     try {
       await apiChangePassword(form.current, form.next)
-      setStatus({ ok: true, msg: 'Пароль успешно изменён' })
+      setStatus({ ok: true, msg: 'РџР°СЂРѕР»СЊ СѓСЃРїРµС€РЅРѕ РёР·РјРµРЅС‘РЅ' })
       setForm({ current: '', next: '', confirm: '' })
     } catch (err) {
       setStatus({ ok: false, msg: err.message })
@@ -44,134 +57,129 @@ export default function ProfilePage({ currentUser }) {
   const role = currentUser?.role || 'user'
 
   return (
-    <div style={{ maxWidth: 520, margin: '0 auto', padding: '2rem 1rem' }}>
-
-      {/* Profile card */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        style={{
-          background: 'var(--card-bg, #fff)',
-          border: '1px solid var(--border, #e5e7eb)',
-          borderRadius: 16,
-          padding: '2rem',
-          marginBottom: '1.5rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1.25rem',
-        }}
-      >
-        <div style={{
-          width: 64, height: 64, borderRadius: '50%',
-          background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 28, color: '#fff', flexShrink: 0,
-        }}>
-          {(currentUser?.username?.[0] || '?').toUpperCase()}
-        </div>
-        <div>
-          <div style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: 4 }}>
-            {currentUser?.username}
-          </div>
-          <span style={{
-            display: 'inline-block',
-            padding: '2px 10px',
-            borderRadius: 20,
-            fontSize: 12,
-            fontWeight: 600,
-            background: ROLE_COLORS[role] + '20',
-            color: ROLE_COLORS[role],
-          }}>
-            {ROLE_LABELS[role] || role}
-          </span>
-        </div>
-      </motion.div>
-
-      {/* Change password */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.08 }}
-        style={{
-          background: 'var(--card-bg, #fff)',
-          border: '1px solid var(--border, #e5e7eb)',
-          borderRadius: 16,
-          padding: '1.75rem 2rem',
-        }}
-      >
-        <h2 style={{ margin: '0 0 1.25rem', fontSize: '1rem', fontWeight: 700 }}>
-          Изменение пароля
-        </h2>
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {[
-            { name: 'current', label: 'Текущий пароль' },
-            { name: 'next',    label: 'Новый пароль' },
-            { name: 'confirm', label: 'Подтвердите новый пароль' },
-          ].map(({ name, label }) => (
-            <div key={name}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 4, opacity: 0.7 }}>
-                {label}
-              </label>
-              <input
-                type="password"
-                name={name}
-                value={form[name]}
-                onChange={handleChange}
-                required
-                autoComplete="new-password"
-                style={{
-                  width: '100%',
-                  padding: '0.6rem 0.85rem',
-                  borderRadius: 8,
-                  border: '1px solid var(--border, #d1d5db)',
-                  background: 'var(--input-bg, #f9fafb)',
-                  color: 'inherit',
-                  fontSize: 14,
-                  boxSizing: 'border-box',
-                  outline: 'none',
-                }}
-              />
-            </div>
-          ))}
-
-          {status && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{ opacity: 1, scale: 1 }}
-              style={{
-                padding: '0.65rem 1rem',
-                borderRadius: 8,
-                fontSize: 13,
-                background: status.ok ? '#d1fae5' : '#fee2e2',
-                color:      status.ok ? '#065f46' : '#991b1b',
-              }}
-            >
-              {status.msg}
-            </motion.div>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
+    <div
+      style={{
+        width: 'min(100%, 40rem)',
+        margin: '0 auto',
+        padding: 'var(--space-8) var(--space-4)',
+      }}
+    >
+      <Stack gap="lg">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Card
             style={{
-              marginTop: 4,
-              padding: '0.65rem 1.5rem',
-              borderRadius: 8,
-              border: 'none',
-              background: loading ? '#94a3b8' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              color: '#fff',
-              fontWeight: 700,
-              fontSize: 14,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              alignSelf: 'flex-start',
+              padding: 'var(--space-6)',
             }}
           >
-            {loading ? 'Сохранение…' : 'Сменить пароль'}
-          </button>
-        </form>
-      </motion.div>
+            <Inline gap="md" align="center">
+              <div
+                aria-hidden="true"
+                style={{
+                  width: '4rem',
+                  height: '4rem',
+                  borderRadius: 'var(--radius-pill)',
+                  background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary, var(--status-info)))',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'var(--text-inverse)',
+                  fontSize: '1.75rem',
+                  fontWeight: 700,
+                  flexShrink: 0,
+                }}
+              >
+                {(currentUser?.username?.[0] || '?').toUpperCase()}
+              </div>
+
+              <Stack gap="xs">
+                <div
+                  style={{
+                    color: 'var(--text-primary)',
+                    fontSize: 'var(--text-xl)',
+                    fontWeight: 700,
+                    lineHeight: 'var(--leading-snug)',
+                  }}
+                >
+                  {currentUser?.username}
+                </div>
+                <Badge variant={ROLE_VARIANTS[role] || 'neutral'} size="md">
+                  {ROLE_LABELS[role] || role}
+                </Badge>
+              </Stack>
+            </Inline>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, delay: 0.08 }}
+        >
+          <Card
+            as="section"
+            style={{
+              padding: 'var(--space-6)',
+            }}
+          >
+            <Stack as="form" gap="md" onSubmit={handleSubmit}>
+              <SectionHeader title="РР·РјРµРЅРµРЅРёРµ РїР°СЂРѕР»СЏ" dense />
+
+              {FIELD_CONFIG.map(({ name, label }) => (
+                <Stack key={name} gap="xs">
+                  <label
+                    htmlFor={`profile-${name}`}
+                    style={{
+                      color: 'var(--text-secondary)',
+                      fontSize: 'var(--text-sm)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {label}
+                  </label>
+                  <Input
+                    id={`profile-${name}`}
+                    type="password"
+                    name={name}
+                    value={form[name]}
+                    onChange={handleChange}
+                    autoComplete={name === 'current' ? 'current-password' : 'new-password'}
+                    required
+                  />
+                </Stack>
+              ))}
+
+              {status ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                >
+                  <Card
+                    tone={status.ok ? 'accent' : 'muted'}
+                    style={{
+                      padding: 'var(--space-3) var(--space-4)',
+                      borderColor: status.ok ? 'color-mix(in srgb, var(--status-success) 40%, transparent)' : 'color-mix(in srgb, var(--status-danger) 40%, transparent)',
+                      backgroundColor: status.ok
+                        ? 'color-mix(in srgb, var(--status-success) 10%, var(--bg-surface-1))'
+                        : 'color-mix(in srgb, var(--status-danger) 8%, var(--bg-surface-1))',
+                      color: status.ok ? 'var(--status-success)' : 'var(--status-danger)',
+                    }}
+                  >
+                    {status.msg}
+                  </Card>
+                </motion.div>
+              ) : null}
+
+              <Button type="submit" loading={loading} disabled={loading} style={{ alignSelf: 'flex-start' }}>
+                {loading ? 'РЎРѕС…СЂР°РЅРµРЅРёРµвЂ¦' : 'РЎРјРµРЅРёС‚СЊ РїР°СЂРѕР»СЊ'}
+              </Button>
+            </Stack>
+          </Card>
+        </motion.div>
+      </Stack>
     </div>
   )
 }
