@@ -12,6 +12,7 @@ import LoginPage from './pages/LoginPage'
 import ProfilePage from './pages/ProfilePage'
 import AdminPage from './pages/AdminPage'
 import { getStoredUser, clearAuth } from './lib/api'
+import { syncAuthShadow, syncShellShadow } from '@/shared/stores'
 
 const NAV_BASE = [
   { path: '/',             label: 'Главная',     icon: '🏠' },
@@ -44,6 +45,19 @@ export default function App() {
     document.documentElement.classList.toggle('dark', dark)
     localStorage.setItem('theme', dark ? 'dark' : 'light')
   }, [dark])
+
+  useEffect(() => {
+    syncAuthShadow(currentUser)
+  }, [currentUser])
+
+  useEffect(() => {
+    syncShellShadow({
+      theme: dark ? 'dark' : 'light',
+      appName,
+      appEmoji,
+      leftRail: { collapsed },
+    })
+  }, [dark, appName, appEmoji, collapsed])
 
   useEffect(() => { if (editName  && nameRef.current)  { nameRef.current.focus();  nameRef.current.select() } }, [editName])
   useEffect(() => { if (editEmoji && emojiRef.current) emojiRef.current.focus() },                              [editEmoji])
