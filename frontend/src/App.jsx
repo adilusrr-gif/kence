@@ -12,7 +12,13 @@ import LoginPage from './pages/LoginPage'
 import ProfilePage from './pages/ProfilePage'
 import AdminPage from './pages/AdminPage'
 import { getStoredUser, clearAuth } from './lib/api'
-import { syncAuthShadow, syncShellShadow, syncWorkspaceShadow } from '@/shared/stores'
+import {
+  clearSessionTabsShadow,
+  syncAuthShadow,
+  syncSessionTabsShadow,
+  syncShellShadow,
+  syncWorkspaceShadow,
+} from '@/shared/stores'
 
 const NAV_BASE = [
   { path: '/',             label: 'Главная',     icon: '🏠' },
@@ -24,6 +30,12 @@ const NAV_BASE = [
   { path: '/profile',      label: 'Профиль',     icon: '👤' },
   { path: '/admin',        label: 'Админ',       icon: '🛡️', adminOnly: true },
 ]
+
+const LEGACY_WORKSPACE_ID = 'legacy-main'
+
+function getLegacyTabTitle(pathname) {
+  return NAV_BASE.find((item) => item.path === pathname)?.label || 'KENCE.ai'
+}
 
 export default function App() {
   const [sessionId,    setSessionId]    = useState(null)
@@ -65,6 +77,23 @@ export default function App() {
       activeDocumentName: documentName,
     })
   }, [sessionId, documentName])
+
+  useEffect(() => {
+    if (!currentUser) {
+      clearSessionTabsShadow()
+      return
+    }
+
+    syncSessionTabsShadow({
+      authenticated: true,
+      tabId: `legacy:${location.pathname}`,
+      routePath: location.pathname,
+      title: getLegacyTabTitle(location.pathname),
+      workspaceId: LEGACY_WORKSPACE_ID,
+      sessionId,
+      documentName,
+    })
+  }, [currentUser, location.pathname, sessionId, documentName])
 
   useEffect(() => { if (editName  && nameRef.current)  { nameRef.current.focus();  nameRef.current.select() } }, [editName])
   useEffect(() => { if (editEmoji && emojiRef.current) emojiRef.current.focus() },                              [editEmoji])
