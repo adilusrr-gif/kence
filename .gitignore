@@ -1,0 +1,39 @@
+# Node
+node_modules/
+dist/
+build/
+.cache/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# AI / Data
+uploads/
+vector_db/
+chromadb/
+qdrant_storage/
+milvus/
+*.bin
+*.pt
+*.onnx
+
+# Docker
+docker-data/
+
+# Runtime
+tmp/
+temp/

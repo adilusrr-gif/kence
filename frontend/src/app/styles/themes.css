@@ -1,0 +1,118 @@
+/* Future-forward theme architecture:
+   - default semantic mappings live on :root
+   - [data-theme] provides forward-compatible explicit theming
+   - .dark remains the legacy compatibility bridge for current frontend logic
+*/
+
+:root,
+html[data-theme='dark'] {
+  --bg-app: var(--color-neutral-950);
+  --bg-canvas: var(--color-neutral-900);
+  --bg-surface-1: var(--color-neutral-800);
+  --bg-surface-2: var(--color-neutral-700);
+  --bg-surface-3: var(--color-neutral-600);
+  --bg-overlay: rgba(2, 6, 23, 0.72);
+
+  --text-primary: var(--color-neutral-0);
+  --text-secondary: var(--color-neutral-300);
+  --text-tertiary: var(--color-neutral-400);
+  --text-inverse: var(--color-neutral-950);
+
+  --border-subtle: rgba(148, 163, 184, 0.12);
+  --border-default: rgba(148, 163, 184, 0.22);
+  --border-strong: rgba(148, 163, 184, 0.36);
+
+  --accent-primary: var(--color-cyan-400);
+  --accent-primary-hover: var(--color-cyan-300);
+  --accent-secondary: var(--color-blue-400);
+
+  --status-success: var(--color-green-400);
+  --status-warning: var(--color-amber-400);
+  --status-danger: var(--color-red-400);
+  --status-info: var(--color-blue-400);
+  --focus-ring: rgba(34, 211, 238, 0.42);
+  --selection-bg: rgba(34, 211, 238, 0.22);
+
+  --glass-bg: rgba(15, 23, 42, 0.58);
+  --glass-bg-strong: rgba(15, 23, 42, 0.72);
+  --glass-border: rgba(148, 163, 184, 0.18);
+  --glass-highlight: rgba(255, 255, 255, 0.08);
+  --glass-blur: 18px;
+  --glass-shadow: var(--shadow-glass);
+}
+
+html[data-theme='light'] {
+  --bg-app: var(--color-neutral-25);
+  --bg-canvas: var(--color-neutral-50);
+  --bg-surface-1: var(--color-neutral-0);
+  --bg-surface-2: var(--color-neutral-100);
+  --bg-surface-3: var(--color-neutral-200);
+  --bg-overlay: rgba(241, 245, 249, 0.82);
+
+  --text-primary: var(--color-neutral-900);
+  --text-secondary: var(--color-neutral-700);
+  --text-tertiary: var(--color-neutral-500);
+  --text-inverse: var(--color-neutral-0);
+
+  --border-subtle: rgba(15, 23, 42, 0.08);
+  --border-default: rgba(15, 23, 42, 0.14);
+  --border-strong: rgba(15, 23, 42, 0.22);
+
+  --accent-primary: var(--color-cyan-600);
+  --accent-primary-hover: var(--color-cyan-500);
+  --accent-secondary: var(--color-blue-600);
+
+  --status-success: var(--color-green-600);
+  --status-warning: var(--color-amber-600);
+  --status-danger: var(--color-red-600);
+  --status-info: var(--color-blue-600);
+  --focus-ring: rgba(8, 145, 178, 0.32);
+  --selection-bg: rgba(8, 145, 178, 0.18);
+
+  --glass-bg: rgba(255, 255, 255, 0.74);
+  --glass-bg-strong: rgba(255, 255, 255, 0.88);
+  --glass-border: rgba(148, 163, 184, 0.24);
+  --glass-highlight: rgba(255, 255, 255, 0.5);
+  --glass-blur: 16px;
+  --glass-shadow: 0 20px 48px rgba(15, 23, 42, 0.12);
+}
+
+/* Legacy compatibility bridge:
+   current app toggles .dark on <html>; keep semantic mappings aligned without
+   touching existing page-specific styling assumptions.
+*/
+html.dark {
+  --bg-app: var(--color-neutral-950);
+  --bg-canvas: var(--color-neutral-900);
+  --bg-surface-1: var(--color-neutral-800);
+  --bg-surface-2: var(--color-neutral-700);
+  --bg-surface-3: var(--color-neutral-600);
+  --bg-overlay: rgba(2, 6, 23, 0.72);
+
+  --text-primary: var(--color-neutral-0);
+  --text-secondary: var(--color-neutral-300);
+  --text-tertiary: var(--color-neutral-400);
+  --text-inverse: var(--color-neutral-950);
+
+  --border-subtle: rgba(148, 163, 184, 0.12);
+  --border-default: rgba(148, 163, 184, 0.22);
+  --border-strong: rgba(148, 163, 184, 0.36);
+
+  --accent-primary: var(--color-cyan-400);
+  --accent-primary-hover: var(--color-cyan-300);
+  --accent-secondary: var(--color-blue-400);
+
+  --status-success: var(--color-green-400);
+  --status-warning: var(--color-amber-400);
+  --status-danger: var(--color-red-400);
+  --status-info: var(--color-blue-400);
+  --focus-ring: rgba(34, 211, 238, 0.42);
+  --selection-bg: rgba(34, 211, 238, 0.22);
+
+  --glass-bg: rgba(15, 23, 42, 0.58);
+  --glass-bg-strong: rgba(15, 23, 42, 0.72);
+  --glass-border: rgba(148, 163, 184, 0.18);
+  --glass-highlight: rgba(255, 255, 255, 0.08);
+  --glass-blur: 18px;
+  --glass-shadow: var(--shadow-glass);
+}

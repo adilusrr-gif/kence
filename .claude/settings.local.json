@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-Content \"C:\\\\Users\\\\PROFES~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--DocAI\\\\30a91b79-f17e-4e84-b6d2-a9dfd8a70803\\\\tasks\\\\br7uhol05.output\" -Wait)",
+      "Bash(Select-String -Pattern \"error|Error|ERROR|Built|DONE|npm warn WARN|failed|Failed\" --AllMatches)",
+      "Read(//mnt/d/**)",
+      "Bash(docker compose *)",
+      "Bash(npm run *)",
+      "Bash(Get-Content \"C:\\\\Users\\\\PROFES~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--DocAI\\\\870ab8dc-ce6a-45f9-9934-b392cc7635cd\\\\tasks\\\\bb9jq7co4.output\" -Wait)",
+      "Bash(Select-String -Pattern \"Built|ERROR|error|✓|exit\")",
+      "Bash(Get-Content \"C:\\\\Users\\\\PROFES~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--DocAI\\\\870ab8dc-ce6a-45f9-9934-b392cc7635cd\\\\tasks\\\\b56w1rf4w.output\" -Wait)",
+      "Bash(Select-String \"Built|ERROR|error|✓ built\")",
+      "Bash(node *)",
+      "WebFetch(domain:img2.cgtrader.com)",
+      "WebFetch(domain:community.spline.design)",
+      "WebFetch(domain:prod.spline.design)",
+      "Bash(docker-compose down *)",
+      "Bash(docker info *)",
+      "Bash(powershell -Command ' *)"
+    ]
+  }
+}

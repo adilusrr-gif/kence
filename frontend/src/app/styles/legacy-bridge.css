@@ -1,0 +1,14 @@
+html.dark {
+  color-scheme: dark;
+}
+
+.btn-primary,
+.btn-secondary,
+.card,
+.input-field {
+  transition:
+    background-color var(--duration-base) var(--ease-standard),
+    border-color var(--duration-base) var(--ease-standard),
+    color var(--duration-base) var(--ease-standard),
+    box-shadow var(--duration-base) var(--ease-standard);
+}
