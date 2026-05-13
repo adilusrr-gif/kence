@@ -1,9 +1,14 @@
 html {
-  color-scheme: dark;
+  color-scheme: light dark;
 }
 
 html[data-theme='light'] {
   color-scheme: light;
+}
+
+html[data-theme='dark'],
+html.dark {
+  color-scheme: dark;
 }
 
 html,

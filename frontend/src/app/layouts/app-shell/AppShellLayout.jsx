@@ -2,48 +2,65 @@ import React from 'react'
 import { ShellRegionBoundary } from '@/app/boundaries'
 
 export default function AppShellLayout({
+  tabsBar,
   leftRail,
   topCommandBar,
   mainCanvas,
   rightPanel,
   bottomActivity,
 }) {
+  const hasRightPanel = Boolean(rightPanel)
+  const hasBottomActivity = Boolean(bottomActivity)
+
   return (
-    <div className="app-shell-layout">
+    <div
+      className={`app-shell-layout${hasRightPanel ? ' app-shell-layout--with-right-panel' : ''}${hasBottomActivity ? ' app-shell-layout--with-bottom-rail' : ''}`}
+    >
       <ShellRegionBoundary regionName="left-rail-shell">
-        <div className="app-shell-layout__left-rail">
+        <div className="app-shell-layout__left-rail" aria-label="Primary navigation">
           {leftRail}
         </div>
       </ShellRegionBoundary>
 
       <div className="app-shell-layout__body">
         <ShellRegionBoundary regionName="top-command-bar-shell">
-          <header className="app-shell-layout__top-bar">
+          <header className="app-shell-layout__top-bar" aria-label="Workspace header">
             {topCommandBar}
           </header>
         </ShellRegionBoundary>
 
+        {tabsBar ? (
+          <ShellRegionBoundary regionName="workspace-tabs-shell">
+            <div className="app-shell-layout__tabs">
+              {tabsBar}
+            </div>
+          </ShellRegionBoundary>
+        ) : null}
+
         <div className="app-shell-layout__workspace">
           <ShellRegionBoundary regionName="main-canvas-host">
-            <main className="app-shell-layout__canvas">
+            <main className="app-shell-layout__canvas" aria-label="Workspace content">
               {mainCanvas}
             </main>
           </ShellRegionBoundary>
 
-          <ShellRegionBoundary regionName="right-panel-shell">
-            <aside className="app-shell-layout__right-panel">
-              {rightPanel}
-            </aside>
-          </ShellRegionBoundary>
+          {hasRightPanel ? (
+            <ShellRegionBoundary regionName="right-panel-shell">
+              <aside className="app-shell-layout__right-panel" aria-label="Workspace context">
+                {rightPanel}
+              </aside>
+            </ShellRegionBoundary>
+          ) : null}
         </div>
 
-        <ShellRegionBoundary regionName="bottom-activity-shell">
-          <footer className="app-shell-layout__bottom-rail">
-            {bottomActivity}
-          </footer>
-        </ShellRegionBoundary>
+        {hasBottomActivity ? (
+          <ShellRegionBoundary regionName="bottom-activity-shell">
+            <footer className="app-shell-layout__bottom-rail" aria-label="Workspace activity">
+              {bottomActivity}
+            </footer>
+          </ShellRegionBoundary>
+        ) : null}
       </div>
     </div>
   )
 }
-

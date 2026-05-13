@@ -15,6 +15,7 @@ import { getStoredUser, clearAuth } from './lib/api'
 import { AppShellLayout } from '@/app/layouts/app-shell'
 import { LeftRailShell } from '@/widgets/left-rail'
 import { TopCommandBarShell } from '@/widgets/top-command-bar'
+import { WorkspaceTabsBar } from '@/widgets/workspace-tabs'
 import { LegacyPageCanvasHost } from '@/widgets/main-canvas-host'
 import { RightPanelShellPlaceholder } from '@/widgets/right-panel-shell'
 import { BottomActivityShellPlaceholder } from '@/widgets/bottom-activity-shell'
@@ -38,6 +39,16 @@ const NAV_BASE = [
 ]
 
 const LEGACY_WORKSPACE_ID = 'legacy-main'
+
+function getInitialTheme() {
+  if (typeof document !== 'undefined') {
+    const documentTheme = document.documentElement.dataset.theme
+    if (documentTheme === 'dark') return true
+    if (documentTheme === 'light') return false
+  }
+
+  return localStorage.getItem('theme') === 'dark'
+}
 
 function getLegacyTabTitle(pathname) {
   return NAV_BASE.find((item) => item.path === pathname)?.label || 'KENCE.ai'
@@ -317,7 +328,7 @@ export default function App() {
   const [editName, setEditName] = useState(false)
   const [editEmoji, setEditEmoji] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
-  const [dark, setDark] = useState(() => localStorage.getItem('theme') === 'dark')
+  const [dark, setDark] = useState(getInitialTheme)
   const [currentUser, setCurrentUser] = useState(() => getStoredUser())
 
   const location = useLocation()
@@ -325,8 +336,12 @@ export default function App() {
   const emojiRef = useRef(null)
 
   useEffect(() => {
+    const nextTheme = dark ? 'dark' : 'light'
+
     document.documentElement.classList.toggle('dark', dark)
-    localStorage.setItem('theme', dark ? 'dark' : 'light')
+    document.documentElement.dataset.theme = nextTheme
+    document.documentElement.style.colorScheme = nextTheme
+    localStorage.setItem('theme', nextTheme)
   }, [dark])
 
   useEffect(() => {
@@ -411,6 +426,7 @@ export default function App() {
 
   return (
     <AppShellLayout
+      tabsBar={<WorkspaceTabsBar />}
       leftRail={(
         <LeftRailShell>
           <LegacySidebar
