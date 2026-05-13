@@ -58,6 +58,7 @@ export default function ProfilePage({ currentUser }) {
 
   return (
     <div
+      className="profile-shell"
       style={{
         width: 'min(100%, 40rem)',
         margin: '0 auto',
@@ -71,6 +72,7 @@ export default function ProfilePage({ currentUser }) {
           transition={{ duration: 0.3 }}
         >
           <Card
+            className="profile-shell__card"
             style={{
               padding: 'var(--space-6)',
             }}
@@ -121,6 +123,7 @@ export default function ProfilePage({ currentUser }) {
         >
           <Card
             as="section"
+            className="profile-shell__card"
             style={{
               padding: 'var(--space-6)',
             }}
@@ -158,6 +161,7 @@ export default function ProfilePage({ currentUser }) {
                   animate={{ opacity: 1, scale: 1 }}
                 >
                   <Card
+                    className="profile-shell__status"
                     tone={status.ok ? 'accent' : 'muted'}
                     style={{
                       padding: 'var(--space-3) var(--space-4)',

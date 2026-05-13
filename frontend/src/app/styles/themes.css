@@ -33,11 +33,11 @@ html[data-theme='dark'] {
   --focus-ring: rgba(34, 211, 238, 0.42);
   --selection-bg: rgba(34, 211, 238, 0.22);
 
-  --glass-bg: rgba(15, 23, 42, 0.58);
-  --glass-bg-strong: rgba(15, 23, 42, 0.72);
-  --glass-border: rgba(148, 163, 184, 0.18);
-  --glass-highlight: rgba(255, 255, 255, 0.08);
-  --glass-blur: 18px;
+  --glass-bg: rgba(15, 23, 42, 0.76);
+  --glass-bg-strong: rgba(15, 23, 42, 0.84);
+  --glass-border: rgba(148, 163, 184, 0.26);
+  --glass-highlight: rgba(255, 255, 255, 0.12);
+  --glass-blur: 20px;
   --glass-shadow: var(--shadow-glass);
 }
 
@@ -69,11 +69,11 @@ html[data-theme='light'] {
   --focus-ring: rgba(8, 145, 178, 0.32);
   --selection-bg: rgba(8, 145, 178, 0.18);
 
-  --glass-bg: rgba(255, 255, 255, 0.74);
-  --glass-bg-strong: rgba(255, 255, 255, 0.88);
-  --glass-border: rgba(148, 163, 184, 0.24);
-  --glass-highlight: rgba(255, 255, 255, 0.5);
-  --glass-blur: 16px;
+  --glass-bg: rgba(255, 255, 255, 0.88);
+  --glass-bg-strong: rgba(255, 255, 255, 0.94);
+  --glass-border: rgba(15, 23, 42, 0.12);
+  --glass-highlight: rgba(255, 255, 255, 0.72);
+  --glass-blur: 18px;
   --glass-shadow: 0 20px 48px rgba(15, 23, 42, 0.12);
 }
 
@@ -109,10 +109,10 @@ html.dark {
   --focus-ring: rgba(34, 211, 238, 0.42);
   --selection-bg: rgba(34, 211, 238, 0.22);
 
-  --glass-bg: rgba(15, 23, 42, 0.58);
-  --glass-bg-strong: rgba(15, 23, 42, 0.72);
-  --glass-border: rgba(148, 163, 184, 0.18);
-  --glass-highlight: rgba(255, 255, 255, 0.08);
-  --glass-blur: 18px;
+  --glass-bg: rgba(15, 23, 42, 0.76);
+  --glass-bg-strong: rgba(15, 23, 42, 0.84);
+  --glass-border: rgba(148, 163, 184, 0.26);
+  --glass-highlight: rgba(255, 255, 255, 0.12);
+  --glass-blur: 20px;
   --glass-shadow: var(--shadow-glass);
 }

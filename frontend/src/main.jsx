@@ -7,6 +7,7 @@ import './app/styles/themes.css'
 import './app/styles/base.css'
 import './app/styles/legacy-bridge.css'
 import './app/styles/motion.css'
+import './app/styles/shell.css'
 import './app/styles/utilities.css'
 import './index.css'
 

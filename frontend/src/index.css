@@ -441,23 +441,27 @@
 .us-module {
   pointer-events: all;
   width: 340px;
-  background: rgba(4, 14, 26, 0.72);
-  backdrop-filter: blur(22px);
-  -webkit-backdrop-filter: blur(22px);
-  border: 1px solid rgba(87,197,182,0.22);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-highlight) 90%, transparent), transparent 28%),
+    var(--glass-bg-strong);
+  backdrop-filter: blur(calc(var(--glass-blur) + 2px));
+  -webkit-backdrop-filter: blur(calc(var(--glass-blur) + 2px));
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 18%, var(--glass-border));
   border-radius: 20px;
   padding: 1.5rem 1.75rem;
   box-shadow:
-    0 0 0 1px rgba(87,197,182,0.06),
-    0 8px 40px rgba(0,0,0,0.55),
-    0 0 60px rgba(87,197,182,0.06);
+    0 0 0 1px color-mix(in srgb, var(--accent-primary) 6%, transparent),
+    var(--glass-shadow),
+    0 0 60px color-mix(in srgb, var(--accent-primary) 8%, transparent);
   /* Push slightly below center — chest of robot */
   margin-top: 120px;
-  transition: border-color 0.3s;
+  transition: border-color 0.3s, box-shadow 0.3s;
 }
 :root:not(.dark) .us-module {
-  background: rgba(8, 22, 40, 0.78);
-  border-color: rgba(87,197,182,0.3);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-highlight) 90%, transparent), transparent 28%),
+    color-mix(in srgb, var(--glass-bg-strong) 98%, white);
+  border-color: color-mix(in srgb, var(--accent-primary) 22%, var(--glass-border));
 }
 
 /* Badge */
@@ -491,9 +495,9 @@
 .us-drop__icon      { width: 36px; height: 36px; color: rgba(87,197,182,0.6); }
 .us-drop__file-icon { width: 36px; height: 36px; color: #57C5B6; }
 .us-drop__filename  { font-size: 0.82rem; font-weight: 600; color: #e2e8f0; word-break: break-all; }
-.us-drop__size      { font-size: 0.72rem; color: rgba(148,163,184,0.6); }
-.us-drop__hint      { font-size: 0.82rem; font-weight: 500; color: rgba(226,232,240,0.8); }
-.us-drop__sub       { font-size: 0.7rem; color: rgba(148,163,184,0.5); }
+.us-drop__size      { font-size: 0.72rem; color: rgba(203,213,225,0.82); }
+.us-drop__hint      { font-size: 0.82rem; font-weight: 600; color: rgba(248,250,252,0.96); }
+.us-drop__sub       { font-size: 0.72rem; color: rgba(226,232,240,0.76); line-height: 1.45; }
 
 /* Error */
 .us-error { color: #f87171; font-size: 0.78rem; margin-bottom: 0.5rem; overflow: hidden; }
@@ -2105,25 +2109,51 @@
 
 /* ── User badge in sidebar ── */
 .user-badge {
-  margin: 0.6rem 0.75rem 0;
-  padding: 0.6rem 0.85rem;
-  background: rgba(26,95,122,0.2);
-  border: 1px solid rgba(87,197,182,0.2);
-  border-radius: 10px;
-  color: rgba(255,255,255,0.75);
+  margin: 0.75rem 0.75rem 0;
+  padding: 0.7rem 0.9rem;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03)), rgba(26,95,122,0.28);
+  border: 1px solid rgba(87,197,182,0.26);
+  border-radius: 12px;
+  color: rgba(255,255,255,0.84);
   font-size: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
 }
-.user-badge__name { font-weight: 600; color: rgba(255,255,255,0.9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.user-badge__role { font-size: 0.65rem; color: rgba(87,197,182,0.7); text-transform: uppercase; letter-spacing: 0.06em; }
+.user-badge__name { font-weight: 700; color: rgba(255,255,255,0.98); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-badge__role { font-size: 0.65rem; color: rgba(165,243,252,0.86); text-transform: uppercase; letter-spacing: 0.06em; }
 .user-badge__logout {
   background: none; border: none; cursor: pointer;
-  color: rgba(148,163,184,0.4); font-size: 0.75rem;
+  color: rgba(226,232,240,0.66); font-size: 0.75rem;
   padding: 2px 4px; border-radius: 4px;
   transition: color 0.15s;
   flex-shrink: 0;
 }
 .user-badge__logout:hover { color: #f87171; }
+
+.profile-shell {
+  width: min(100%, 42rem);
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-4);
+}
+
+.profile-shell__card {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-highlight) 88%, transparent), transparent 34%),
+    color-mix(in srgb, var(--bg-surface-1) 96%, transparent);
+  border-color: var(--border-default) !important;
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--bg-app) 14%, transparent);
+}
+
+.profile-shell__status {
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.profile-shell .input-field::placeholder,
+.profile-shell input::placeholder {
+  color: var(--text-tertiary);
+  opacity: 1;
+}
