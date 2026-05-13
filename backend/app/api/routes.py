@@ -13,6 +13,7 @@ from app.services.llm import llm_service
 from app.services.presentation import pptx_generator
 from app.services.translation import translation_service
 from app.services.converter import converter_service
+from app.services.ai_settings_service import get_document_context
 from app.api.auth_routes import get_current_user
 
 router = APIRouter()
@@ -95,8 +96,11 @@ async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
 
+    doc_name = session.get("document", "")
+    doc_context = get_document_context(user["username"], doc_name) if doc_name else None
+
     try:
-        answer = llm_service.chat(request.question, request.session_id)
+        answer = llm_service.chat(request.question, request.session_id, doc_context)
         return ChatResponse(answer=answer, session_id=request.session_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -113,11 +117,14 @@ async def chat_stream(
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
 
+    doc_name = session.get("document", "")
+    doc_context = get_document_context(user["username"], doc_name) if doc_name else None
+
     async def generate():
         yield f"data: {json.dumps({'status': 'Ищу релевантные фрагменты...'})}\n\n"
         try:
             first = True
-            async for chunk in llm_service.chat_astream(question, session_id):
+            async for chunk in llm_service.chat_astream(question, session_id, doc_context):
                 if first:
                     yield f"data: {json.dumps({'status': 'Формирую ответ...'})}\n\n"
                     first = False

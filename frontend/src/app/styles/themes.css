@@ -22,16 +22,16 @@ html[data-theme='dark'] {
   --border-default: rgba(148, 163, 184, 0.22);
   --border-strong: rgba(148, 163, 184, 0.36);
 
-  --accent-primary: var(--color-cyan-400);
-  --accent-primary-hover: var(--color-cyan-300);
-  --accent-secondary: var(--color-blue-400);
+  --accent-primary: #2952A3;
+  --accent-primary-hover: #3A68C8;
+  --accent-secondary: #C49B3C;
 
   --status-success: var(--color-green-400);
   --status-warning: var(--color-amber-400);
   --status-danger: var(--color-red-400);
   --status-info: var(--color-blue-400);
-  --focus-ring: rgba(34, 211, 238, 0.42);
-  --selection-bg: rgba(34, 211, 238, 0.22);
+  --focus-ring: rgba(41, 82, 163, 0.42);
+  --selection-bg: rgba(41, 82, 163, 0.22);
 
   --glass-bg: rgba(15, 23, 42, 0.76);
   --glass-bg-strong: rgba(15, 23, 42, 0.84);
@@ -58,16 +58,16 @@ html[data-theme='light'] {
   --border-default: rgba(15, 23, 42, 0.14);
   --border-strong: rgba(15, 23, 42, 0.22);
 
-  --accent-primary: var(--color-cyan-600);
-  --accent-primary-hover: var(--color-cyan-500);
-  --accent-secondary: var(--color-blue-600);
+  --accent-primary: #1E3A6E;
+  --accent-primary-hover: #2952A3;
+  --accent-secondary: #C49B3C;
 
   --status-success: var(--color-green-600);
   --status-warning: var(--color-amber-600);
   --status-danger: var(--color-red-600);
   --status-info: var(--color-blue-600);
-  --focus-ring: rgba(8, 145, 178, 0.32);
-  --selection-bg: rgba(8, 145, 178, 0.18);
+  --focus-ring: rgba(30, 58, 110, 0.32);
+  --selection-bg: rgba(30, 58, 110, 0.18);
 
   --glass-bg: rgba(255, 255, 255, 0.88);
   --glass-bg-strong: rgba(255, 255, 255, 0.94);

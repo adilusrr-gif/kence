@@ -73,13 +73,9 @@ export default function LoginPage({ onLogin }) {
         >
           <Stack gap="lg">
             <Inline gap="md" align="center" wrap>
-              <motion.div
-                className="login-logo__icon"
-                animate={{ rotate: [0, -3, 3, 0] }}
-                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-              >
+              <div className="login-logo__icon">
                 K
-              </motion.div>
+              </div>
               <Stack gap="xs" className="min-w-0">
                 <Inline gap="sm" align="center" wrap>
                   <h1 className="login-logo__name">KENCE.ai</h1>

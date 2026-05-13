@@ -1,50 +1,61 @@
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Send, Bot, User, Loader2, Languages, FileDown, FileText, Zap, Copy, Presentation } from 'lucide-react'
-import { apiChat, apiTranslate, apiTranslateExport, apiDownloadPath } from '../lib/api'
+import { Send, Bot, User, Loader2, Languages, FileDown, FileText, Copy, BarChart2, GitCompare, RefreshCw, AlertTriangle, Upload, BookOpen, Check } from 'lucide-react'
+import { apiChat, apiTranslate, apiTranslateExport, apiDownloadPath, apiGetDocumentContext, apiSaveDocumentContext, apiDeleteDocumentContext } from '../lib/api'
 
-function ConfidenceBar({ score }) {
-  const pct   = Math.round(score * 100)
-  const color = pct >= 80 ? '#4ade80' : pct >= 60 ? '#facc15' : '#f87171'
-  return (
-    <div className="chat-confidence">
-      <div className="chat-confidence__track">
-        <motion_div className="chat-confidence__fill" style={{ width: `${pct}%`, background: color }} />
-      </div>
-      <span className="chat-confidence__label" style={{ color }}>{pct}%</span>
-    </div>
-  )
-}
-
-/* thin animated bar without framer-motion dependency */
-function ConfBar({ score }) {
-  const pct   = Math.round(score * 100)
-  const color = pct >= 80 ? '#4ade80' : pct >= 60 ? '#facc15' : '#f87171'
-  return (
-    <div className="chat-confidence">
-      <div className="chat-confidence__track">
-        <div className="chat-confidence__fill" style={{ width: `${pct}%`, background: color }} />
-      </div>
-      <span className="chat-confidence__label" style={{ color }}>{pct}% уверенность</span>
-    </div>
-  )
-}
 
 function copyText(text) {
   navigator.clipboard.writeText(text).catch(() => {})
 }
 
+const TIPS = [
+  'Краткое содержание документа',
+  'Какие ключевые выводы?',
+  'Перечисли все даты и события',
+]
+
 export default function ChatPage({ sessionId, documentName }) {
   const [messages, setMessages] = useState([
-    { role: 'assistant', content: 'Привет! Задайте вопрос по загруженному документу.', confidence: null }
+    { role: 'assistant', content: 'Привет! Задайте вопрос по загруженному документу.', confidence: null },
   ])
-  const [input,      setInput]      = useState('')
-  const [loading,    setLoading]    = useState(false)
-  const [translating,setTranslating]= useState(false)
+  const [input,       setInput]       = useState('')
+  const [loading,     setLoading]     = useState(false)
+  const [translating, setTranslating] = useState(false)
+  const [docContext,     setDocContext]     = useState('')
+  const [contextSaving,  setContextSaving]  = useState(false)
+  const [contextSaved,   setContextSaved]   = useState(false)
   const messagesEndRef = useRef(null)
   const navigate       = useNavigate()
 
-  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  const loadDocContext = useCallback(async () => {
+    if (!documentName) { setDocContext(''); return }
+    try {
+      const data = await apiGetDocumentContext(documentName)
+      setDocContext(data.context || '')
+    } catch { setDocContext('') }
+  }, [documentName])
+
+  useEffect(() => { loadDocContext() }, [loadDocContext])
+
+  const handleContextSave = async () => {
+    if (!documentName) return
+    setContextSaving(true)
+    try {
+      if (docContext.trim()) {
+        await apiSaveDocumentContext(documentName, docContext.trim())
+      } else {
+        await apiDeleteDocumentContext(documentName).catch(() => {})
+      }
+      setContextSaved(true)
+      setTimeout(() => setContextSaved(false), 2500)
+    } catch { /* ignore */ } finally {
+      setContextSaving(false)
+    }
+  }
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const handleSend = async () => {
     if (!input.trim() || loading) return
@@ -53,7 +64,6 @@ export default function ChatPage({ sessionId, documentName }) {
     setMessages(prev => [...prev, { role: 'user', content: question }])
     setLoading(true)
 
-    // Add streaming placeholder message
     setMessages(prev => [...prev, {
       role: 'assistant', content: '', status: '…', streaming: true, confidence: null,
     }])
@@ -80,7 +90,7 @@ export default function ChatPage({ sessionId, documentName }) {
         if (done) break
         buf += decoder.decode(value, { stream: true })
         const lines = buf.split('\n')
-        buf = lines.pop() // keep incomplete line
+        buf = lines.pop()
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue
           const raw = line.slice(6).trim()
@@ -107,12 +117,11 @@ export default function ChatPage({ sessionId, documentName }) {
         }
       }
 
-      const confidence = 0.72 + Math.random() * 0.24
       setMessages(prev => {
         const msgs = [...prev]
         msgs[msgs.length - 1] = {
           role: 'assistant', content: fullText || '(пустой ответ)',
-          confidence, source: 'Извлечено из документа', streaming: false,
+          confidence: null, streaming: false,
         }
         return msgs
       })
@@ -121,8 +130,8 @@ export default function ChatPage({ sessionId, documentName }) {
         const msgs = [...prev]
         msgs[msgs.length - 1] = {
           role: 'assistant',
-          content: '❌ Ошибка: ' + (err.message || 'Не удалось получить ответ'),
-          confidence: null, streaming: false,
+          content: 'Ошибка: ' + (err.message || 'Не удалось получить ответ'),
+          confidence: null, streaming: false, isError: true,
         }
         return msgs
       })
@@ -138,7 +147,7 @@ export default function ChatPage({ sessionId, documentName }) {
       const data = await apiTranslate(sessionId, lang)
       setMessages(prev => [...prev, { role: 'assistant', content: data.translated, confidence: null }])
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: '❌ Ошибка перевода: ' + (err.message || '—'), confidence: null }])
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Ошибка перевода: ' + (err.message || '—'), confidence: null, isError: true }])
     } finally { setTranslating(false) }
   }
 
@@ -151,47 +160,75 @@ export default function ChatPage({ sessionId, documentName }) {
       const url  = window.URL.createObjectURL(blob)
       const a    = Object.assign(document.createElement('a'), { href: url, download: `translated_${lang}.${format}` })
       document.body.appendChild(a); a.click(); a.remove(); window.URL.revokeObjectURL(url)
-      setMessages(prev => [...prev, { role: 'assistant', content: `✅ Экспорт (${lang}, ${format.toUpperCase()}) скачан.`, confidence: null }])
+      setMessages(prev => [...prev, { role: 'assistant', content: `Экспорт (${lang.toUpperCase()}, ${format.toUpperCase()}) скачан.`, confidence: null }])
     } catch (err) {
-      setMessages(prev => [...prev, { role: 'assistant', content: '❌ Ошибка экспорта: ' + (err.message || '—'), confidence: null }])
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Ошибка экспорта: ' + (err.message || '—'), confidence: null, isError: true }])
     } finally { setLoading(false) }
   }
 
-  const handleKey = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }
+  const handleKey = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+  }
+
+  const LANGS = [
+    { code: 'kz', label: '🇰🇿 KZ' },
+    { code: 'ru', label: '🇷🇺 RU' },
+    { code: 'en', label: '🇬🇧 EN' },
+  ]
 
   return (
-    <div className="chat-shell">
+    <div className="chat-v2">
 
       {/* ── Main chat column ── */}
-      <div className="chat-main">
+      <div className="chat-v2-main">
 
         {/* Header */}
-        <div className="chat-header">
-          <h2 className="chat-header__title">Чат с документом</h2>
-          <div className="chat-header__actions">
-            <button onClick={() => navigate('/convert')}  className="btn-secondary text-sm py-1.5 px-3">🔄 Конвертер</button>
-            <button onClick={() => navigate('/presentation')} className="btn-primary text-sm py-1.5 px-3">📊 Презентация</button>
+        <div className="chat-v2-header">
+          <div className="chat-v2-header-left">
+            <span className="chat-v2-title">Чат с документом</span>
+            {sessionId && documentName && (
+              <span className="chat-v2-doc-badge">
+                <FileText size={10} />
+                {documentName}
+              </span>
+            )}
+          </div>
+          <div className="chat-v2-header-actions">
+            <button className="chat-v2-action-btn" onClick={() => navigate('/convert')}>
+              <RefreshCw size={12} />
+              Конвертер
+            </button>
+            <button className="chat-v2-action-btn chat-v2-action-btn--blue" onClick={() => navigate('/presentation')}>
+              <BarChart2 size={12} />
+              Презентация
+            </button>
           </div>
         </div>
 
         {/* Translation bar */}
-        <div className="chat-translate-bar">
-          <Languages className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          <span className="chat-translate-bar__label">Перевести документ:</span>
-          {[{ code: 'kz', label: '🇰🇿 KZ' }, { code: 'ru', label: '🇷🇺 RU' }, { code: 'en', label: '🇬🇧 EN' }].map(l => (
-            <div key={l.code} className="chat-lang-group">
-              <button onClick={() => handleTranslate(l.code)}
+        <div className="chat-v2-translate">
+          <span className="chat-v2-translate-label">
+            <Languages size={13} />
+            Перевод документа:
+          </span>
+          {LANGS.map((l) => (
+            <div key={l.code} className="chat-v2-lang-group">
+              <button
+                className={`chat-v2-lang-btn${translating === l.code ? ' chat-v2-lang-btn--active' : ''}`}
+                onClick={() => handleTranslate(l.code)}
                 disabled={!!translating || loading || !sessionId}
-                className={`chat-lang-btn ${translating === l.code ? 'chat-lang-btn--active' : ''}`}>
-                {translating === l.code ? <><Loader2 className="w-3 h-3 animate-spin" /> {l.label}</> : l.label}
+              >
+                {translating === l.code
+                  ? <><Loader2 size={11} style={{ animation: 'spin 0.7s linear infinite' }} /> {l.label}</>
+                  : l.label}
               </button>
-              <div className="chat-export-wrap">
-                <button className="chat-export-btn" disabled={loading || !sessionId} title="Скачать">
-                  <FileDown className="w-3.5 h-3.5" />
+              <div className="chat-v2-export-wrap">
+                <button className="chat-v2-export-btn" disabled={loading || !sessionId} title="Скачать перевод">
+                  <FileDown size={13} />
                 </button>
-                <div className="chat-export-menu">
-                  {['txt','md','docx'].map(fmt => (
-                    <button key={fmt} onClick={() => handleExport(l.code, fmt)} className="chat-export-item">
+                <div className="chat-v2-export-menu">
+                  {['txt', 'md', 'docx'].map((fmt) => (
+                    <button key={fmt} className="chat-v2-export-item" onClick={() => handleExport(l.code, fmt)}>
                       {fmt.toUpperCase()}
                     </button>
                   ))}
@@ -202,39 +239,45 @@ export default function ChatPage({ sessionId, documentName }) {
         </div>
 
         {/* Messages */}
-        <div className="chat-messages">
+        <div className="chat-v2-messages" role="log" aria-label="История чата" aria-live="polite">
           {messages.map((msg, i) => (
-            <div key={i} className={`chat-msg ${msg.role === 'user' ? 'chat-msg--user' : 'chat-msg--bot'}`}>
-              <div className={`chat-msg__avatar ${msg.role === 'user' ? 'chat-msg__avatar--user' : 'chat-msg__avatar--bot'}`}>
-                {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
+            <div key={i} className={`chat-v2-msg${msg.role === 'user' ? ' chat-v2-msg--user' : ''}`}>
+              <div className={`chat-v2-avatar${msg.role === 'user' ? ' chat-v2-avatar--user' : ' chat-v2-avatar--bot'}`}>
+                {msg.role === 'user'
+                  ? <User size={15} />
+                  : <Bot size={15} />}
               </div>
-              <div className="chat-msg__body">
-                <div className={`chat-msg__bubble ${msg.role === 'user' ? 'chat-msg__bubble--user' : 'chat-msg__bubble--bot'}`}>
+              <div className="chat-v2-bubble-wrap">
+                <div className={`chat-v2-bubble${msg.role === 'user' ? ' chat-v2-bubble--user' : ' chat-v2-bubble--bot'}${msg.isError ? '' : ''}`}
+                  style={msg.isError ? { borderColor: 'rgba(248,113,113,0.25)', color: '#fca5a5' } : {}}>
                   {msg.streaming && !msg.content
-                    ? <p className="chat-msg__text" style={{ opacity: 0.55 }}>{msg.status || '…'}</p>
-                    : <p className="chat-msg__text">
+                    ? <span style={{ opacity: 0.5 }}>{msg.status || '…'}</span>
+                    : <>
                         {msg.content}
-                        {msg.streaming && <span style={{ display: 'inline-block', width: 2, height: '1em', background: 'currentColor', marginLeft: 2, verticalAlign: 'text-bottom', animation: 'chat-cursor-blink 0.7s steps(1) infinite' }} />}
-                      </p>
+                        {msg.streaming && (
+                          <span style={{ display: 'inline-block', width: 2, height: '1em', background: 'currentColor', marginLeft: 2, verticalAlign: 'text-bottom', animation: 'chat-cursor-blink 0.7s steps(1) infinite' }} />
+                        )}
+                      </>
                   }
                 </div>
-                {msg.role === 'assistant' && msg.confidence != null && (
-                  <div className="chat-msg__meta">
-                    <ConfBar score={msg.confidence} />
-                    {msg.source && <span className="chat-msg__source">📄 {msg.source}</span>}
-                    <button className="chat-msg__copy" onClick={() => copyText(msg.content)} title="Копировать">
-                      <Copy size={12} />
+                {msg.role === 'assistant' && msg.content && !msg.streaming && (
+                  <div className="chat-v2-meta">
+                    <button className="chat-v2-copy" onClick={() => copyText(msg.content)} title="Копировать" aria-label="Копировать ответ">
+                      <Copy size={11} />
                     </button>
                   </div>
                 )}
               </div>
             </div>
           ))}
+
           {loading && !messages[messages.length - 1]?.streaming && (
-            <div className="chat-msg chat-msg--bot">
-              <div className="chat-msg__avatar chat-msg__avatar--bot"><Bot className="w-4 h-4" /></div>
-              <div className="chat-msg__bubble chat-msg__bubble--bot chat-msg__bubble--typing">
-                <span className="typing-dot" /><span className="typing-dot" /><span className="typing-dot" />
+            <div className="chat-v2-msg">
+              <div className="chat-v2-avatar chat-v2-avatar--bot"><Bot size={15} /></div>
+              <div className="chat-v2-bubble chat-v2-bubble--bot chat-v2-bubble--typing">
+                <span className="chat-v2-typing-dot" />
+                <span className="chat-v2-typing-dot" />
+                <span className="chat-v2-typing-dot" />
               </div>
             </div>
           )}
@@ -242,66 +285,171 @@ export default function ChatPage({ sessionId, documentName }) {
         </div>
 
         {/* Input */}
-        <div className="chat-input-bar">
-          <textarea value={input} onChange={e => setInput(e.target.value)} onKeyDown={handleKey}
-            placeholder={sessionId ? 'Введите вопрос по документу…' : 'Сначала загрузите документ на странице Загрузка'}
-            rows={1} className="chat-input" disabled={loading || !sessionId} />
-          <button onClick={handleSend} disabled={!input.trim() || loading || !sessionId} className="chat-send-btn">
-            <Send className="w-5 h-5" />
-          </button>
+        <div className="chat-v2-input-area">
+          {!sessionId ? (
+            <button className="chat-v2-no-session" onClick={() => navigate('/upload')}>
+              <AlertTriangle size={14} />
+              Сначала загрузите документ — нажмите для перехода к загрузке
+            </button>
+          ) : (
+            <div className="chat-v2-input-bar">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKey}
+                placeholder="Введите вопрос по документу…"
+                rows={1}
+                className="chat-v2-input"
+                disabled={loading}
+                aria-label="Сообщение"
+              />
+              <button
+                onClick={handleSend}
+                disabled={!input.trim() || loading}
+                className="chat-v2-send-btn"
+                aria-label="Отправить"
+              >
+                <Send size={16} />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── Right: document info panel ── */}
-      <div className="chat-doc-panel">
-        <div className="chat-doc-panel__header">
-          <FileText size={16} className="text-primary" />
-          <span>Документ</span>
+      {/* ── Document sidebar ── */}
+      <div className="chat-v2-sidebar">
+
+        {/* Document info */}
+        <div className="chat-v2-sidebar-section">
+          <div className="chat-v2-sidebar-title">Документ</div>
+          {sessionId ? (
+            <div className="chat-v2-doc-card">
+              <div className="chat-v2-doc-name">{documentName || 'Документ загружен'}</div>
+              <div className="chat-v2-doc-row">
+                <span className="chat-v2-doc-key">Сессия</span>
+                <span className="chat-v2-doc-val" style={{ fontFamily: 'monospace', fontSize: '0.65rem' }}>
+                  {sessionId.slice(0, 8)}…
+                </span>
+              </div>
+              <div className="chat-v2-doc-row">
+                <span className="chat-v2-doc-key">Статус</span>
+                <span className="chat-v2-doc-val chat-v2-doc-val--ok">● Активен</span>
+              </div>
+            </div>
+          ) : (
+            <div className="chat-v2-empty-doc">
+              <FileText size={24} style={{ opacity: 0.35 }} />
+              <span>Документ не загружен</span>
+              <button className="dash-empty-cta-btn" onClick={() => navigate('/upload')} style={{ fontSize: '0.72rem' }}>
+                <Upload size={12} />
+                Загрузить
+              </button>
+            </div>
+          )}
         </div>
-        {sessionId ? (
-          <>
-            <div className="chat-doc-card">
-              <p className="chat-doc-card__name">{documentName || 'Документ загружен'}</p>
-              <div className="chat-doc-card__row">
-                <span>Сессия</span>
-                <code>{sessionId?.slice(0, 8)}…</code>
-              </div>
-              <div className="chat-doc-card__row">
-                <span>Статус</span>
-                <span className="chat-doc-card__ok">● Активен</span>
-              </div>
-            </div>
-            <div className="chat-doc-actions">
-              <button onClick={() => navigate('/presentation')} className="chat-doc-action-btn">
-                <Presentation size={14} /> Создать презентацию
+
+        {/* Quick actions */}
+        {sessionId && (
+          <div className="chat-v2-sidebar-section">
+            <div className="chat-v2-sidebar-title">Действия</div>
+            <div className="chat-v2-doc-actions">
+              <button className="chat-v2-doc-action" onClick={() => navigate('/presentation')}>
+                <BarChart2 size={13} />
+                Создать презентацию
               </button>
-              <button onClick={() => navigate('/compare')} className="chat-doc-action-btn">
-                ⚖️ Сравнить документы
+              <button className="chat-v2-doc-action" onClick={() => navigate('/compare')}>
+                <GitCompare size={13} />
+                Сравнить документы
               </button>
-              <button onClick={() => navigate('/convert')} className="chat-doc-action-btn">
-                🔄 Конвертировать
+              <button className="chat-v2-doc-action" onClick={() => navigate('/convert')}>
+                <RefreshCw size={13} />
+                Конвертировать
               </button>
             </div>
-          </>
-        ) : (
-          <div className="chat-doc-empty">
-            <FileText size={28} className="text-muted-foreground mb-2" />
-            <p>Документ не загружен</p>
-            <button onClick={() => navigate('/upload')} className="btn-primary mt-3 text-sm py-1.5 px-4">
-              Загрузить
-            </button>
           </div>
         )}
-        <div className="chat-doc-tips">
-          <p className="chat-doc-tips__title">Примеры вопросов</p>
-          {['Краткое содержание документа', 'Какие ключевые выводы?', 'Перечисли все даты и события'].map((tip, i) => (
-            <button key={i} className="chat-doc-tip" onClick={() => { setInput(tip) }}>
-              {tip}
-            </button>
-          ))}
-        </div>
-      </div>
 
+        {/* Document context */}
+        {sessionId && (
+          <div className="chat-v2-sidebar-section">
+            <div className="chat-v2-sidebar-title" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <BookOpen size={12} />
+              Контекст документа
+            </div>
+            <div style={{ fontSize: 11, opacity: 0.55, marginBottom: 6, lineHeight: 1.4 }}>
+              Опишите документ — ИИ будет учитывать это при ответах
+            </div>
+            <textarea
+              value={docContext}
+              onChange={e => { setDocContext(e.target.value); setContextSaved(false) }}
+              placeholder="Например: Это договор аренды на 2025 год. Стороны — ТОО «Алмаз» и физлицо Иванов А.А."
+              aria-label="Контекст документа для ИИ"
+              rows={4}
+              style={{
+                width: '100%', boxSizing: 'border-box', resize: 'vertical',
+                padding: '0.5rem 0.65rem', borderRadius: 8,
+                border: '1px solid var(--border, #d1d5db)',
+                background: 'var(--input-bg, #f9fafb)', color: 'inherit',
+                fontSize: 12, lineHeight: 1.5, outline: 'none',
+                fontFamily: 'inherit',
+              }}
+            />
+            <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+              <button
+                onClick={handleContextSave}
+                disabled={contextSaving}
+                aria-label="Сохранить контекст документа"
+                style={{
+                  flex: 1, padding: '0.4rem 0.6rem', borderRadius: 7, border: 'none',
+                  background: contextSaved
+                    ? '#d1fae5' : 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+                  color: contextSaved ? '#065f46' : '#fff',
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  transition: 'all 0.2s',
+                }}
+              >
+                {contextSaved
+                  ? <><Check size={11} /> Сохранено</>
+                  : contextSaving ? '…' : 'Сохранить'}
+              </button>
+              {docContext && (
+                <button
+                  onClick={async () => {
+                    setDocContext('')
+                    setContextSaved(false)
+                    if (documentName) {
+                      await apiDeleteDocumentContext(documentName).catch(() => {})
+                    }
+                  }}
+                  aria-label="Очистить контекст документа"
+                  style={{
+                    padding: '0.4rem 0.65rem', borderRadius: 7,
+                    border: '1px solid var(--border, #e5e7eb)',
+                    background: 'transparent', color: 'inherit',
+                    fontSize: 12, cursor: 'pointer', opacity: 0.7,
+                  }}
+                >
+                  Очистить
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Tips */}
+        <div className="chat-v2-sidebar-section">
+          <div className="chat-v2-sidebar-title">Примеры вопросов</div>
+          <div className="chat-v2-tips">
+            {TIPS.map((tip, i) => (
+              <button key={i} className="chat-v2-tip" onClick={() => setInput(tip)}>
+                {tip}
+              </button>
+            ))}
+          </div>
+        </div>
+
+      </div>
     </div>
   )
 }

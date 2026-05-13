@@ -6,18 +6,19 @@ export default function TopCommandBarShell({
 }) {
   return (
     <div className="shell-region shell-region--top-command">
-      <div className="shell-placeholder shell-placeholder--top" role="group" aria-label="Current workspace">
+      <div className="shell-placeholder shell-placeholder--top" role="group" aria-label="Текущее рабочее пространство">
         <div className="shell-placeholder__meta">
-          <span className="shell-placeholder__eyebrow">Current workspace</span>
-          <strong className="shell-placeholder__title">{currentLabel || 'Workspace'}</strong>
+          <span className="shell-placeholder__eyebrow">Рабочее пространство</span>
+          <strong className="shell-placeholder__title">{currentLabel || 'KENCE.ai'}</strong>
         </div>
 
-        <div className="shell-placeholder__chips" aria-label="Workspace summary">
-          <span className="shell-chip">Current view</span>
-          <span className="shell-chip shell-chip--muted">
-            {documentName || 'No active document'}
-          </span>
-        </div>
+        {documentName && (
+          <div className="shell-placeholder__chips" aria-label="Активный документ">
+            <span className="shell-chip shell-chip--muted">
+              {documentName}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )

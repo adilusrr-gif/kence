@@ -7,6 +7,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from langchain_ollama import OllamaEmbeddings
 from app.core.config import get_settings
+from app.services.ai_settings_service import get_prompt
 import json
 
 settings = get_settings()
@@ -118,20 +119,8 @@ class DocumentComparator:
             temperature=0.1
         )
 
-        extract_prompt = """Извлеки технические характеристики/спецификации из документа в формате JSON.
+        extract_prompt = get_prompt("comparison_technical_prompt")
 
-Документ:
-{text}
-Формат ответа (строго JSON):
-{{
-"product_name": "Название товара/услуги",
-"specifications": [
-{{"parameter": "Параметр", "value": "Значение", "unit": "Единица"}}
-],
-"key_features": ["Особенность 1", "Особенность 2"]
-}}
-Если это не техническая спецификация, верни {{"error": "Not a technical specification"}}."""
-        
         # Извлекаем спецификации из обоих документов
         spec1_raw = llm.invoke(extract_prompt.format(text=text1[:8000]))
         spec2_raw = llm.invoke(extract_prompt.format(text=text2[:8000]))

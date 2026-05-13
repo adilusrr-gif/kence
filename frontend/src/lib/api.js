@@ -216,3 +216,41 @@ export async function apiCompareTechnical(sessionId) {
 export async function apiCompareExact(sessionId) {
   return request('POST', '/api/compare/exact', { params: { session_id: sessionId } })
 }
+
+// ── AI Settings (Admin: prompts) ──────────────────────────────────────────
+
+export async function apiGetPrompts() {
+  return request('GET', '/api/ai-settings/prompts')
+}
+
+export async function apiUpdatePrompt(promptType, content) {
+  return request('PUT', `/api/ai-settings/prompts/${promptType}`, { body: { content } })
+}
+
+export async function apiResetPrompt(promptType) {
+  return request('POST', `/api/ai-settings/prompts/${promptType}/reset`)
+}
+
+export async function apiResetAllPrompts() {
+  return request('POST', '/api/ai-settings/prompts/reset-all')
+}
+
+// ── AI Settings (Users: document contexts) ───────────────────────────────
+
+export async function apiGetDocumentContext(documentName) {
+  return request('GET', '/api/ai-settings/document-context', { params: { document_name: documentName } })
+}
+
+export async function apiSaveDocumentContext(documentName, context) {
+  return request('POST', '/api/ai-settings/document-context', {
+    body: { document_name: documentName, context },
+  })
+}
+
+export async function apiDeleteDocumentContext(documentName) {
+  return request('DELETE', '/api/ai-settings/document-context', { params: { document_name: documentName } })
+}
+
+export async function apiGetDocumentContexts() {
+  return request('GET', '/api/ai-settings/document-contexts')
+}

@@ -16,7 +16,20 @@
       "WebFetch(domain:prod.spline.design)",
       "Bash(docker-compose down *)",
       "Bash(docker info *)",
-      "Bash(powershell -Command ' *)"
+      "Bash(powershell -Command ' *)",
+      "Bash(dir D:docaifrontendsrcwidgets *)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(npm install *)",
+      "Bash(uipro init *)",
+      "Bash(npx vite *)",
+      "Bash(python *)",
+      "Bash(py *)",
+      "Bash(dir *)",
+      "Bash(Get-ChildItem -Path \"D:\\\\docai\\\\frontend\\\\src\\\\app\\\\styles\" -File)",
+      "Bash(Select-Object Name)",
+      "Bash(xargs ls -la)"
     ]
-  }
+  },
+  "prefersReducedMotion": false
 }

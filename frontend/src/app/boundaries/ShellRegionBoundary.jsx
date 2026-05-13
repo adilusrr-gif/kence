@@ -3,18 +3,21 @@ import React from 'react'
 export class ShellRegionBoundary extends React.Component {
   constructor(props) {
     super(props)
-    this.state = { hasError: false }
+    this.state = { hasError: false, error: null }
+    this.handleRetry = this.handleRetry.bind(this)
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
   }
 
-  componentDidCatch(error) {
-    if (import.meta.env.DEV) {
-      // Keep region failures isolated during shell coexistence rollout.
-      console.error(`Shell region failed: ${this.props.regionName}`, error)
-    }
+  componentDidCatch(error, info) {
+    console.error(`[ShellRegion] ${this.props.regionName} failed:`, error, info?.componentStack)
+    this.props.onError?.(error, this.props.regionName)
+  }
+
+  handleRetry() {
+    this.setState({ hasError: false, error: null })
   }
 
   render() {
@@ -24,12 +27,12 @@ export class ShellRegionBoundary extends React.Component {
       return fallback ?? (
         <div
           className="shell-region-boundary-fallback"
-          role="status"
-          aria-live="polite"
-          data-shell-region={regionName}
+          role="alert"
         >
-          <strong>Region unavailable</strong>
-          <span>{regionName}</span>
+          <strong>Раздел временно недоступен</strong>
+          <button type="button" onClick={this.handleRetry}>
+            Повторить
+          </button>
         </div>
       )
     }
@@ -37,4 +40,3 @@ export class ShellRegionBoundary extends React.Component {
     return children
   }
 }
-

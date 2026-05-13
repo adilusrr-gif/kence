@@ -6,6 +6,7 @@ import asyncio
 from app.api.routes import router as main_router
 from app.api.comparison_routes import router as comparison_router
 from app.api.auth_routes import router as auth_router
+from app.api.ai_settings_routes import router as ai_settings_router
 from app.core.session import session_manager
 from app.core.config import get_settings
 from app.services.user_service import create_user, get_user
@@ -52,6 +53,7 @@ app.add_middleware(
 app.include_router(auth_router, prefix="/api")
 app.include_router(main_router, prefix="/api")
 app.include_router(comparison_router, prefix="/api")
+app.include_router(ai_settings_router, prefix="/api")
 
 @app.get("/")
 async def root():

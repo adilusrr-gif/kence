@@ -1,7 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sun, Moon } from 'lucide-react'
+import {
+  Sun, Moon, LogOut,
+  Home, Upload, MessageSquare, LayoutTemplate, Scale,
+  ArrowLeftRight, User, ShieldCheck, SlidersHorizontal,
+} from 'lucide-react'
 import LandingPage from './pages/LandingPage'
 import UploadPage from './pages/UploadPage'
 import ChatPage from './pages/ChatPage'
@@ -11,14 +15,13 @@ import ConvertPage from './pages/ConvertPage'
 import LoginPage from './pages/LoginPage'
 import ProfilePage from './pages/ProfilePage'
 import AdminPage from './pages/AdminPage'
+import AISettingsPage from './pages/AISettingsPage'
 import { getStoredUser, clearAuth } from './lib/api'
 import { AppShellLayout } from '@/app/layouts/app-shell'
 import { LeftRailShell } from '@/widgets/left-rail'
 import { TopCommandBarShell } from '@/widgets/top-command-bar'
 import { WorkspaceTabsBar } from '@/widgets/workspace-tabs'
 import { LegacyPageCanvasHost } from '@/widgets/main-canvas-host'
-import { RightPanelShellPlaceholder } from '@/widgets/right-panel-shell'
-import { BottomActivityShellPlaceholder } from '@/widgets/bottom-activity-shell'
 import {
   clearSessionTabsShadow,
   syncAuthShadow,
@@ -28,14 +31,15 @@ import {
 } from '@/shared/stores'
 
 const NAV_BASE = [
-  { path: '/',             label: 'Р“Р»Р°РІРЅР°СЏ',     icon: 'рџЏ ' },
-  { path: '/upload',       label: 'Р—Р°РіСЂСѓР·РєР°',    icon: 'рџ“„' },
-  { path: '/chat',         label: 'Р§Р°С‚',         icon: 'рџ’¬' },
-  { path: '/presentation', label: 'РџСЂРµР·РµРЅС‚Р°С†РёСЏ', icon: 'рџ“Љ' },
-  { path: '/compare',      label: 'РЎСЂР°РІРЅРµРЅРёРµ',   icon: 'вљ–пёЏ' },
-  { path: '/convert',      label: 'РљРѕРЅРІРµСЂС‚РµСЂ',   icon: 'рџ”„' },
-  { path: '/profile',      label: 'РџСЂРѕС„РёР»СЊ',     icon: 'рџ‘¤' },
-  { path: '/admin',        label: 'РђРґРјРёРЅ',       icon: 'рџ›ЎпёЏ', adminOnly: true },
+  { path: '/',             label: 'Главная',           Icon: Home },
+  { path: '/upload',       label: 'Загрузка',          Icon: Upload },
+  { path: '/chat',         label: 'Чат с документом',  Icon: MessageSquare },
+  { path: '/presentation', label: 'Презентация',       Icon: LayoutTemplate },
+  { path: '/compare',      label: 'Сравнение',         Icon: Scale },
+  { path: '/convert',      label: 'Конвертер',         Icon: ArrowLeftRight },
+  { path: '/profile',      label: 'Профиль',           Icon: User },
+  { path: '/admin',        label: 'Администратор',     Icon: ShieldCheck,         adminOnly: true },
+  { path: '/ai-settings', label: 'Настройки ИИ',      Icon: SlidersHorizontal,   adminOnly: true },
 ]
 
 const LEGACY_WORKSPACE_ID = 'legacy-main'
@@ -47,7 +51,7 @@ function getInitialTheme() {
     if (documentTheme === 'light') return false
   }
 
-  return localStorage.getItem('theme') === 'dark'
+  return localStorage.getItem('theme') !== 'light'
 }
 
 function getLegacyTabTitle(pathname) {
@@ -88,10 +92,10 @@ function LegacySidebar({
         <motion.div
           className="logo-icon"
           onClick={() => !editEmoji && setEditEmoji(true)}
-          title="РќР°Р¶РјРёС‚Рµ РґР»СЏ СЃРјРµРЅС‹ СЌРјР±Р»РµРјС‹"
-          whileHover={{ scale: 1.08, rotate: -6 }}
-          whileTap={{ scale: 0.94 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+          title="Нажмите для смены эмблемы"
+          whileHover={{ scale: 1.04 }}
+          whileTap={{ scale: 0.96 }}
+          transition={{ duration: 0.15 }}
         >
           {editEmoji ? (
             <input
@@ -123,18 +127,18 @@ function LegacySidebar({
                   onBlur={saveName}
                   onKeyDown={e => e.key === 'Enter' && saveName()}
                   className="name-input"
-                  placeholder="РќР°Р·РІР°РЅРёРµвЂ¦"
+                  placeholder="Название…"
                 />
               ) : (
                 <h1
                   className="app-name"
                   onClick={() => setEditName(true)}
-                  title="РќР°Р¶РјРёС‚Рµ РґР»СЏ РїРµСЂРµРёРјРµРЅРѕРІР°РЅРёСЏ"
+                  title="Нажмите для переименования"
                 >
                   {appName}
                 </h1>
               )}
-              <p className="app-subtitle">AI-Р°СЃСЃРёСЃС‚РµРЅС‚</p>
+              <p className="app-subtitle">AI-ассистент</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -142,7 +146,8 @@ function LegacySidebar({
         <motion.button
           className="collapse-btn"
           onClick={() => setCollapsed(value => !value)}
-          title={collapsed ? 'Р Р°Р·РІРµСЂРЅСѓС‚СЊ' : 'РЎРІРµСЂРЅСѓС‚СЊ'}
+          title={collapsed ? 'Развернуть' : 'Свернуть'}
+          aria-label={collapsed ? 'Развернуть боковую панель' : 'Свернуть боковую панель'}
           whileHover={{ scale: 1.15 }}
           whileTap={{ scale: 0.9 }}
         >
@@ -151,12 +156,12 @@ function LegacySidebar({
             transition={{ duration: 0.3 }}
             style={{ display: 'inline-block' }}
           >
-            вЂє
+            ›
           </motion.span>
         </motion.button>
       </div>
 
-      <nav className="sidebar__nav">
+      <nav className="sidebar__nav" aria-label="Основная навигация">
         {NAV_BASE.filter(item => !item.adminOnly || currentUser?.role === 'admin').map((item, i) => {
           const active = location.pathname === item.path
           return (
@@ -170,14 +175,11 @@ function LegacySidebar({
                 to={item.path}
                 className={`nav-item${active ? ' nav-item--active' : ''}`}
                 title={collapsed ? item.label : undefined}
+                aria-current={active ? 'page' : undefined}
               >
-                <motion.span
-                  className="nav-icon"
-                  whileHover={{ scale: 1.3, rotate: -8 }}
-                  transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-                >
-                  {item.icon}
-                </motion.span>
+                <span className="nav-icon" aria-hidden="true">
+                  <item.Icon size={16} strokeWidth={1.75} />
+                </span>
 
                 <AnimatePresence>
                   {!collapsed && (
@@ -196,6 +198,7 @@ function LegacySidebar({
                 {active && (
                   <motion.span
                     className="nav-indicator"
+                    aria-hidden="true"
                     layoutId="nav-pill"
                     transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                   />
@@ -209,7 +212,8 @@ function LegacySidebar({
       <motion.button
         className={`theme-toggle${collapsed ? ' theme-toggle--sm' : ''}`}
         onClick={() => setDark(value => !value)}
-        title={dark ? 'РЎРІРµС‚Р»Р°СЏ С‚РµРјР°' : 'РўС‘РјРЅР°СЏ С‚РµРјР°'}
+        title={dark ? 'Светлая тема' : 'Тёмная тема'}
+        aria-label={dark ? 'Переключить на светлую тему' : 'Переключить на тёмную тему'}
         whileTap={{ scale: 0.95 }}
       >
         <div className="toggle-track">
@@ -245,7 +249,7 @@ function LegacySidebar({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.15 }}
             >
-              {dark ? 'РўС‘РјРЅР°СЏ' : 'РЎРІРµС‚Р»Р°СЏ'}
+              {dark ? 'Тёмная' : 'Светлая'}
             </motion.span>
           )}
         </AnimatePresence>
@@ -260,8 +264,8 @@ function LegacySidebar({
             exit={{ opacity: 0, y: 8 }}
             transition={{ duration: 0.22 }}
           >
-            <span>рџ“„</span>
-            <span className="session-badge__name">{documentName || 'Р”РѕРєСѓРјРµРЅС‚ Р·Р°РіСЂСѓР¶РµРЅ'}</span>
+            <span aria-hidden="true">📄</span>
+            <span className="session-badge__name">{documentName || 'Документ загружен'}</span>
           </motion.div>
         )}
       </AnimatePresence>
@@ -281,7 +285,14 @@ function LegacySidebar({
               </Link>
               <div className="user-badge__role">{currentUser.role}</div>
             </div>
-            <button className="user-badge__logout" onClick={handleLogout} title="Р’С‹Р№С‚Рё">вЏЏ</button>
+            <button
+              className="user-badge__logout"
+              onClick={handleLogout}
+              title="Выйти"
+              aria-label="Выйти из системы"
+            >
+              <LogOut size={14} />
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -311,6 +322,7 @@ function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, se
               <Route path="/convert"      element={<ConvertPage sessionId={sessionId} />} />
               <Route path="/profile"      element={<ProfilePage currentUser={currentUser} />} />
               <Route path="/admin"        element={<AdminPage currentUser={currentUser} />} />
+              <Route path="/ai-settings"  element={<AISettingsPage currentUser={currentUser} />} />
               <Route path="/login"        element={<Navigate to="/" replace />} />
             </Routes>
           </motion.div>
@@ -470,8 +482,6 @@ export default function App() {
           setSessionId={setSessionId}
         />
       )}
-      rightPanel={<RightPanelShellPlaceholder />}
-      bottomActivity={<BottomActivityShellPlaceholder />}
     />
   )
 }

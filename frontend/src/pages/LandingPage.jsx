@@ -1,196 +1,299 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { Shield, ArrowRight, Lock } from 'lucide-react'
-import { SplineSceneBasic } from '@/components/ui/spline-scene-demo'
-import { Badge } from '@/shared/ui/badge'
-import { Card } from '@/shared/ui/card'
-
-const TERMINAL_LINES = [
-  { delay: 500,  text: '> Инициализация KENCE.ai v2.0...',          color: '#57C5B6' },
-  { delay: 1200, text: '> Загрузка векторной БД ChromaDB...',      color: '#94a3b8' },
-  { delay: 1900, text: '> Подключение к Ollama LLM...',            color: '#94a3b8' },
-  { delay: 2500, text: '✓ Модель готова к работе',                 color: '#4ade80' },
-  { delay: 3200, text: '> Docling parser: активен',                color: '#94a3b8' },
-  { delay: 3800, text: '> RAG pipeline: инициализирован',          color: '#94a3b8' },
-  { delay: 4400, text: '✓ Система готова. Ожидание документа...', color: '#57C5B6' },
-]
+import {
+  Bell, Search, ArrowRight, FileText, MessageSquare,
+  Languages, BarChart2, GitCompare, RefreshCw, CheckCircle,
+  Zap, Shield, Database, ChevronRight, Upload,
+  Scale, LayoutTemplate, ArrowLeftRight, Activity, Cpu, Lock,
+} from 'lucide-react'
+import { useAuthStore } from '@/shared/stores'
+import { useWorkspaceStore, selectActiveDocumentName, selectActiveSessionId } from '@/shared/stores'
 
 const FEATURES = [
-  { icon: '📄', label: 'RAG-чат по документу',  desc: '50+ форматов, точный поиск по тексту' },
-  { icon: '🌐', label: 'Перевод KZ / RU / EN',  desc: 'Мгновенный перевод через локальный LLM' },
-  { icon: '⚖️', label: 'Сравнение документов',  desc: 'Смысловой, технический и побуквенный diff' },
-  { icon: '📊', label: 'Генерация презентации', desc: 'Автоматически в формат PPTX' },
-  { icon: '🔄', label: 'Конвертация форматов',  desc: 'PDF → TXT, Markdown, DOCX за секунды' },
+  { Icon: MessageSquare, label: 'RAG-чат по документу',  desc: '50+ форматов, точный поиск по тексту',    path: '/chat' },
+  { Icon: Languages,     label: 'Перевод KZ / RU / EN',  desc: 'Мгновенный перевод через локальный LLM',  path: '/chat' },
+  { Icon: Scale,         label: 'Сравнение документов',  desc: 'Смысловой и технический diff',            path: '/compare' },
+  { Icon: LayoutTemplate, label: 'Генерация презентации', desc: 'Автоматически в формат PPTX',            path: '/presentation' },
+  { Icon: ArrowLeftRight, label: 'Конвертация форматов', desc: 'PDF → TXT, Markdown, DOCX',              path: '/convert' },
 ]
 
-const STATS = [
-  { value: 50, suffix: '+', label: 'форматов' },
-  { value: 2,  suffix: 'с', label: 'ответ LLM' },
-  { value: 99, suffix: '%', label: 'точность' },
-  { value: 3,  suffix: '',  label: 'языка' },
+const METRICS = [
+  { label: 'Форматов',        value: '50+',  sub: 'поддерживается',    colorClass: 'dash-metric-value--blue',   bg: 'rgba(30,58,110,0.18)' },
+  { label: 'Скорость ответа', value: '~2с',  sub: 'локальный LLM',     colorClass: 'dash-metric-value--green',  bg: 'rgba(48,120,80,0.14)' },
+  { label: 'Языка перевода',  value: '3',    sub: 'KZ · RU · EN',      colorClass: 'dash-metric-value--violet', bg: 'rgba(90,60,140,0.14)' },
+  { label: 'Приватность',     value: '100%', sub: 'данные на сервере',  colorClass: 'dash-metric-value--blue',   bg: 'rgba(196,155,60,0.12)' },
 ]
 
-function AnimatedCounter({ target, suffix, duration = 1600 }) {
-  const [count, setCount] = useState(0)
-  const [started, setStarted] = useState(false)
-  const ref = useRef(null)
+const RECENT_ACTIVITY = [
+  { Icon: Database, label: 'RAG-индекс готов', meta: 'ChromaDB · активен',  colorClass: 'dash-activity-icon--blue' },
+  { Icon: Cpu,      label: 'Ollama подключён', meta: 'LLM · в работе',       colorClass: 'dash-activity-icon--green' },
+  { Icon: Activity, label: 'Pipeline запущен', meta: 'Docling · готов',      colorClass: 'dash-activity-icon--violet' },
+  { Icon: Lock,     label: 'Локальный режим',  meta: 'Изолированная среда',  colorClass: 'dash-activity-icon--amber' },
+]
 
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) setStarted(true) }, { threshold: 0.3 })
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [])
+const WORKFLOW_STEPS = [
+  { label: 'Загрузите документ',          desc: 'PDF, DOCX, XLSX и другие форматы' },
+  { label: 'Документ анализируется',      desc: 'Парсинг · Векторизация · Индексация' },
+  { label: 'Задавайте вопросы',           desc: 'RAG-чат с точными ответами из текста' },
+  { label: 'Экспортируйте результаты',    desc: 'Перевод, Презентация, Конвертация' },
+]
 
-  useEffect(() => {
-    if (!started) return
-    const start = performance.now()
-    let raf
-    const tick = (now) => {
-      const p = Math.min((now - start) / duration, 1)
-      setCount(Math.round((1 - Math.pow(1 - p, 3)) * target))
-      if (p < 1) raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [started, target, duration])
-
-  return <span ref={ref}>{count}{suffix}</span>
-}
-
-function TerminalLog() {
-  const [lines, setLines] = useState([])
-  const [cursor, setCursor] = useState(true)
-  const bodyRef = useRef(null)
-
-  useEffect(() => {
-    const timers = TERMINAL_LINES.map(({ delay, text, color }) =>
-      setTimeout(() => setLines(prev => [...prev, { text, color }]), delay)
-    )
-    const blink = setInterval(() => setCursor(c => !c), 530)
-    return () => { timers.forEach(clearTimeout); clearInterval(blink) }
-  }, [])
-
-  useEffect(() => {
-    if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight
-  }, [lines])
-
+function DocIllustration() {
   return (
-    <div className="lp-terminal">
-      <div className="lp-terminal__bar">
-        <span className="lp-dot lp-dot--r" /><span className="lp-dot lp-dot--y" /><span className="lp-dot lp-dot--g" />
-        <span className="lp-dot-label">KENCE.ai · System Monitor</span>
+    <div className="dash-doc-illustration">
+      <div className="dash-doc-page-2" />
+      <div className="dash-doc-page">
+        <div className="dash-doc-line dash-doc-line--short dash-doc-line--accent" />
+        <div className="dash-doc-line dash-doc-line--long" />
+        <div className="dash-doc-line dash-doc-line--medium" />
+        <div className="dash-doc-line dash-doc-line--long" />
+        <div className="dash-doc-line dash-doc-line--short" />
+        <div className="dash-doc-line dash-doc-line--medium" />
+        <div className="dash-doc-line dash-doc-line--long" />
       </div>
-      <div className="lp-terminal__body" ref={bodyRef}>
-        {lines.map((ln, i) => (
-          <motion.div key={i} className="lp-tline" style={{ color: ln.color }}
-            initial={{ opacity: 0, x: -6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.18 }}>
-            {ln.text}
-          </motion.div>
-        ))}
-        <span style={{ color: '#57C5B6', opacity: cursor ? 1 : 0 }}>█</span>
-      </div>
-      <div className="lp-progress">
-        <div className="lp-progress__labels"><span>Система</span><span style={{ color: '#4ade80' }}>АКТИВНА</span></div>
-        <div className="lp-progress__track">
-          <motion.div className="lp-progress__fill"
-            initial={{ width: 0 }} animate={{ width: '100%' }}
-            transition={{ duration: 5, ease: 'easeOut', delay: 0.4 }} />
-        </div>
-      </div>
+      <div className="dash-doc-orb" />
+      <div className="dash-doc-ring" />
     </div>
   )
 }
 
 export default function LandingPage() {
-  const navigate  = useNavigate()
-  const sessionId = useRef(Math.random().toString(36).slice(2, 8).toUpperCase())
+  const navigate = useNavigate()
+  const username = useAuthStore((s) => s.username)
+  const documentName = useWorkspaceStore(selectActiveDocumentName)
+  const sessionId = useWorkspaceStore(selectActiveSessionId)
+  const hasDoc = Boolean(sessionId)
+
+  const displayName = username
+    ? username.charAt(0).toUpperCase() + username.slice(1)
+    : 'Пользователь'
 
   return (
-    <div className="lp-root">
+    <div className="dash-root">
 
-      {/* ── Security header ── */}
-      <div className="lp-header">
-        <div className="lp-header__left">
-          <Lock size={11} />
-          <span>Локальная обработка · Данные не покидают сервер · Ollama on-premise</span>
-        </div>
-        <div className="lp-header__right">
-          <span className="lp-classify">DEMO</span>
-          <span className="lp-sid">SID: #{sessionId.current}</span>
-        </div>
-      </div>
-
-      {/* ── Body ── */}
-      <div className="lp-body">
-
-        {/* Left: robot + terminal */}
-        <div className="lp-robot-side">
-          <SplineSceneBasic />
-          <TerminalLog />
+      {/* ── Welcome row ── */}
+      <motion.div
+        className="dash-welcome"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <div className="dash-welcome-text">
+          <h1>Добро пожаловать, {displayName}!</h1>
+          <p>Загрузите документ для начала интеллектуального анализа</p>
         </div>
 
-        {/* Right: hero */}
-        <motion.div className="lp-content"
-          initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, ease: 'easeOut' }}>
+        <div className="dash-search" onClick={() => navigate('/upload')} role="button">
+          <Search size={14} />
+          <span>Поиск документа, задачи, заметок…</span>
+        </div>
 
-          <Badge variant="accent" size="md" className="lp-badge">
-            <span className="lp-badge__dot" />
-            AI · Document Intelligence
-          </Badge>
+        <div className="dash-welcome-actions">
+          <button className="dash-notif-btn" aria-label="Уведомления">
+            <Bell size={16} />
+          </button>
+          <div className="dash-avatar" aria-label={`Аккаунт: ${displayName}`}>
+            {displayName.charAt(0)}
+          </div>
+        </div>
+      </motion.div>
 
-          <h1 className="lp-title">KENCE.ai</h1>
-          <p className="lp-subtitle">
-            Интеллектуальный анализ документов для госслужащих.<br />
-            Быстро. Точно. Локально.
-          </p>
+      {/* ── Hero card ── */}
+      <motion.div
+        className="dash-hero"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, delay: 0.05 }}
+      >
+        <div className="dash-hero-body">
+          {hasDoc ? (
+            <>
+              <div className="dash-hero-status">
+                <CheckCircle size={13} />
+                Документ готов к анализу
+              </div>
+              <h2 className="dash-hero-title">{documentName || 'Документ загружен'}</h2>
+              <p className="dash-hero-sub">
+                <FileText size={12} />
+                Документ проанализирован
+                <span className="dash-hero-sub-dot" />
+                Векторный поиск активен
+                <span className="dash-hero-sub-dot" />
+                LLM подключён
+              </p>
+              <div className="dash-hero-actions">
+                <button className="dash-hero-btn dash-hero-btn--primary" onClick={() => navigate('/chat')}>
+                  <MessageSquare size={14} />
+                  Открыть чат
+                </button>
+                <button className="dash-hero-btn dash-hero-btn--secondary" onClick={() => navigate('/presentation')}>
+                  <BarChart2 size={14} />
+                  Создать отчёт
+                </button>
+                <button className="dash-hero-btn dash-hero-btn--secondary" onClick={() => navigate('/upload')}>
+                  <Upload size={14} />
+                  Новый документ
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="dash-hero-status dash-hero-status--pending">
+                <Zap size={13} />
+                Система готова к работе
+              </div>
+              <h2 className="dash-hero-title">Начните работу с документом</h2>
+              <p className="dash-hero-sub">
+                Загрузите PDF, DOCX, XLSX, PNG и другие форматы для AI-анализа
+                <span className="dash-hero-sub-dot" />
+                Локальная обработка
+                <span className="dash-hero-sub-dot" />
+                Данные не покидают сервер
+              </p>
+              <div className="dash-hero-actions">
+                <button className="dash-hero-btn dash-hero-btn--primary" onClick={() => navigate('/upload')}>
+                  <Upload size={14} />
+                  Загрузить документ
+                </button>
+                <button className="dash-hero-btn dash-hero-btn--secondary" onClick={() => navigate('/compare')}>
+                  <GitCompare size={14} />
+                  Сравнить документы
+                </button>
+              </div>
+            </>
+          )}
+        </div>
 
-          <div className="lp-features">
+        <div className="dash-hero-visual">
+          <DocIllustration />
+        </div>
+      </motion.div>
+
+      {/* ── Metrics ── */}
+      <motion.div
+        className="dash-metrics"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.12 }}
+      >
+        {METRICS.map((m, i) => (
+          <div className="dash-metric-card" key={i}>
+            <div className="dash-metric-eyebrow">
+              <div className="dash-metric-icon" style={{ background: m.bg }}>
+                <Database size={11} style={{ opacity: 0.7 }} />
+              </div>
+              {m.label}
+            </div>
+            <div className={`dash-metric-value ${m.colorClass}`}>{m.value}</div>
+            <div className="dash-metric-label">{m.sub}</div>
+          </div>
+        ))}
+      </motion.div>
+
+      {/* ── Content grid ── */}
+      <motion.div
+        className="dash-grid"
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.18 }}
+      >
+        {/* Col 1: Features */}
+        <div className="dash-card">
+          <div className="dash-card-title">
+            <Zap size={14} />
+            Возможности системы
+          </div>
+          <div className="dash-feature-list">
             {FEATURES.map((f, i) => (
-              <motion.div key={i}
-                initial={{ opacity: 0, x: 18 }} animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.18 + i * 0.09, duration: 0.28 }}>
-                <Card className="lp-feature" style={{ padding: 'var(--space-4)' }}>
-                  <span className="lp-feature__icon">{f.icon}</span>
-                  <div>
-                    <div className="lp-feature__label">{f.label}</div>
-                    <div className="lp-feature__desc">{f.desc}</div>
-                  </div>
-                  <span className="lp-feature__check">✓</span>
-                </Card>
+              <button
+                key={i}
+                className="dash-feature-item"
+                onClick={() => navigate(hasDoc ? f.path : '/upload')}
+              >
+                <div className="dash-feature-icon"><f.Icon size={15} strokeWidth={1.75} /></div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="dash-feature-label">{f.label}</div>
+                  <div className="dash-feature-desc">{f.desc}</div>
+                </div>
+                <ChevronRight size={14} className="dash-feature-arrow" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Col 2: Workflow */}
+        <div className="dash-card">
+          <div className="dash-card-title">
+            <ArrowRight size={14} />
+            Рабочий процесс
+          </div>
+          <div className="dash-steps">
+            {WORKFLOW_STEPS.map((s, i) => (
+              <div className="dash-step" key={i}>
+                <div className={`dash-step-num${hasDoc && i < 2 ? ' dash-step-num--done' : ''}`}>
+                  {hasDoc && i < 2 ? '✓' : i + 1}
+                </div>
+                <div>
+                  <div className="dash-step-label">{s.label}</div>
+                  <div className="dash-step-desc">{s.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {!hasDoc && (
+            <div className="dash-empty-cta" style={{ padding: '1rem 0 0' }}>
+              <p>Загрузите документ чтобы начать работу</p>
+              <button className="dash-empty-cta-btn" onClick={() => navigate('/upload')}>
+                <Upload size={13} />
+                Загрузить
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Col 3: Activity */}
+        <div className="dash-card">
+          <div className="dash-card-title">
+            <Shield size={14} />
+            Статус системы
+          </div>
+          <div className="dash-activity-list">
+            {RECENT_ACTIVITY.map((a, i) => (
+              <motion.div
+                className="dash-activity-item"
+                key={i}
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.22 + i * 0.06, duration: 0.22 }}
+              >
+                <div className={`dash-activity-icon ${a.colorClass}`}><a.Icon size={14} strokeWidth={1.75} /></div>
+                <div style={{ minWidth: 0 }}>
+                  <div className="dash-activity-name">{a.label}</div>
+                  <div className="dash-activity-meta">{a.meta}</div>
+                </div>
               </motion.div>
             ))}
           </div>
 
-          <motion.button className="lp-cta"
-            onClick={() => navigate('/upload')}
-            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.3 }}
-            whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}>
-            Начать работу
-            <ArrowRight size={18} />
-          </motion.button>
-
-          <p className="lp-hint">PDF · DOCX · PPTX · XLSX · PNG · JPG и другие форматы</p>
-        </motion.div>
-      </div>
-
-      {/* ── Stats bar ── */}
-      <div className="lp-stats">
-        {STATS.map((s, i) => (
-          <Card key={i} className="lp-stat" style={{ padding: 'var(--space-4)' }}>
-            <div className="lp-stat__val"><AnimatedCounter target={s.value} suffix={s.suffix} /></div>
-            <div className="lp-stat__lbl">{s.label}</div>
-          </Card>
-        ))}
-        <Card className="lp-stat lp-stat--sec" style={{ padding: 'var(--space-4)' }}>
-          <Shield size={14} style={{ color: '#57C5B6', flexShrink: 0 }} />
-          <div className="lp-stat__lbl">Ollama · ChromaDB · Docker isolated</div>
-        </Card>
-      </div>
+          {hasDoc && (
+            <motion.div
+              className="dash-activity-item"
+              style={{ marginTop: '0.25rem', borderColor: 'rgba(74,222,128,0.18)', background: 'rgba(74,222,128,0.04)' }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.5 }}
+            >
+              <div className="dash-activity-icon dash-activity-icon--green"><CheckCircle size={14} strokeWidth={1.75} /></div>
+              <div style={{ minWidth: 0 }}>
+                <div className="dash-activity-name" style={{ color: '#3A8C5C' }}>Документ загружен</div>
+                <div className="dash-activity-meta">{documentName || 'Активная сессия'}</div>
+              </div>
+            </motion.div>
+          )}
+        </div>
+      </motion.div>
 
     </div>
   )
