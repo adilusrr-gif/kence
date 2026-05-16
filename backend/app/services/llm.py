@@ -43,6 +43,9 @@ class LLMService:
         async for chunk in self.llm.astream(prompt_text):
             yield chunk
 
+    def simple_chat(self, prompt: str) -> str:
+        return self.llm.invoke(prompt)
+
     def generate_presentation_structure(self, session_id: str) -> dict:
         retriever = doc_processor.get_retriever(session_id)
         docs = retriever.invoke("основное содержание документа")

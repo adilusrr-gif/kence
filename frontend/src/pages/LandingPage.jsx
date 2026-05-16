@@ -19,10 +19,10 @@ const FEATURES = [
 ]
 
 const METRICS = [
-  { label: 'Форматов',        value: '50+',  sub: 'поддерживается',    colorClass: 'dash-metric-value--blue',   bg: 'rgba(30,58,110,0.18)' },
-  { label: 'Скорость ответа', value: '~2с',  sub: 'локальный LLM',     colorClass: 'dash-metric-value--green',  bg: 'rgba(48,120,80,0.14)' },
-  { label: 'Языка перевода',  value: '3',    sub: 'KZ · RU · EN',      colorClass: 'dash-metric-value--violet', bg: 'rgba(90,60,140,0.14)' },
-  { label: 'Приватность',     value: '100%', sub: 'данные на сервере',  colorClass: 'dash-metric-value--blue',   bg: 'rgba(196,155,60,0.12)' },
+  { label: 'Форматов',        value: '50+',  sub: 'поддерживается',    colorClass: 'dash-metric-value--blue',   bg: 'rgba(59,130,246,0.1)' },
+  { label: 'Скорость ответа', value: '~2с',  sub: 'локальный LLM',     colorClass: 'dash-metric-value--green',  bg: 'rgba(34,197,94,0.1)' },
+  { label: 'Языка перевода',  value: '3',    sub: 'KZ · RU · EN',      colorClass: 'dash-metric-value--violet', bg: 'rgba(139,92,246,0.1)' },
+  { label: 'Приватность',     value: '100%', sub: 'данные на сервере',  colorClass: 'dash-metric-value--blue',   bg: 'rgba(59,130,246,0.1)' },
 ]
 
 const RECENT_ACTIVITY = [
@@ -280,14 +280,14 @@ export default function LandingPage() {
           {hasDoc && (
             <motion.div
               className="dash-activity-item"
-              style={{ marginTop: '0.25rem', borderColor: 'rgba(74,222,128,0.18)', background: 'rgba(74,222,128,0.04)' }}
+              style={{ marginTop: '0.25rem', borderColor: 'rgba(34,197,94,0.2)', background: 'rgba(34,197,94,0.05)' }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
             >
               <div className="dash-activity-icon dash-activity-icon--green"><CheckCircle size={14} strokeWidth={1.75} /></div>
               <div style={{ minWidth: 0 }}>
-                <div className="dash-activity-name" style={{ color: '#3A8C5C' }}>Документ загружен</div>
+                <div className="dash-activity-name" style={{ color: '#22c55e' }}>Документ загружен</div>
                 <div className="dash-activity-meta">{documentName || 'Активная сессия'}</div>
               </div>
             </motion.div>

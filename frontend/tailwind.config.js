@@ -8,11 +8,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary:   '#1E3A6E',
-        secondary: '#C49B3C',
-        accent:    '#2952A3',
-        dark:      '#0B1A2E',
-        light:     '#EEF1F8',
+        primary:   '#3B82F6',
+        secondary: '#64748B',
+        accent:    '#2563EB',
+        dark:      '#111827',
+        light:     '#F9FAFB',
         card:           'hsl(var(--card))',
         'card-foreground':    'hsl(var(--card-foreground))',
         'muted-foreground':   'hsl(var(--muted-foreground))',

@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Routes, Route, Link, useLocation, Navigate } from 'react-router-dom'
+import { Routes, Route, Link, useLocation, Navigate, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Sun, Moon, LogOut,
-  Home, Upload, MessageSquare, LayoutTemplate, Scale,
-  ArrowLeftRight, User, ShieldCheck, SlidersHorizontal,
+  Sun, Moon,
+  Home, Upload, LayoutTemplate, Scale,
+  ArrowLeftRight, User, ShieldCheck, SlidersHorizontal, FileText,
+  LogOut, ChevronDown,
 } from 'lucide-react'
 import LandingPage from './pages/LandingPage'
 import UploadPage from './pages/UploadPage'
@@ -16,33 +17,44 @@ import LoginPage from './pages/LoginPage'
 import ProfilePage from './pages/ProfilePage'
 import AdminPage from './pages/AdminPage'
 import AISettingsPage from './pages/AISettingsPage'
+import DocumentWorkspacePage from './pages/DocumentWorkspacePage'
 import { getStoredUser, clearAuth } from './lib/api'
 import { AppShellLayout } from '@/app/layouts/app-shell'
 import { LeftRailShell } from '@/widgets/left-rail'
-import { TopCommandBarShell } from '@/widgets/top-command-bar'
-import { WorkspaceTabsBar } from '@/widgets/workspace-tabs'
 import { LegacyPageCanvasHost } from '@/widgets/main-canvas-host'
 import {
-  clearSessionTabsShadow,
   syncAuthShadow,
-  syncSessionTabsShadow,
   syncShellShadow,
   syncWorkspaceShadow,
 } from '@/shared/stores'
 
 const NAV_BASE = [
-  { path: '/',             label: 'Главная',           Icon: Home },
-  { path: '/upload',       label: 'Загрузка',          Icon: Upload },
-  { path: '/chat',         label: 'Чат с документом',  Icon: MessageSquare },
-  { path: '/presentation', label: 'Презентация',       Icon: LayoutTemplate },
-  { path: '/compare',      label: 'Сравнение',         Icon: Scale },
-  { path: '/convert',      label: 'Конвертер',         Icon: ArrowLeftRight },
-  { path: '/profile',      label: 'Профиль',           Icon: User },
-  { path: '/admin',        label: 'Администратор',     Icon: ShieldCheck,         adminOnly: true },
-  { path: '/ai-settings', label: 'Настройки ИИ',      Icon: SlidersHorizontal,   adminOnly: true },
+  { path: '/',             label: 'Главная',      Icon: Home },
+  { path: '/upload',       label: 'Загрузка',     Icon: Upload },
+  { path: '/workspace',    label: 'Чат / Воркспейс', Icon: FileText },
+  { path: '/presentation', label: 'Презентация',  Icon: LayoutTemplate },
+  { path: '/compare',      label: 'Сравнение',    Icon: Scale },
+  { path: '/convert',      label: 'Конвертер',    Icon: ArrowLeftRight },
 ]
 
-const LEGACY_WORKSPACE_ID = 'legacy-main'
+const BADGE_PATHS = new Set(['/workspace', '/presentation', '/compare', '/convert'])
+
+const QUICK_ACTIONS = [
+  { path: '/workspace',    Icon: FileText,       label: 'Воркспейс' },
+  { path: '/presentation', Icon: LayoutTemplate, label: 'Презентация' },
+  { path: '/compare',      Icon: Scale,          label: 'Сравнение' },
+  { path: '/convert',      Icon: ArrowLeftRight, label: 'Конвертер' },
+]
+
+function formatRelTime(ts) {
+  const diffMs = Date.now() - ts
+  const d = Math.floor(diffMs / 86400000)
+  const h = Math.floor(diffMs / 3600000)
+  if (d >= 2) return `${d}д назад`
+  if (d === 1) return 'вчера'
+  if (h >= 1) return `${h}ч назад`
+  return 'только что'
+}
 
 function getInitialTheme() {
   if (typeof document !== 'undefined') {
@@ -54,8 +66,126 @@ function getInitialTheme() {
   return localStorage.getItem('theme') !== 'light'
 }
 
+const TITLE_MAP = {
+  '/':             'Главная',
+  '/upload':       'Загрузка документа',
+  '/workspace':    'Чат / Воркспейс',
+  '/chat':         'Чат / Воркспейс',
+  '/presentation': 'Презентация',
+  '/compare':      'Сравнение',
+  '/convert':      'Конвертер',
+  '/profile':      'Профиль',
+  '/admin':        'Администратор',
+  '/ai-settings':  'Настройки ИИ',
+}
+
 function getLegacyTabTitle(pathname) {
-  return NAV_BASE.find((item) => item.path === pathname)?.label || 'KENCE.ai'
+  return TITLE_MAP[pathname] || 'KENCE.ai'
+}
+
+function UserMenu({ currentUser, onLogout }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const navigate = useNavigate()
+  const isAdmin = currentUser?.role === 'admin'
+
+  useEffect(() => {
+    const handleClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false)
+    }
+    if (open) document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [open])
+
+  const go = (path) => { setOpen(false); navigate(path) }
+  const logout = () => { setOpen(false); onLogout() }
+
+  return (
+    <div className="user-menu" ref={ref}>
+      <button
+        className={`user-menu__trigger${open ? ' user-menu__trigger--open' : ''}`}
+        onClick={() => setOpen(v => !v)}
+        aria-label="Меню пользователя"
+      >
+        <div className="user-menu__avatar">
+          {currentUser.username.charAt(0).toUpperCase()}
+        </div>
+        <span className="user-menu__name">{currentUser.username}</span>
+        <ChevronDown size={13} className={`user-menu__chevron${open ? ' user-menu__chevron--open' : ''}`} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="user-menu__dropdown"
+            initial={{ opacity: 0, y: -6, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.97 }}
+            transition={{ duration: 0.15 }}
+          >
+            <div className="user-menu__header">
+              <div className="user-menu__header-avatar">
+                {currentUser.username.charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div className="user-menu__header-name">{currentUser.username}</div>
+                <div className="user-menu__header-role">
+                  {isAdmin ? 'Администратор' : 'Пользователь'}
+                </div>
+              </div>
+            </div>
+
+            <div className="user-menu__divider" />
+
+            <button className="user-menu__item" onClick={() => go('/profile')}>
+              <User size={14} />
+              Профиль
+            </button>
+
+            {isAdmin && (
+              <button className="user-menu__item" onClick={() => go('/ai-settings')}>
+                <SlidersHorizontal size={14} />
+                Настройки ИИ
+              </button>
+            )}
+
+            {isAdmin && (
+              <button className="user-menu__item" onClick={() => go('/admin')}>
+                <ShieldCheck size={14} />
+                Администратор
+              </button>
+            )}
+
+            <div className="user-menu__divider" />
+
+            <button className="user-menu__item user-menu__item--danger" onClick={logout}>
+              <LogOut size={14} />
+              Выйти
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function AppTopBar({ dark, setDark, currentUser, location, onLogout }) {
+  return (
+    <div className="app-top-bar">
+      <span className="app-top-bar__title">{getLegacyTabTitle(location.pathname)}</span>
+      <div className="app-top-bar__actions">
+        <button
+          className="app-top-bar__icon-btn"
+          onClick={() => setDark(v => !v)}
+          aria-label={dark ? 'Светлая тема' : 'Тёмная тема'}
+          title={dark ? 'Светлая тема' : 'Тёмная тема'}
+        >
+          {dark ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
+        <UserMenu currentUser={currentUser} onLogout={onLogout} />
+      </div>
+    </div>
+  )
 }
 
 function LegacySidebar({
@@ -63,38 +193,39 @@ function LegacySidebar({
   appName,
   collapsed,
   currentUser,
-  dark,
   documentName,
   editEmoji,
   editName,
   emojiRef,
-  handleLogout,
   location,
   nameRef,
   saveEmoji,
   saveName,
+  sessionHistory,
   sessionId,
   setAppEmoji,
   setAppName,
   setCollapsed,
-  setDark,
   setEditEmoji,
   setEditName,
 }) {
+  const hasDoc = Boolean(sessionId)
+
   return (
     <motion.aside
       className="sidebar"
-      animate={{ width: collapsed ? 72 : 256 }}
+      animate={{ width: collapsed ? 64 : 248 }}
       initial={false}
-      transition={{ duration: 0.32, ease: [0.4, 0, 0.2, 1] }}
+      transition={{ duration: 0.3, ease: [0.4, 0, 0.2, 1] }}
     >
+      {/* Logo */}
       <div className="sidebar__logo">
         <motion.div
           className="logo-icon"
           onClick={() => !editEmoji && setEditEmoji(true)}
           title="Нажмите для смены эмблемы"
-          whileHover={{ scale: 1.04 }}
-          whileTap={{ scale: 0.96 }}
+          whileHover={{ scale: 1.06 }}
+          whileTap={{ scale: 0.94 }}
           transition={{ duration: 0.15 }}
         >
           {editEmoji ? (
@@ -114,10 +245,10 @@ function LegacySidebar({
           {!collapsed && (
             <motion.div
               className="logo-text"
-              initial={{ opacity: 0, x: -10 }}
+              initial={{ opacity: 0, x: -8 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -10 }}
-              transition={{ duration: 0.2 }}
+              exit={{ opacity: 0, x: -8 }}
+              transition={{ duration: 0.18 }}
             >
               {editName ? (
                 <input
@@ -130,11 +261,7 @@ function LegacySidebar({
                   placeholder="Название…"
                 />
               ) : (
-                <h1
-                  className="app-name"
-                  onClick={() => setEditName(true)}
-                  title="Нажмите для переименования"
-                >
+                <h1 className="app-name" onClick={() => setEditName(true)} title="Переименовать">
                   {appName}
                 </h1>
               )}
@@ -145,15 +272,15 @@ function LegacySidebar({
 
         <motion.button
           className="collapse-btn"
-          onClick={() => setCollapsed(value => !value)}
+          onClick={() => setCollapsed(v => !v)}
           title={collapsed ? 'Развернуть' : 'Свернуть'}
-          aria-label={collapsed ? 'Развернуть боковую панель' : 'Свернуть боковую панель'}
+          aria-label={collapsed ? 'Развернуть' : 'Свернуть'}
           whileHover={{ scale: 1.15 }}
           whileTap={{ scale: 0.9 }}
         >
           <motion.span
             animate={{ rotate: collapsed ? 0 : 180 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.28 }}
             style={{ display: 'inline-block' }}
           >
             ›
@@ -161,15 +288,17 @@ function LegacySidebar({
         </motion.button>
       </div>
 
+      {/* Navigation */}
       <nav className="sidebar__nav" aria-label="Основная навигация">
         {NAV_BASE.filter(item => !item.adminOnly || currentUser?.role === 'admin').map((item, i) => {
           const active = location.pathname === item.path
+          const showBadge = hasDoc && BADGE_PATHS.has(item.path)
           return (
             <motion.div
               key={item.path}
-              initial={{ opacity: 0, x: -16 }}
+              initial={{ opacity: 0, x: -12 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.05, duration: 0.25 }}
+              transition={{ delay: i * 0.04, duration: 0.22 }}
             >
               <Link
                 to={item.path}
@@ -178,9 +307,8 @@ function LegacySidebar({
                 aria-current={active ? 'page' : undefined}
               >
                 <span className="nav-icon" aria-hidden="true">
-                  <item.Icon size={16} strokeWidth={1.75} />
+                  <item.Icon size={15} strokeWidth={1.75} />
                 </span>
-
                 <AnimatePresence>
                   {!collapsed && (
                     <motion.span
@@ -188,13 +316,13 @@ function LegacySidebar({
                       initial={{ opacity: 0, width: 0 }}
                       animate={{ opacity: 1, width: 'auto' }}
                       exit={{ opacity: 0, width: 0 }}
-                      transition={{ duration: 0.2 }}
+                      transition={{ duration: 0.18 }}
                     >
                       {item.label}
                     </motion.span>
                   )}
                 </AnimatePresence>
-
+                {showBadge && <span className="nav-badge" aria-hidden="true" />}
                 {active && (
                   <motion.span
                     className="nav-indicator"
@@ -209,90 +337,57 @@ function LegacySidebar({
         })}
       </nav>
 
-      <motion.button
-        className={`theme-toggle${collapsed ? ' theme-toggle--sm' : ''}`}
-        onClick={() => setDark(value => !value)}
-        title={dark ? 'Светлая тема' : 'Тёмная тема'}
-        aria-label={dark ? 'Переключить на светлую тему' : 'Переключить на тёмную тему'}
-        whileTap={{ scale: 0.95 }}
-      >
-        <div className="toggle-track">
-          <motion.div
-            className="toggle-thumb"
-            animate={{ x: dark ? 22 : 2 }}
-            transition={{ type: 'spring', stiffness: 600, damping: 32 }}
-          >
-            <AnimatePresence mode="wait">
-              <motion.span
-                key={dark ? 'moon' : 'sun'}
-                initial={{ rotate: -60, opacity: 0, scale: 0.5 }}
-                animate={{ rotate: 0, opacity: 1, scale: 1 }}
-                exit={{ rotate: 60, opacity: 0, scale: 0.5 }}
-                transition={{ duration: 0.2 }}
-                style={{ display: 'flex' }}
-              >
-                {dark
-                  ? <Moon size={12} strokeWidth={2.5} />
-                  : <Sun size={12} strokeWidth={2.5} />
-                }
-              </motion.span>
-            </AnimatePresence>
-          </motion.div>
-        </div>
-
-        <AnimatePresence>
-          {!collapsed && (
-            <motion.span
-              className="toggle-label"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-            >
-              {dark ? 'Тёмная' : 'Светлая'}
-            </motion.span>
-          )}
-        </AnimatePresence>
-      </motion.button>
-
+      {/* Active session */}
       <AnimatePresence>
-        {sessionId && !collapsed && (
+        {hasDoc && !collapsed && (
           <motion.div
-            className="session-badge"
-            initial={{ opacity: 0, y: 8 }}
+            className="sidebar__active-section"
+            initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.22 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.2 }}
           >
-            <span aria-hidden="true">📄</span>
-            <span className="session-badge__name">{documentName || 'Документ загружен'}</span>
+            <span className="sidebar__section-label">Активная сессия</span>
+            <div className="sidebar__session-card">
+              <p className="sidebar__session-name">
+                <FileText size={11} strokeWidth={2} />
+                {documentName || 'Документ загружен'}
+              </p>
+              <div className="sidebar__session-actions">
+                {QUICK_ACTIONS.map(({ path, Icon, label }) => (
+                  <Link
+                    key={path}
+                    to={path}
+                    className={`sidebar__session-btn${location.pathname === path ? ' sidebar__session-btn--active-page' : ''}`}
+                    title={label}
+                    aria-label={label}
+                  >
+                    <Icon size={13} strokeWidth={1.75} />
+                  </Link>
+                ))}
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
+      {/* Session history */}
       <AnimatePresence>
-        {!collapsed && (
+        {!collapsed && sessionHistory.filter(s => s.id !== sessionId).length > 0 && (
           <motion.div
-            className="user-badge"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            transition={{ duration: 0.22 }}
+            className="sidebar__history"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
           >
-            <div style={{ minWidth: 0 }}>
-              <Link to="/profile" style={{ textDecoration: 'none', color: 'inherit' }}>
-                <div className="user-badge__name">{currentUser.username}</div>
-              </Link>
-              <div className="user-badge__role">{currentUser.role}</div>
-            </div>
-            <button
-              className="user-badge__logout"
-              onClick={handleLogout}
-              title="Выйти"
-              aria-label="Выйти из системы"
-            >
-              <LogOut size={14} />
-            </button>
+            <span className="sidebar__section-label">Недавние</span>
+            {sessionHistory.filter(s => s.id !== sessionId).slice(0, 3).map(s => (
+              <div key={s.id} className="sidebar__history-item" title={s.name}>
+                <span className="sidebar__history-name">{s.name}</span>
+                <span className="sidebar__history-time">{formatRelTime(s.at)}</span>
+              </div>
+            ))}
           </motion.div>
         )}
       </AnimatePresence>
@@ -307,7 +402,7 @@ function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, se
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
-            className={['/', '/upload'].includes(location.pathname) ? 'page-full' : 'page-container'}
+            className={['/', '/upload', '/workspace'].includes(location.pathname) ? 'page-full' : 'page-container'}
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
@@ -316,13 +411,15 @@ function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, se
             <Routes location={location}>
               <Route path="/"             element={<LandingPage />} />
               <Route path="/upload"       element={<UploadPage sessionId={sessionId} setSessionId={setSessionId} setDocumentName={setDocumentName} />} />
-              <Route path="/chat"         element={<ChatPage sessionId={sessionId} documentName={documentName} />} />
+              <Route path="/workspace"     element={<DocumentWorkspacePage sessionId={sessionId} documentName={documentName} />} />
               <Route path="/presentation" element={<PresentationPage sessionId={sessionId} />} />
               <Route path="/compare"      element={<ComparisonPage />} />
               <Route path="/convert"      element={<ConvertPage sessionId={sessionId} />} />
               <Route path="/profile"      element={<ProfilePage currentUser={currentUser} />} />
               <Route path="/admin"        element={<AdminPage currentUser={currentUser} />} />
               <Route path="/ai-settings"  element={<AISettingsPage currentUser={currentUser} />} />
+              <Route path="/chat"         element={<Navigate to="/workspace" replace />} />
+              <Route path="/vector-base"  element={<Navigate to="/admin" replace />} />
               <Route path="/login"        element={<Navigate to="/" replace />} />
             </Routes>
           </motion.div>
@@ -333,8 +430,8 @@ function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, se
 }
 
 export default function App() {
-  const [sessionId, setSessionId] = useState(null)
-  const [documentName, setDocumentName] = useState('')
+  const [sessionId, setSessionId] = useState(() => localStorage.getItem('docai_session') || null)
+  const [documentName, setDocumentName] = useState(() => localStorage.getItem('docai_docname') || '')
   const [appName, setAppName] = useState(() => localStorage.getItem('appName') || 'KENCE.ai')
   const [appEmoji, setAppEmoji] = useState(() => localStorage.getItem('appEmoji') || 'K')
   const [editName, setEditName] = useState(false)
@@ -342,6 +439,19 @@ export default function App() {
   const [collapsed, setCollapsed] = useState(false)
   const [dark, setDark] = useState(getInitialTheme)
   const [currentUser, setCurrentUser] = useState(() => getStoredUser())
+  const [sessionHistory, setSessionHistory] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('kence_session_history') || '[]') }
+    catch { return [] }
+  })
+
+  const handleSetSessionId = (id) => {
+    setSessionId(id)
+    id ? localStorage.setItem('docai_session', id) : localStorage.removeItem('docai_session')
+  }
+  const handleSetDocumentName = (name) => {
+    setDocumentName(name)
+    name ? localStorage.setItem('docai_docname', name) : localStorage.removeItem('docai_docname')
+  }
 
   const location = useLocation()
   const nameRef = useRef(null)
@@ -376,22 +486,6 @@ export default function App() {
     })
   }, [sessionId, documentName])
 
-  useEffect(() => {
-    if (!currentUser) {
-      clearSessionTabsShadow()
-      return
-    }
-
-    syncSessionTabsShadow({
-      authenticated: true,
-      tabId: `legacy:${location.pathname}`,
-      routePath: location.pathname,
-      title: getLegacyTabTitle(location.pathname),
-      workspaceId: LEGACY_WORKSPACE_ID,
-      sessionId,
-      documentName,
-    })
-  }, [currentUser, location.pathname, sessionId, documentName])
 
   useEffect(() => {
     if (editName && nameRef.current) {
@@ -405,6 +499,16 @@ export default function App() {
       emojiRef.current.focus()
     }
   }, [editEmoji])
+
+  useEffect(() => {
+    if (!sessionId || !documentName) return
+    setSessionHistory(prev => {
+      const entry = { id: sessionId, name: documentName, at: Date.now() }
+      const next = [entry, ...prev.filter(s => s.id !== sessionId)].slice(0, 5)
+      localStorage.setItem('kence_session_history', JSON.stringify(next))
+      return next
+    })
+  }, [sessionId, documentName])
 
   const saveName = () => {
     setEditName(false)
@@ -423,8 +527,8 @@ export default function App() {
   const handleLogout = () => {
     clearAuth()
     setCurrentUser(null)
-    setSessionId(null)
-    setDocumentName('')
+    handleSetSessionId(null)
+    handleSetDocumentName('')
   }
 
   if (!currentUser) {
@@ -438,7 +542,7 @@ export default function App() {
 
   return (
     <AppShellLayout
-      tabsBar={<WorkspaceTabsBar />}
+      topCommandBar={<AppTopBar dark={dark} setDark={setDark} currentUser={currentUser} location={location} onLogout={handleLogout} />}
       leftRail={(
         <LeftRailShell>
           <LegacySidebar
@@ -446,31 +550,23 @@ export default function App() {
             appName={appName}
             collapsed={collapsed}
             currentUser={currentUser}
-            dark={dark}
             documentName={documentName}
             editEmoji={editEmoji}
             editName={editName}
             emojiRef={emojiRef}
-            handleLogout={handleLogout}
             location={location}
             nameRef={nameRef}
             saveEmoji={saveEmoji}
             saveName={saveName}
+            sessionHistory={sessionHistory}
             sessionId={sessionId}
             setAppEmoji={setAppEmoji}
             setAppName={setAppName}
             setCollapsed={setCollapsed}
-            setDark={setDark}
             setEditEmoji={setEditEmoji}
             setEditName={setEditName}
           />
         </LeftRailShell>
-      )}
-      topCommandBar={(
-        <TopCommandBarShell
-          currentLabel={getLegacyTabTitle(location.pathname)}
-          documentName={documentName}
-        />
       )}
       mainCanvas={(
         <LegacyRoutesCanvas
@@ -478,8 +574,8 @@ export default function App() {
           documentName={documentName}
           location={location}
           sessionId={sessionId}
-          setDocumentName={setDocumentName}
-          setSessionId={setSessionId}
+          setDocumentName={handleSetDocumentName}
+          setSessionId={handleSetSessionId}
         />
       )}
     />

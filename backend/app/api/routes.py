@@ -3,6 +3,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from pathlib import Path
 from typing import Literal
+from uuid import UUID
 import shutil
 import json
 
@@ -10,7 +11,6 @@ from app.core.session import session_manager
 from app.core.config import get_settings
 from app.services.document import doc_processor
 from app.services.llm import llm_service
-from app.services.presentation import pptx_generator
 from app.services.translation import translation_service
 from app.services.converter import converter_service
 from app.services.ai_settings_service import get_document_context
@@ -51,19 +51,21 @@ async def delete_session(session_id: str, user: dict = Depends(get_current_user)
 
 @router.post("/documents/upload")
 async def upload_document(session_id: str, file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    try:
+        UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session_id")
+
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Docling поддерживает: PDF, DOCX, PPTX, XLSX, HTML, TXT, PNG, JPG, TIFF, TEX
-    allowed = {
-        ".pdf", ".docx", ".doc", ".pptx", ".ppt", 
-        ".xlsx", ".xls", ".html", ".htm", ".txt",
-        ".png", ".jpg", ".jpeg", ".tiff", ".tex"
-    }
     ext = Path(file.filename).suffix.lower()
-    if ext not in allowed:
-        raise HTTPException(status_code=400, detail=f"Allowed formats: {', '.join(sorted(allowed))}")
+    if ext not in settings.ALLOWED_UPLOAD_FORMATS:
+        raise HTTPException(status_code=400, detail=f"Allowed formats: {', '.join(sorted(settings.ALLOWED_UPLOAD_FORMATS))}")
+
+    if file.size and file.size > settings.MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail=f"File too large. Max {settings.MAX_FILE_SIZE // 1024 // 1024} MB")
 
     file_path = Path(f"{settings.UPLOAD_DIR}/{session_id}/{file.filename}")
     file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -72,10 +74,13 @@ async def upload_document(session_id: str, file: UploadFile = File(...), user: d
         shutil.copyfileobj(file.file, buffer)
 
     try:
-        vector_store, markdown_text = doc_processor.process_file(str(file_path), session_id)
+        vector_store, markdown_text, html_text = doc_processor.process_file(str(file_path), session_id)
         session["document"] = file.filename
         session["vector_store"] = True
         session["preview"] = markdown_text[:800]
+        session["markdown_text"] = markdown_text
+        session["html_text"] = html_text if len(html_text) < 5_000_000 else ""
+        session_manager.save_session(session_id)
 
         return {
             "status": "processed",
@@ -142,38 +147,19 @@ async def chat_stream(
     )
 
 
-# ─── Презентации ────────────────────────────────────────
+# ─── Содержимое документа ───────────────────────────────
 
-@router.post("/presentations/generate")
-async def generate_presentation(session_id: str, user: dict = Depends(get_current_user)):
+@router.get("/documents/{session_id}/content")
+async def get_document_content(session_id: str, user: dict = Depends(get_current_user)):
     session = session_manager.get_session(session_id)
-    if not session or not session.get("vector_store"):
-        raise HTTPException(status_code=400, detail="No document uploaded")
-
-    try:
-        structure = llm_service.generate_presentation_structure(session_id)
-        file_path = pptx_generator.generate(structure, session_id)
-
-        return {
-            "status": "generated",
-            "filename": "presentation.pptx",
-            "structure": structure,
-            "download_url": f"/api/presentations/download/{session_id}"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.get("/presentations/download/{session_id}")
-async def download_presentation(session_id: str, user: dict = Depends(get_current_user)):
-    file_path = Path(f"{settings.UPLOAD_DIR}/{session_id}/presentation.pptx")
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Presentation not found")
-
-    return FileResponse(
-        str(file_path),
-        filename="presentation.pptx",
-        media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation"
-    )
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {
+        "filename": session.get("document", ""),
+        "markdown": session.get("markdown_text", ""),
+        "html": session.get("html_text", ""),
+        "char_count": len(session.get("markdown_text", "")),
+    }
 
 # ─── Перевод ────────────────────────────────────────────
 
@@ -183,6 +169,9 @@ async def translate_document(request: TranslateRequest, user: dict = Depends(get
     session = session_manager.get_session(request.session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
+    chroma_path = Path(settings.CHROMA_DIR) / request.session_id
+    if not chroma_path.exists():
+        raise HTTPException(status_code=400, detail="Document data not found, please re-upload")
     try:
         translated = translation_service.translate_document(
             request.session_id, request.target_language

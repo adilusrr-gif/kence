@@ -29,6 +29,12 @@ export const useWorkspaceStore = create((set) => ({
   contextEnvelopeBySessionId: {},
 
   hydrateWorkspace: ({ activeWorkspaceId = null, activeSessionId = null, activeDocumentName = '' } = {}) => set((state) => {
+    if (
+      state.activeWorkspaceId === activeWorkspaceId &&
+      state.activeSessionId === activeSessionId &&
+      state.activeDocumentName === activeDocumentName
+    ) return state
+
     const nextContextEnvelopeBySessionId = { ...state.contextEnvelopeBySessionId }
 
     if (activeSessionId) {

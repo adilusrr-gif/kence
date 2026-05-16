@@ -22,9 +22,9 @@ html[data-theme='dark'] {
   --border-default: rgba(148, 163, 184, 0.22);
   --border-strong: rgba(148, 163, 184, 0.36);
 
-  --accent-primary: #2952A3;
-  --accent-primary-hover: #3A68C8;
-  --accent-secondary: #C49B3C;
+  --accent-primary: #60A5FA;
+  --accent-primary-hover: #93C5FD;
+  --accent-secondary: #3B82F6;
 
   --status-success: var(--color-green-400);
   --status-warning: var(--color-amber-400);
@@ -58,9 +58,9 @@ html[data-theme='light'] {
   --border-default: rgba(15, 23, 42, 0.14);
   --border-strong: rgba(15, 23, 42, 0.22);
 
-  --accent-primary: #1E3A6E;
-  --accent-primary-hover: #2952A3;
-  --accent-secondary: #C49B3C;
+  --accent-primary: #3B82F6;
+  --accent-primary-hover: #2563EB;
+  --accent-secondary: #64748B;
 
   --status-success: var(--color-green-600);
   --status-warning: var(--color-amber-600);

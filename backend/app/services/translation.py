@@ -1,8 +1,9 @@
-from langchain_ollama import OllamaLLM, OllamaEmbeddings
+from langchain_ollama import OllamaLLM
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.vectorstores import Chroma
 from app.core.config import get_settings
+from app.services.embeddings_service import embeddings_service
 
 settings = get_settings()
 
@@ -35,10 +36,7 @@ class TranslationService:
             base_url=settings.OLLAMA_BASE_URL,
             temperature=0.1,
         )
-        self.embeddings = OllamaEmbeddings(
-            model=settings.EMBEDDING_MODEL,
-            base_url=settings.OLLAMA_BASE_URL,
-        )
+        self.embeddings = embeddings_service.embeddings
 
     def _get_full_text(self, session_id: str) -> str:
         """Возвращает ВЕСЬ текст документа из ChromaDB (все чанки, не similarity search)."""

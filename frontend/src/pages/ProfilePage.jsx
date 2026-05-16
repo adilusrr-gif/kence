@@ -9,13 +9,13 @@ import { SectionHeader } from '@/shared/ui/section-header'
 import { Stack } from '@/shared/ui/stack'
 import { apiChangePassword } from '../lib/api'
 
-const ROLE_LABELS = { admin: 'РђРґРјРёРЅРёСЃС‚СЂР°С‚РѕСЂ', manager: 'РњРµРЅРµРґР¶РµСЂ', user: 'РџРѕР»СЊР·РѕРІР°С‚РµР»СЊ' }
+const ROLE_LABELS = { admin: 'Администратор', manager: 'Менеджер', user: 'Пользователь' }
 const ROLE_VARIANTS = { admin: 'danger', manager: 'warning', user: 'info' }
 
 const FIELD_CONFIG = [
-  { name: 'current', label: 'РўРµРєСѓС‰РёР№ РїР°СЂРѕР»СЊ' },
-  { name: 'next', label: 'РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ' },
-  { name: 'confirm', label: 'РџРѕРґС‚РІРµСЂРґРёС‚Рµ РЅРѕРІС‹Р№ РїР°СЂРѕР»СЊ' },
+  { name: 'current', label: 'Текущий пароль' },
+  { name: 'next', label: 'Новый пароль' },
+  { name: 'confirm', label: 'Подтвердите новый пароль' },
 ]
 
 export default function ProfilePage({ currentUser }) {
@@ -30,22 +30,22 @@ export default function ProfilePage({ currentUser }) {
     setStatus(null)
 
     if (form.next.length < 6) {
-      setStatus({ ok: false, msg: 'РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ РґРѕР»Р¶РµРЅ СЃРѕРґРµСЂР¶Р°С‚СЊ РЅРµ РјРµРЅРµРµ 6 СЃРёРјРІРѕР»РѕРІ' })
+      setStatus({ ok: false, msg: 'Новый пароль должен содержать не менее 6 символов' })
       return
     }
     if (form.next !== form.confirm) {
-      setStatus({ ok: false, msg: 'РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ Рё РїРѕРґС‚РІРµСЂР¶РґРµРЅРёРµ РЅРµ СЃРѕРІРїР°РґР°СЋС‚' })
+      setStatus({ ok: false, msg: 'Новый пароль и подтверждение не совпадают' })
       return
     }
     if (form.next === form.current) {
-      setStatus({ ok: false, msg: 'РќРѕРІС‹Р№ РїР°СЂРѕР»СЊ СЃРѕРІРїР°РґР°РµС‚ СЃ С‚РµРєСѓС‰РёРј' })
+      setStatus({ ok: false, msg: 'Новый пароль совпадает с текущим' })
       return
     }
 
     setLoading(true)
     try {
       await apiChangePassword(form.current, form.next)
-      setStatus({ ok: true, msg: 'РџР°СЂРѕР»СЊ СѓСЃРїРµС€РЅРѕ РёР·РјРµРЅС‘РЅ' })
+      setStatus({ ok: true, msg: 'Пароль успешно изменён' })
       setForm({ current: '', next: '', confirm: '' })
     } catch (err) {
       setStatus({ ok: false, msg: err.message })
@@ -129,7 +129,7 @@ export default function ProfilePage({ currentUser }) {
             }}
           >
             <Stack as="form" gap="md" onSubmit={handleSubmit}>
-              <SectionHeader title="РР·РјРµРЅРµРЅРёРµ РїР°СЂРѕР»СЏ" dense />
+              <SectionHeader title="Изменение пароля" dense />
 
               {FIELD_CONFIG.map(({ name, label }) => (
                 <Stack key={name} gap="xs">
@@ -178,7 +178,7 @@ export default function ProfilePage({ currentUser }) {
               ) : null}
 
               <Button type="submit" loading={loading} disabled={loading} style={{ alignSelf: 'flex-start' }}>
-                {loading ? 'РЎРѕС…СЂР°РЅРµРЅРёРµвЂ¦' : 'РЎРјРµРЅРёС‚СЊ РїР°СЂРѕР»СЊ'}
+                {loading ? 'Сохранение…' : 'Сменить пароль'}
               </Button>
             </Stack>
           </Card>

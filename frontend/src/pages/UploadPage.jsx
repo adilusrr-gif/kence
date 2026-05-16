@@ -2,7 +2,6 @@ import React, { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Upload, FileText, Loader2, CheckCircle, FileSpreadsheet, FileImage, FileCode } from 'lucide-react'
-import { SplineSceneBasic } from '@/components/ui/spline-scene-demo'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
@@ -19,14 +18,18 @@ const FORMAT_ICONS = {
   '.jpeg': FileImage, '.tiff': FileImage, '.tex': FileCode,
 }
 
-const ALLOWED = ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls',
-  '.html', '.htm', '.txt', '.png', '.jpg', '.jpeg', '.tiff', '.tex']
+const ALLOWED = [
+  '.pdf', '.docx', '.pptx', '.xlsx',
+  '.html', '.htm',
+  '.png', '.jpg', '.jpeg', '.tiff', '.bmp',
+  '.txt', '.md', '.csv', '.tex',
+]
 
 const STAGES = [
-  { label: 'Р—Р°РіСЂСѓР·РєР°', icon: 'в¬†' },
-  { label: 'РџР°СЂСЃРёРЅРі', icon: 'вљ™' },
-  { label: 'РР·РІР»РµС‡РµРЅРёРµ', icon: 'рџ”Ќ' },
-  { label: 'Р’РµРєС‚РѕСЂРёР·Р°С†РёСЏ', icon: 'вњ¦' },
+  { label: 'Загрузка', icon: '⬆' },
+  { label: 'Парсинг', icon: '⚙' },
+  { label: 'Извлечение', icon: '🔍' },
+  { label: 'Векторизация', icon: '✦' },
 ]
 
 export default function UploadPage({ sessionId, setSessionId, setDocumentName }) {
@@ -44,7 +47,7 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
   const validate = f => {
     const ext = `.${f.name.split('.').pop().toLowerCase()}`
     if (!ALLOWED.includes(ext)) {
-      setError('Р¤РѕСЂРјР°С‚ РЅРµ РїРѕРґРґРµСЂР¶РёРІР°РµС‚СЃСЏ')
+      setError('Формат не поддерживается')
       return false
     }
     return true
@@ -84,8 +87,9 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
       setPreview(data.preview || null)
       setCharCount(data.char_count || 0)
       setUploaded(true)
+      setTimeout(() => navigate('/workspace'), 1500)
     } catch (err) {
-      setError(err.message || 'РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё')
+      setError(err.message || 'Ошибка загрузки')
       setStageIdx(-1)
     } finally {
       setUploading(false)
@@ -98,10 +102,6 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
 
   return (
     <div className="us-scene">
-      <div className="us-canvas">
-        <SplineSceneBasic />
-      </div>
-
       <div className="us-ui">
         <motion.div
           className="us-module"
@@ -111,7 +111,7 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
         >
           <Badge variant="accent" size="md" className="us-badge" style={{ alignSelf: 'flex-start' }}>
             <span className="us-badge__dot" />
-            AI В· Document Assistant
+            AI · Document Assistant
           </Badge>
 
           <motion.div
@@ -161,8 +161,8 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                   >
                     <Upload className="us-drop__icon" />
                   </motion.div>
-                  <p className="us-drop__hint">РќР°Р¶РјРёС‚Рµ РёР»Рё РїРµСЂРµС‚Р°С‰РёС‚Рµ С„Р°Р№Р»</p>
-                  <p className="us-drop__sub">PDF В· DOCX В· XLSX В· PNG Рё РґСЂСѓРіРёРµ</p>
+                  <p className="us-drop__hint">Нажмите или перетащите файл</p>
+                  <p className="us-drop__sub">PDF · DOCX · XLSX · PNG · TXT и другие</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -207,7 +207,7 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                       label={s.label}
                       icon={
                         <span className="us-stage__icon">
-                          {i < stageIdx ? 'вњ“' : i === stageIdx ? <Loader2 size={11} className="animate-spin" /> : s.icon}
+                          {i < stageIdx ? '✓' : i === stageIdx ? <Loader2 size={11} className="animate-spin" /> : s.icon}
                         </span>
                       }
                     />
@@ -234,10 +234,10 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
               }}
             >
               {uploading
-                ? 'РћР±СЂР°Р±РѕС‚РєР°вЂ¦'
+                ? 'Обработка…'
                 : uploaded
-                  ? 'Р“РѕС‚РѕРІРѕ'
-                  : 'Р—Р°РіСЂСѓР·РёС‚СЊ Рё РѕР±СЂР°Р±РѕС‚Р°С‚СЊ'}
+                  ? 'Готово'
+                  : 'Загрузить и обработать'}
             </Button>
           </motion.div>
 
@@ -256,8 +256,8 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                   >
                     <Card tone="accent" style={{ padding: 'var(--space-3)' }}>
                       <Inline justify="space-between" wrap gap="sm" style={{ marginBottom: 6, fontSize: 11, opacity: 0.7 }}>
-                        <span>рџ“„ РџСЂРµРґРїСЂРѕСЃРјРѕС‚СЂ РёР·РІР»РµС‡С‘РЅРЅРѕРіРѕ С‚РµРєСЃС‚Р°</span>
-                        <span>{charCount.toLocaleString()} СЃРёРјРІРѕР»РѕРІ</span>
+                        <span>📄 Предпросмотр извлечённого текста</span>
+                        <span>{charCount.toLocaleString()} символов</span>
                       </Inline>
                       <pre
                         style={{
@@ -287,7 +287,7 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                         block
                         className="us-action us-action--sec"
                       >
-                        рџ’¬ Р§Р°С‚
+                        💬 Чат
                       </Button>
                     </motion.div>
                     <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} style={{ flex: 1 }}>
@@ -296,7 +296,7 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                         block
                         className="us-action us-action--pri"
                       >
-                        рџ“Љ РџСЂРµР·РµРЅС‚Р°С†РёСЏ
+                        📊 Презентация
                       </Button>
                     </motion.div>
                   </Inline>

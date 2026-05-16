@@ -5,8 +5,8 @@ import difflib
 from langchain_core.documents import Document as LCDocument
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
-from langchain_ollama import OllamaEmbeddings
 from app.core.config import get_settings
+from app.services.embeddings_service import embeddings_service
 from app.services.ai_settings_service import get_prompt
 import json
 
@@ -15,14 +15,11 @@ settings = get_settings()
 class DocumentComparator:
     def __init__(self):
         self.converter = DocumentConverter()
-        self.embeddings = OllamaEmbeddings(
-            model=settings.EMBEDDING_MODEL,
-            base_url=settings.OLLAMA_BASE_URL
-        )
+        self.embeddings = embeddings_service.embeddings
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=settings.CHUNK_SIZE,
             chunk_overlap=settings.CHUNK_OVERLAP,
-            separators=["\n\n", "\n", ". ", " ", ""]
+            separators=["\n\n", ". ", "! ", "? ", " ", ""]
         )
 
     def extract_document(self, file_path: str) -> str:
@@ -116,7 +113,7 @@ class DocumentComparator:
         llm = OllamaLLM(
             model=settings.LLM_MODEL,
             base_url=settings.OLLAMA_BASE_URL,
-            temperature=0.1
+            temperature=0.1,
         )
 
         extract_prompt = get_prompt("comparison_technical_prompt")

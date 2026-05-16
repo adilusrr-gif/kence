@@ -24,17 +24,7 @@ export class ShellRegionBoundary extends React.Component {
     const { children, fallback, regionName } = this.props
 
     if (this.state.hasError) {
-      return fallback ?? (
-        <div
-          className="shell-region-boundary-fallback"
-          role="alert"
-        >
-          <strong>Раздел временно недоступен</strong>
-          <button type="button" onClick={this.handleRetry}>
-            Повторить
-          </button>
-        </div>
-      )
+      return fallback ?? null
     }
 
     return children

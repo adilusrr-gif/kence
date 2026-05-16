@@ -26,19 +26,13 @@ async def upload_comparison_documents(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    allowed = {
-        ".pdf", ".docx", ".doc", ".pptx", ".ppt", 
-        ".xlsx", ".xls", ".html", ".htm", ".txt",
-        ".png", ".jpg", ".jpeg", ".tiff", ".tex"
-    }
-
     files = [(file1, "doc1"), (file2, "doc2")]
     saved_paths = {}
 
     for file, key in files:
         ext = Path(file.filename).suffix.lower()
-        if ext not in allowed:
-            raise HTTPException(status_code=400, detail=f"{file.filename}: allowed formats are {allowed}")
+        if ext not in settings.ALLOWED_UPLOAD_FORMATS:
+            raise HTTPException(status_code=400, detail=f"{file.filename}: allowed formats are {sorted(settings.ALLOWED_UPLOAD_FORMATS)}")
         
         file_path = Path(f"{settings.UPLOAD_DIR}/{session_id}/{key}_{file.filename}")
         file_path.parent.mkdir(parents=True, exist_ok=True)

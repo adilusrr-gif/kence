@@ -25,7 +25,16 @@ function toShellState(partial = {}) {
 export const useShellStore = create((set) => ({
   ...toShellState(),
 
-  hydrateShell: (partial) => set((state) => toShellState({ ...state, ...partial })),
+  hydrateShell: (partial) => set((state) => {
+    const next = toShellState({ ...state, ...partial })
+    if (
+      next.theme === state.theme &&
+      next.appName === state.appName &&
+      next.appEmoji === state.appEmoji &&
+      next.leftRail?.collapsed === state.leftRail?.collapsed
+    ) return state
+    return next
+  }),
 
   toggleTheme: () => set((state) => ({
     theme: state.theme === 'dark' ? 'light' : 'dark',

@@ -23,11 +23,13 @@ export default function AppShellLayout({
       </ShellRegionBoundary>
 
       <div className="app-shell-layout__body">
-        <ShellRegionBoundary regionName="top-command-bar-shell">
-          <header className="app-shell-layout__top-bar" aria-label="Workspace header">
-            {topCommandBar}
-          </header>
-        </ShellRegionBoundary>
+        {topCommandBar && (
+          <ShellRegionBoundary regionName="top-bar">
+            <div className="app-shell-layout__top-bar">
+              {topCommandBar}
+            </div>
+          </ShellRegionBoundary>
+        )}
 
         {tabsBar ? (
           <ShellRegionBoundary regionName="workspace-tabs-shell">

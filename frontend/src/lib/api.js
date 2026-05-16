@@ -1,4 +1,13 @@
-const BASE = window.location.origin === 'http://localhost:5173' ? 'http://127.0.0.1:8000' : ''
+const { hostname } = window.location
+const BASE = (hostname === 'localhost' || hostname === '127.0.0.1')
+  ? `http://${hostname}:8000`
+  : ''
+
+export function getBaseUrl() { return BASE }
+
+export function copyToClipboard(text) {
+  navigator.clipboard.writeText(text).catch(() => {})
+}
 
 function getToken() {
   return localStorage.getItem('kence_token')
@@ -163,10 +172,36 @@ export async function apiDownloadPath(path) {
   return request('GET', path)
 }
 
-// ── Presentation ──────────────────────────────────────────────────────────
+// ── Document Content ──────────────────────────────────────────────────────
 
-export async function apiGeneratePresentation(sessionId) {
-  return request('POST', '/api/presentations/generate', { params: { session_id: sessionId } })
+export async function apiGetDocumentContent(sessionId) {
+  return request('GET', `/api/documents/${sessionId}/content`)
+}
+
+// ── Presentation (wizard) ─────────────────────────────────────────────────
+
+export async function apiPresentationPlan(sessionId, userInstructions = '', numSlides = 6) {
+  return request('POST', '/api/presentations/plan', {
+    body: { session_id: sessionId, user_instructions: userInstructions, num_slides: numSlides },
+  })
+}
+
+export async function apiUpdatePresentationPlan(sessionId, plan) {
+  return request('PUT', '/api/presentations/plan', {
+    params: { session_id: sessionId },
+    body: { title: plan.title, slides: plan.slides },
+  })
+}
+
+export async function apiBuildPresentation(sessionId, theme, slideIds) {
+  return request('POST', '/api/presentations/build', {
+    params: { session_id: sessionId },
+    body: { theme, slide_ids: slideIds },
+  })
+}
+
+export async function apiPresentationThemes() {
+  return request('GET', '/api/presentations/themes')
 }
 
 export async function apiDownloadPresentation(sessionId) {

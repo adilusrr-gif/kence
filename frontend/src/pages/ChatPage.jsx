@@ -1,12 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Send, Bot, User, Loader2, Languages, FileDown, FileText, Copy, BarChart2, GitCompare, RefreshCw, AlertTriangle, Upload, BookOpen, Check } from 'lucide-react'
-import { apiChat, apiTranslate, apiTranslateExport, apiDownloadPath, apiGetDocumentContext, apiSaveDocumentContext, apiDeleteDocumentContext } from '../lib/api'
-
-
-function copyText(text) {
-  navigator.clipboard.writeText(text).catch(() => {})
-}
+import { Send, Bot, User, Loader2, Languages, FileDown, FileText, Copy, BarChart2, GitCompare, RefreshCw, AlertTriangle, Upload, BookOpen, Check, SlidersHorizontal } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { apiTranslate, apiTranslateExport, apiDownloadPath, apiGetDocumentContext, apiSaveDocumentContext, apiDeleteDocumentContext, copyToClipboard } from '../lib/api'
+import { streamChat } from '../lib/streamChat'
 
 const TIPS = [
   'Краткое содержание документа',
@@ -68,74 +66,13 @@ export default function ChatPage({ sessionId, documentName }) {
       role: 'assistant', content: '', status: '…', streaming: true, confidence: null,
     }])
 
-    try {
-      const token = localStorage.getItem('kence_token')
-      const BASE  = window.location.origin === 'http://localhost:5173' ? 'http://127.0.0.1:8000' : ''
-      const url   = `${BASE}/api/chat/stream?` + new URLSearchParams({ session_id: sessionId, question })
-      const res   = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-
-      if (res.status === 401) { window.location.href = '/login'; return }
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: 'Ошибка сервера' }))
-        throw new Error(err.detail)
-      }
-
-      const reader  = res.body.getReader()
-      const decoder = new TextDecoder()
-      let fullText  = ''
-      let buf       = ''
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buf += decoder.decode(value, { stream: true })
-        const lines = buf.split('\n')
-        buf = lines.pop()
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const raw = line.slice(6).trim()
-          if (raw === '[DONE]') break
-          try {
-            const { text, status, error } = JSON.parse(raw)
-            if (error) throw new Error(error)
-            if (status) {
-              setMessages(prev => {
-                const msgs = [...prev]
-                msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], status }
-                return msgs
-              })
-            }
-            if (text) {
-              fullText += text
-              setMessages(prev => {
-                const msgs = [...prev]
-                msgs[msgs.length - 1] = { ...msgs[msgs.length - 1], content: fullText, status: null }
-                return msgs
-              })
-            }
-          } catch (e) { if (e.message !== 'Unexpected end') throw e }
-        }
-      }
-
-      setMessages(prev => {
-        const msgs = [...prev]
-        msgs[msgs.length - 1] = {
-          role: 'assistant', content: fullText || '(пустой ответ)',
-          confidence: null, streaming: false,
-        }
-        return msgs
-      })
-    } catch (err) {
-      setMessages(prev => {
-        const msgs = [...prev]
-        msgs[msgs.length - 1] = {
-          role: 'assistant',
-          content: 'Ошибка: ' + (err.message || 'Не удалось получить ответ'),
-          confidence: null, streaming: false, isError: true,
-        }
-        return msgs
-      })
-    } finally { setLoading(false) }
+    await streamChat(sessionId, question, {
+      onStatus: (status) => setMessages(prev => { const m=[...prev]; m[m.length-1]={...m[m.length-1],status}; return m }),
+      onChunk:  (_, full) => setMessages(prev => { const m=[...prev]; m[m.length-1]={...m[m.length-1],content:full,status:null}; return m }),
+      onDone:   (full)    => setMessages(prev => { const m=[...prev]; m[m.length-1]={role:'assistant',content:full,confidence:null,streaming:false}; return m }),
+      onError:  (err)     => setMessages(prev => { const m=[...prev]; m[m.length-1]={role:'assistant',content:'Ошибка: '+(err.message||'—'),confidence:null,streaming:false,isError:true}; return m }),
+    })
+    setLoading(false)
   }
 
   const handleTranslate = async (lang) => {
@@ -202,6 +139,15 @@ export default function ChatPage({ sessionId, documentName }) {
               <BarChart2 size={12} />
               Презентация
             </button>
+            <button
+              className="chat-v2-action-btn"
+              onClick={() => navigate('/ai-settings')}
+              title="Настройки промпта"
+              aria-label="Настройки AI"
+            >
+              <SlidersHorizontal size={12} />
+              Промпт
+            </button>
           </div>
         </div>
 
@@ -253,7 +199,12 @@ export default function ChatPage({ sessionId, documentName }) {
                   {msg.streaming && !msg.content
                     ? <span style={{ opacity: 0.5 }}>{msg.status || '…'}</span>
                     : <>
-                        {msg.content}
+                        {msg.role === 'assistant' && msg.content
+                          ? <div className="chat-md">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ table: ({node, ...p}) => <div className="table-wrap"><table {...p} /></div> }}>{msg.content}</ReactMarkdown>
+                            </div>
+                          : msg.content
+                        }
                         {msg.streaming && (
                           <span style={{ display: 'inline-block', width: 2, height: '1em', background: 'currentColor', marginLeft: 2, verticalAlign: 'text-bottom', animation: 'chat-cursor-blink 0.7s steps(1) infinite' }} />
                         )}
@@ -262,7 +213,7 @@ export default function ChatPage({ sessionId, documentName }) {
                 </div>
                 {msg.role === 'assistant' && msg.content && !msg.streaming && (
                   <div className="chat-v2-meta">
-                    <button className="chat-v2-copy" onClick={() => copyText(msg.content)} title="Копировать" aria-label="Копировать ответ">
+                    <button className="chat-v2-copy" onClick={() => copyToClipboard(msg.content)} title="Копировать" aria-label="Копировать ответ">
                       <Copy size={11} />
                     </button>
                   </div>

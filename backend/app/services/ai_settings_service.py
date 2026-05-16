@@ -1,17 +1,23 @@
-import json
-from pathlib import Path
+import logging
 from typing import Optional
 from datetime import datetime
 
-DATA_DIR = Path("./data")
-PROMPTS_FILE = DATA_DIR / "ai_prompts.json"
-DOC_CONTEXTS_FILE = DATA_DIR / "doc_contexts.json"
+logger = logging.getLogger(__name__)
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from app.core.database import SessionLocal
+from app.models.models import AIPrompt, DocumentContext
 
 DEFAULT_PROMPTS: dict[str, str] = {
     "chat_prompt": (
         "Ты — полезный ассистент для работы с документами.\n"
         "Отвечай ТОЛЬКО на основе предоставленного контекста.\n"
-        "Если ответа нет в контексте, скажи об этом честно.\n\n"
+        "Если ответа нет в контексте, скажи об этом честно.\n"
+        "Форматируй ответ так, чтобы он был максимально понятен:\n"
+        "- Если контекст содержит таблицу или вопрос требует сравнения/перечисления данных — "
+        "используй Markdown-таблицу (| Столбец | Столбец |\\n|---|---|\\n| ... |).\n"
+        "- Если вопрос требует списка — используй маркированный список.\n"
+        "- В остальных случаях пиши связными абзацами.\n"
+        "Не сокращай ответ до голых тезисов. Отвечай развёрнуто.\n\n"
         "Контекст:\n{context}\n\n"
         "Вопрос: {question}\n\n"
         "Ответ (на русском языке):"
@@ -57,99 +63,131 @@ DEFAULT_PROMPTS: dict[str, str] = {
 }
 
 
-def _load_prompts() -> dict:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if PROMPTS_FILE.exists():
-        try:
-            with open(PROMPTS_FILE, "r", encoding="utf-8") as f:
-                saved = json.load(f)
-            merged = dict(DEFAULT_PROMPTS)
-            merged.update(saved)
-            return merged
-        except Exception:
-            pass
-    return dict(DEFAULT_PROMPTS)
+def _db():
+    return SessionLocal()
 
 
-def _save_prompts(prompts: dict) -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with open(PROMPTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(prompts, f, ensure_ascii=False, indent=2)
+def _ensure_defaults(db) -> None:
+    for prompt_type, content in DEFAULT_PROMPTS.items():
+        stmt = (
+            pg_insert(AIPrompt)
+            .values(prompt_type=prompt_type, content=content)
+            .on_conflict_do_update(
+                index_elements=["prompt_type"],
+                set_={"content": content},
+                where=(AIPrompt.content != content),
+            )
+        )
+        db.execute(stmt)
+    db.commit()
 
+
+# ── Prompts ───────────────────────────────────────────────────────────────────
 
 def get_prompts() -> dict:
-    return _load_prompts()
+    try:
+        with _db() as db:
+            _ensure_defaults(db)
+            rows = db.query(AIPrompt).all()
+            result = dict(DEFAULT_PROMPTS)
+            result.update({r.prompt_type: r.content for r in rows})
+            return result
+    except Exception as e:
+        logger.warning("[ai_settings] get_prompts DB failed, using defaults: %s", e)
+        return dict(DEFAULT_PROMPTS)
 
 
 def get_prompt(prompt_type: str) -> str:
-    return _load_prompts().get(prompt_type, DEFAULT_PROMPTS.get(prompt_type, ""))
+    try:
+        with _db() as db:
+            row = db.get(AIPrompt, prompt_type)
+            if row:
+                return row.content
+    except Exception as e:
+        logger.warning("[ai_settings] get_prompt DB failed for %s: %s", prompt_type, e)
+    return DEFAULT_PROMPTS.get(prompt_type, "")
 
 
 def update_prompt(prompt_type: str, content: str) -> bool:
     if prompt_type not in DEFAULT_PROMPTS:
         return False
-    prompts = _load_prompts()
-    prompts[prompt_type] = content
-    _save_prompts(prompts)
+    with _db() as db:
+        row = db.get(AIPrompt, prompt_type)
+        if row:
+            row.content = content
+        else:
+            db.add(AIPrompt(prompt_type=prompt_type, content=content))
+        db.commit()
     return True
 
 
 def reset_prompt(prompt_type: str) -> Optional[str]:
     if prompt_type not in DEFAULT_PROMPTS:
         return None
-    prompts = _load_prompts()
-    prompts[prompt_type] = DEFAULT_PROMPTS[prompt_type]
-    _save_prompts(prompts)
-    return DEFAULT_PROMPTS[prompt_type]
+    content = DEFAULT_PROMPTS[prompt_type]
+    update_prompt(prompt_type, content)
+    return content
 
 
 def reset_all_prompts() -> None:
-    _save_prompts(dict(DEFAULT_PROMPTS))
+    with _db() as db:
+        for prompt_type, content in DEFAULT_PROMPTS.items():
+            row = db.get(AIPrompt, prompt_type)
+            if row:
+                row.content = content
+            else:
+                db.add(AIPrompt(prompt_type=prompt_type, content=content))
+        db.commit()
 
 
-# ── Document Contexts ──────────────────────────────────────────────────────
-
-def _load_contexts() -> dict:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    if DOC_CONTEXTS_FILE.exists():
-        try:
-            with open(DOC_CONTEXTS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
-
-
-def _save_contexts(contexts: dict) -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    with open(DOC_CONTEXTS_FILE, "w", encoding="utf-8") as f:
-        json.dump(contexts, f, ensure_ascii=False, indent=2)
-
+# ── Document Contexts ─────────────────────────────────────────────────────────
 
 def save_document_context(username: str, document_name: str, context: str) -> None:
-    all_contexts = _load_contexts()
-    if username not in all_contexts:
-        all_contexts[username] = {}
-    all_contexts[username][document_name] = {
-        "context": context,
-        "updated_at": datetime.utcnow().isoformat(),
-    }
-    _save_contexts(all_contexts)
+    with _db() as db:
+        stmt = (
+            pg_insert(DocumentContext)
+            .values(username=username, document_name=document_name, context=context)
+            .on_conflict_do_update(
+                index_elements=None,
+                constraint="uq_user_doc_context",
+                set_={"context": context, "updated_at": datetime.utcnow()},
+            )
+        )
+        db.execute(stmt)
+        db.commit()
 
 
 def get_document_context(username: str, document_name: str) -> Optional[str]:
-    entry = _load_contexts().get(username, {}).get(document_name)
-    return entry["context"] if entry else None
+    try:
+        with _db() as db:
+            row = (
+                db.query(DocumentContext)
+                .filter_by(username=username, document_name=document_name)
+                .first()
+            )
+            return row.context if row else None
+    except Exception:
+        return None
 
 
 def delete_document_context(username: str, document_name: str) -> bool:
-    all_contexts = _load_contexts()
-    if username in all_contexts and document_name in all_contexts[username]:
-        del all_contexts[username][document_name]
-        _save_contexts(all_contexts)
+    with _db() as db:
+        row = (
+            db.query(DocumentContext)
+            .filter_by(username=username, document_name=document_name)
+            .first()
+        )
+        if not row:
+            return False
+        db.delete(row)
+        db.commit()
         return True
-    return False
 
 
 def get_user_document_contexts(username: str) -> dict:
-    return _load_contexts().get(username, {})
+    try:
+        with _db() as db:
+            rows = db.query(DocumentContext).filter_by(username=username).all()
+            return {r.document_name: {"context": r.context} for r in rows}
+    except Exception:
+        return {}
