@@ -1,9 +1,7 @@
 from langchain_ollama import OllamaLLM
 from langchain_core.prompts import PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_community.vectorstores import Chroma
 from app.core.config import get_settings
-from app.services.embeddings_service import embeddings_service
 
 settings = get_settings()
 
@@ -35,27 +33,17 @@ class TranslationService:
             model=settings.LLM_MODEL,
             base_url=settings.OLLAMA_BASE_URL,
             temperature=0.1,
+            timeout=300,
         )
-        self.embeddings = embeddings_service.embeddings
 
-    def _get_full_text(self, session_id: str) -> str:
-        """Возвращает ВЕСЬ текст документа из ChromaDB (все чанки, не similarity search)."""
-        vector_store = Chroma(
-            persist_directory=f"{settings.CHROMA_DIR}/{session_id}",
-            embedding_function=self.embeddings,
-        )
-        result = vector_store._collection.get()
-        texts = result.get("documents", [])
-        if not texts:
-            raise ValueError("Document is empty or not found")
-        return "\n\n".join(texts)
-
-    def translate_document(self, session_id: str, target_language: str) -> str:
-        """Переводит весь документ на указанный язык."""
+    def translate_document(self, text: str, target_language: str) -> str:
+        """Переводит текст документа на указанный язык."""
         if target_language not in LANGUAGE_NAMES:
             raise ValueError(f"Unsupported language: {target_language}. Use: kz, ru, en")
 
-        full_text = self._get_full_text(session_id)
+        full_text = text.strip()
+        if not full_text:
+            raise ValueError("Document text is empty")
 
         # Обрезаем если текст слишком большой для контекстного окна модели (~24k символов безопасно)
         if len(full_text) > 24000:

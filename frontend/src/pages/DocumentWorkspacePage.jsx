@@ -64,6 +64,9 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
   const inputRef       = useRef(null)
   const messagesEndRef = useRef(null)
 
+  /* chat mode */
+  const [chatMode, setChatMode] = useState('precise') // 'precise' | 'consultation'
+
   /* translation */
   const [translating, setTranslating] = useState(false)
 
@@ -141,6 +144,7 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
     setMessages(prev => [...prev, { role: 'assistant', content: '', status: '…', streaming: true }])
 
     await streamChat(sessionId, question, {
+      mode: chatMode,
       onStatus: (status) => setMessages(prev => { const m=[...prev]; m[m.length-1]={...m[m.length-1],status}; return m }),
       onChunk:  (_, full) => setMessages(prev => { const m=[...prev]; m[m.length-1]={...m[m.length-1],content:full,status:null}; return m }),
       onDone:   (full)    => setMessages(prev => { const m=[...prev]; m[m.length-1]={role:'assistant',content:full,streaming:false}; return m }),
@@ -371,8 +375,24 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
             </button>
           ) : (
             <>
-              {/* Tips chips */}
+              {/* Mode toggle + Tips chips */}
               <div className="ws-tips-row">
+                <div className="ws-mode-toggle">
+                  <button
+                    className={`ws-mode-btn${chatMode === 'precise' ? ' ws-mode-btn--active' : ''}`}
+                    onClick={() => setChatMode('precise')}
+                    title="Строгий ответ только по содержимому документа"
+                  >
+                    Точный ответ
+                  </button>
+                  <button
+                    className={`ws-mode-btn${chatMode === 'consultation' ? ' ws-mode-btn--active' : ''}`}
+                    onClick={() => setChatMode('consultation')}
+                    title="Развёрнутая консультация с интерпретацией"
+                  >
+                    Консультация
+                  </button>
+                </div>
                 {TIPS.map((t, i) => (
                   <button key={i} className="ws-tip" onClick={() => { setInput(t); inputRef.current?.focus() }}>{t}</button>
                 ))}

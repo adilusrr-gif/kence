@@ -82,11 +82,16 @@ class DocumentProcessor:
 
         return vector_store, markdown_text, html_text
 
-    def get_retriever(self, session_id: str):
+    def get_retriever(self, session_id: str, mode: str = "precise"):
         vector_store = Chroma(
             persist_directory=f"{settings.CHROMA_DIR}/{session_id}",
             embedding_function=self.embeddings
         )
-        return vector_store.as_retriever(search_kwargs={"k": 5})
+        if mode == "consultation":
+            return vector_store.as_retriever(
+                search_type="mmr",
+                search_kwargs={"k": 12, "fetch_k": 30, "lambda_mult": 0.6}
+            )
+        return vector_store.as_retriever(search_kwargs={"k": 8})
 
 doc_processor = DocumentProcessor()

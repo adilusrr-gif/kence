@@ -74,6 +74,26 @@ def set_user_active(username: str, is_active: bool) -> bool:
         return True
 
 
+def delete_user(username: str) -> bool:
+    with _db() as db:
+        user = db.get(User, username)
+        if not user:
+            return False
+        db.delete(user)
+        db.commit()
+        return True
+
+
+def set_user_role(username: str, role: str) -> bool:
+    with _db() as db:
+        user = db.get(User, username)
+        if not user:
+            return False
+        user.role = role
+        db.commit()
+        return True
+
+
 def change_password(username: str, old_password: str, new_password: str) -> None:
     with _db() as db:
         user = db.get(User, username)

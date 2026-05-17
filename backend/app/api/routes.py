@@ -6,6 +6,7 @@ from typing import Literal
 from uuid import UUID
 import shutil
 import json
+import asyncio
 
 from app.core.session import session_manager
 from app.core.config import get_settings
@@ -79,7 +80,7 @@ async def upload_document(session_id: str, file: UploadFile = File(...), user: d
         session["vector_store"] = True
         session["preview"] = markdown_text[:800]
         session["markdown_text"] = markdown_text
-        session["html_text"] = html_text if len(html_text) < 5_000_000 else ""
+        session["html_text"] = html_text if len(html_text) < 15_000_000 else ""
         session_manager.save_session(session_id)
 
         return {
@@ -116,6 +117,7 @@ async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
 async def chat_stream(
     session_id: str,
     question: str,
+    mode: str = "precise",
     user: dict = Depends(get_current_user),
 ):
     session = session_manager.get_session(session_id)
@@ -129,7 +131,7 @@ async def chat_stream(
         yield f"data: {json.dumps({'status': 'Ищу релевантные фрагменты...'})}\n\n"
         try:
             first = True
-            async for chunk in llm_service.chat_astream(question, session_id, doc_context):
+            async for chunk in llm_service.chat_astream(question, session_id, doc_context, mode):
                 if first:
                     yield f"data: {json.dumps({'status': 'Формирую ответ...'})}\n\n"
                     first = False
@@ -169,12 +171,13 @@ async def translate_document(request: TranslateRequest, user: dict = Depends(get
     session = session_manager.get_session(request.session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
-    chroma_path = Path(settings.CHROMA_DIR) / request.session_id
-    if not chroma_path.exists():
-        raise HTTPException(status_code=400, detail="Document data not found, please re-upload")
+    markdown_text = session.get("markdown_text", "")
+    if not markdown_text:
+        raise HTTPException(status_code=400, detail="Document text not found, please re-upload")
     try:
-        translated = translation_service.translate_document(
-            request.session_id, request.target_language
+        translated = await asyncio.to_thread(
+            translation_service.translate_document,
+            markdown_text, request.target_language
         )
         return {
             "translated": translated,
@@ -185,16 +188,20 @@ async def translate_document(request: TranslateRequest, user: dict = Depends(get
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/translate/export")
-async def translate_export(request: TranslateRequest, target_format: Literal["txt", "md", "docx", "pdf"], user: dict = Depends(get_current_user)):
+async def translate_export(request: TranslateRequest, target_format: Literal["txt", "md", "docx"], user: dict = Depends(get_current_user)):
     """Переводит документ и сразу экспортирует в формат для скачивания"""
     session = session_manager.get_session(request.session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
     
+    markdown_text = session.get("markdown_text", "")
+    if not markdown_text:
+        raise HTTPException(status_code=400, detail="Document text not found, please re-upload")
     try:
         # 1. Сначала переводим
-        translated_text = translation_service.translate_document(
-            request.session_id, request.target_language
+        translated_text = await asyncio.to_thread(
+            translation_service.translate_document,
+            markdown_text, request.target_language
         )
         
         # 2. Сохраняем в файл нужного формата

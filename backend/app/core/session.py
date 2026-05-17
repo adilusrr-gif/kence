@@ -34,6 +34,7 @@ class SessionManager:
             has_vector_store=bool(data.get("vector_store")),
             preview=data.get("preview"),
             markdown_text=data.get("markdown_text"),
+            html_text=data.get("html_text"),
             presentation_plan=data.get("presentation_plan"),
         )
 
@@ -43,6 +44,7 @@ class SessionManager:
             "vector_store": row.has_vector_store,
             "preview": row.preview,
             "markdown_text": row.markdown_text,
+            "html_text": row.html_text,
             "presentation_plan": row.presentation_plan,
             "created_at": row.created_at.timestamp() if row.created_at else time.time(),
             "last_activity": time.time(),
@@ -108,6 +110,7 @@ class SessionManager:
                     row.has_vector_store = bool(data.get("vector_store"))
                     row.preview = data.get("preview")
                     row.markdown_text = data.get("markdown_text")
+                    row.html_text = data.get("html_text")
                     row.presentation_plan = data.get("presentation_plan")
                 else:
                     db.add(self._to_row(session_id, data))

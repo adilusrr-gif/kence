@@ -43,10 +43,12 @@ _PLAN_PROMPT = """Ты генератор структуры презентац�
 }}
 
 Правила:
-- Первый слайд всегда type=title
-- Последний слайд всегда type=summary
+- Первый слайд всегда type=title, его points[0] — краткий подзаголовок презентации
+- Последний слайд всегда type=summary с 4-5 ключевыми выводами из документа
 - Общее количество слайдов: {content_slides} + 2 (title + summary)
-- Включи 1-2 слайда type=chart если в документе есть числовые данные
+- Включи 1-2 слайда type=chart если в документе есть числовые данные; data_hint должен содержать конкретные числа из текста
+- Каждый пункт (points) — полное информативное предложение не менее 8 слов, не просто слово или фраза
+- Для type=content: points — развёрнутые тезисы с конкретными фактами из документа
 - Если указаны пожелания пользователя — обязательно учти их
 - Ответь ТОЛЬКО валидным JSON без markdown-блоков"""
 
@@ -61,7 +63,7 @@ def generate_plan(session_id: str, llm_service, user_instructions: str = "", num
         raise ValueError("No document in session")
 
     content_slides = max(2, min(num_slides, 12))
-    snippet = text[:3000]
+    snippet = text[:8000]
     instructions = user_instructions.strip() or "нет особых пожеланий"
     prompt = _PLAN_PROMPT.format(text=snippet, user_instructions=instructions, content_slides=content_slides)
 

@@ -70,6 +70,8 @@ async def lifespan(app: FastAPI):
     print(f"[LLM] {settings.LLM_MODEL} @ {settings.OLLAMA_BASE_URL}")
     print(f"[AUTH] JWT / {settings.JWT_ALGORITHM} / {settings.ACCESS_TOKEN_EXPIRE_MINUTES}min")
     print(f"[DB] {settings.DATABASE_URL.split('@')[-1]}")
+    if "change-in-production" in settings.JWT_SECRET_KEY:
+        print("[SECURITY WARNING] JWT_SECRET_KEY is using the default value — set a strong secret in .env!")
 
     async def cleanup_task():
         while True:

@@ -102,7 +102,14 @@ const DocumentViewer = forwardRef(function DocumentViewer({ markdown = '', html 
       {hasHtml && (
         <div
           className="dv-html-content"
-          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html, { ADD_TAGS: ['style'] }) }}
+          dangerouslySetInnerHTML={{
+            __html: DOMPurify.sanitize(html, {
+              ADD_TAGS: ['style'],
+              ADD_ATTR: ['style'],
+              // Allow data:image URIs so embedded base64 images from Docling render
+              ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+            })
+          }}
         />
       )}
 

@@ -122,6 +122,18 @@ export async function apiAdminDeactivateUser(username) {
   return request('POST', `/api/auth/users/${username}/deactivate`)
 }
 
+export async function apiAdminDeleteUser(username) {
+  return request('DELETE', `/api/auth/users/${username}`)
+}
+
+export async function apiAdminChangeRole(username, role) {
+  return request('PATCH', `/api/auth/users/${username}/role`, { body: { role } })
+}
+
+export async function apiAdminStats() {
+  return request('GET', '/api/auth/stats')
+}
+
 // ── Sessions ──────────────────────────────────────────────────────────────
 
 export async function apiCreateSession() {

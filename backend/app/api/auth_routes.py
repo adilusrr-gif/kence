@@ -1,13 +1,17 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from datetime import timedelta
 from typing import Optional
+import re
 
 from app.core.security import create_access_token, decode_token
-from app.services.user_service import authenticate, create_user, get_user, list_users, set_user_active, change_password
+from app.services.user_service import authenticate, create_user, get_user, list_users, set_user_active, change_password, delete_user, set_user_role
 from app.core.config import get_settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -47,7 +51,24 @@ class RegisterRequest(BaseModel):
     username: str
     password: str
     role: str = "user"
-    admin_token: Optional[str] = None  # required for non-user roles
+    admin_token: Optional[str] = None
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 3 or len(v) > 32:
+            raise ValueError("Имя пользователя должно быть от 3 до 32 символов")
+        if not re.match(r'^[a-zA-Z0-9_.-]+$', v):
+            raise ValueError("Имя пользователя может содержать только буквы, цифры, _, ., -")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 6:
+            raise ValueError("Пароль должен содержать не менее 6 символов")
+        return v
 
 
 class TokenResponse(BaseModel):
@@ -72,6 +93,10 @@ class CreateUserAdminRequest(BaseModel):
     username: str
     password: str
     role: str = "user"
+
+
+class ChangeRoleRequest(BaseModel):
+    role: str
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -171,4 +196,57 @@ async def admin_create_user(req: CreateUserAdminRequest, admin: dict = Depends(r
         user = create_user(req.username, req.password, req.role)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    logger.info("[audit] admin=%s created user=%s role=%s", admin["username"], req.username, req.role)
     return UserInfo(username=user["username"], role=user["role"], is_active=user["is_active"])
+
+
+@router.delete("/users/{username}")
+async def admin_delete_user(username: str, admin: dict = Depends(require_admin)):
+    if username == admin["username"]:
+        raise HTTPException(status_code=400, detail="Нельзя удалить собственный аккаунт")
+    ok = delete_user(username)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    logger.info("[audit] admin=%s deleted user=%s", admin["username"], username)
+    return {"message": f"Пользователь {username} удалён"}
+
+
+@router.patch("/users/{username}/role")
+async def admin_change_role(username: str, req: ChangeRoleRequest, admin: dict = Depends(require_admin)):
+    if username == admin["username"]:
+        raise HTTPException(status_code=400, detail="Нельзя изменить собственную роль")
+    allowed_roles = {"user", "manager", "admin"}
+    if req.role not in allowed_roles:
+        raise HTTPException(status_code=400, detail=f"Допустимые роли: {', '.join(allowed_roles)}")
+    ok = set_user_role(username, req.role)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+    logger.info("[audit] admin=%s changed role of user=%s to %s", admin["username"], username, req.role)
+    return {"message": f"Роль пользователя {username} изменена на {req.role}"}
+
+
+@router.get("/stats")
+async def admin_stats(admin: dict = Depends(require_admin)):
+    from app.core.session import session_manager
+    from app.core.config import get_settings
+    import os, shutil
+    cfg = get_settings()
+    all_users = list_users()
+    active_sessions = len(session_manager._mem)
+    upload_dir = cfg.UPLOAD_DIR
+    try:
+        total, used, free = shutil.disk_usage(upload_dir)
+        disk_free_gb = round(free / (1024**3), 1)
+    except Exception:
+        disk_free_gb = None
+    return {
+        "users_total": len(all_users),
+        "users_active": sum(1 for u in all_users if u["is_active"]),
+        "users_blocked": sum(1 for u in all_users if not u["is_active"]),
+        "active_sessions": active_sessions,
+        "llm_model": cfg.LLM_MODEL,
+        "embedding_model": cfg.EMBEDDING_MODEL,
+        "disk_free_gb": disk_free_gb,
+        "chunk_size": cfg.CHUNK_SIZE,
+        "session_timeout_min": cfg.SESSION_TIMEOUT // 60,
+    }

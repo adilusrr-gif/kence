@@ -15,6 +15,12 @@ class LLMService:
             temperature=0.3,
             timeout=300,
         )
+        self.llm_consult = OllamaLLM(
+            model=settings.LLM_MODEL,
+            base_url=settings.OLLAMA_BASE_URL,
+            temperature=0.7,
+            timeout=300,
+        )
 
     def _get_prompt(self, prompt_type: str) -> str:
         from app.services.ai_settings_service import get_prompt
@@ -34,13 +40,16 @@ class LLMService:
         return self.llm.invoke(prompt_text)
 
     async def chat_astream(
-        self, question: str, session_id: str, doc_context: Optional[str] = None
+        self, question: str, session_id: str,
+        doc_context: Optional[str] = None, mode: str = "precise"
     ) -> AsyncGenerator[str, None]:
-        retriever = doc_processor.get_retriever(session_id)
+        retriever = doc_processor.get_retriever(session_id, mode=mode)
         docs = await asyncio.to_thread(retriever.invoke, question)
         context = self._build_context(docs, doc_context)
-        prompt_text = self._get_prompt("chat_prompt").format(context=context, question=question)
-        async for chunk in self.llm.astream(prompt_text):
+        prompt_key = "consultation_prompt" if mode == "consultation" else "chat_prompt"
+        prompt_text = self._get_prompt(prompt_key).format(context=context, question=question)
+        llm = self.llm_consult if mode == "consultation" else self.llm
+        async for chunk in llm.astream(prompt_text):
             yield chunk
 
     def simple_chat(self, prompt: str) -> str:

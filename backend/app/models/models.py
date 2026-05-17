@@ -21,6 +21,7 @@ class DocSession(Base):
     has_vector_store  = Column(Boolean, nullable=False, default=False)
     preview           = Column(Text, nullable=True)
     markdown_text     = Column(Text, nullable=True)
+    html_text         = Column(Text, nullable=True)
     presentation_plan = Column(JSON, nullable=True)
     created_at        = Column(DateTime(timezone=True), server_default=func.now())
     last_activity     = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

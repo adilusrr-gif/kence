@@ -8,22 +8,27 @@ router = APIRouter(prefix="/ai-settings", tags=["ai-settings"])
 
 PROMPT_META = {
     "chat_prompt": {
-        "label": "Промпт чата (RAG)",
+        "label": "Точный ответ (RAG)",
         "variables": ["{context}", "{question}"],
-        "description": "Используйте {context} для фрагментов документа и {question} для вопроса пользователя.",
+        "description": "Строгий режим — ответ только по контексту документа. Используйте {context} и {question}.",
+    },
+    "consultation_prompt": {
+        "label": "Консультация по документу",
+        "variables": ["{context}", "{question}"],
+        "description": "Режим консультации — развёрнутые ответы с интерпретацией. Используйте {context} и {question}.",
     },
     "presentation_prompt": {
-        "label": "Промпт генерации презентации",
+        "label": "Промпт презентации",
         "variables": ["{context}"],
         "description": "Ответ должен быть JSON с полями 'title' и 'slides'. Используйте {{ }} для экранирования фигурных скобок в JSON.",
     },
     "comparison_technical_prompt": {
-        "label": "Промпт тех. сравнения",
+        "label": "Тех. сравнение",
         "variables": ["{text}"],
         "description": "Промпт для извлечения технических спецификаций. Ответ JSON: 'product_name', 'specifications', 'key_features'. Используйте {{ }} для JSON-скобок.",
     },
     "comparison_semantic_prompt": {
-        "label": "Промпт семантического анализа",
+        "label": "Сем. анализ",
         "variables": ["{text}"],
         "description": "Промпт для описания ключевых тем и содержания документа.",
     },

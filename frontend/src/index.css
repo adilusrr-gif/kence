@@ -3011,6 +3011,37 @@
 }
 .ws-no-session:hover { background: var(--bg-surface-2); }
 
+/* Mode toggle — precise / consultation */
+.ws-mode-toggle {
+  display: flex;
+  gap: 2px;
+  background: var(--bg-surface-2);
+  border-radius: 20px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.ws-mode-btn {
+  padding: 3px 10px;
+  border-radius: 18px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.ws-mode-btn--active {
+  background: var(--accent-primary);
+  color: #fff;
+}
+.ws-mode-btn:not(.ws-mode-btn--active):hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
 /* Tips row — lives inside ws-input-area, above textarea */
 .ws-tips-row {
   display: flex;
