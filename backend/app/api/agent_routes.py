@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.api.auth_routes import get_current_user
+from app.api.auth_routes import get_current_user, verify_token, oauth2_scheme
 from app.core.database import SessionLocal
 from app.models.models import AgentTask
 from app.services.agents import AGENT_TYPES
@@ -97,8 +97,16 @@ async def cancel_task(task_id: int, current_user: dict = Depends(get_current_use
 
 
 @router.get("/tasks/{task_id}/stream")
-async def stream_task(task_id: int, current_user: dict = Depends(get_current_user)):
+async def stream_task(
+    task_id: int,
+    token: Optional[str] = Query(None),
+    bearer: Optional[str] = Depends(oauth2_scheme),
+):
     """SSE stream of agent step events. Polls AgentTask.steps every 0.5s."""
+    raw = bearer or token
+    if not raw:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    current_user = verify_token(raw)
     import json
 
     async def event_generator():

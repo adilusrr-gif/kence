@@ -37,6 +37,17 @@ export default function ShellHydrator({ children }) {
       },
     })
 
+    // Hydrate org branding (best-effort, non-blocking)
+    const orgSlug = localStorage.getItem('kence_current_org_slug') || 'default'
+    fetch(`/api/branding/${orgSlug}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((b) => {
+        if (!b) return
+        if (b.accent_color) document.documentElement.style.setProperty('--accent-primary', b.accent_color)
+        if (b.app_name) useShellStore.getState().setAppName(b.app_name)
+      })
+      .catch(() => {})
+
     setReady(true)
     clearTimeout(slowTimer)
     return () => clearTimeout(slowTimer)

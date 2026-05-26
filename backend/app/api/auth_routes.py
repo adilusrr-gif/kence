@@ -73,6 +73,26 @@ async def get_current_user_or_api_key(
     )
 
 
+def verify_token(raw_token: str) -> dict:
+    """Decode and validate JWT without FastAPI Depends. Used for SSE endpoints."""
+    exc = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Токен недействителен или истёк",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = decode_token(raw_token)
+        username: str = payload.get("sub")
+        if not username:
+            raise exc
+    except JWTError:
+        raise exc
+    user = get_user(username)
+    if not user or not user.get("is_active"):
+        raise exc
+    return user
+
+
 async def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Доступ только для администраторов")

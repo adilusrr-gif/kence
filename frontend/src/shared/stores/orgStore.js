@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { apiGetMyOrgs } from '../../lib/api'
 
 const LS_KEY = 'kence_current_org'
+const LS_SLUG_KEY = 'kence_current_org_slug'
 
 const useOrgStore = create((set, get) => ({
   currentOrgId: null,
@@ -19,6 +20,7 @@ const useOrgStore = create((set, get) => ({
       const found = savedId ? orgs.find(o => o.id === savedId) : orgs[0]
       if (found) {
         set({ currentOrgId: found.id, currentOrgSlug: found.slug, currentOrgName: found.display_name })
+        localStorage.setItem(LS_SLUG_KEY, found.slug)
       }
     } catch {
       // Non-fatal — user may not belong to any org yet
@@ -27,6 +29,7 @@ const useOrgStore = create((set, get) => ({
 
   switchOrg: (org) => {
     localStorage.setItem(LS_KEY, String(org.id))
+    localStorage.setItem(LS_SLUG_KEY, org.slug)
     set({ currentOrgId: org.id, currentOrgSlug: org.slug, currentOrgName: org.display_name })
   },
 

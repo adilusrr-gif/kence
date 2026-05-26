@@ -395,4 +395,7 @@ export const apiCreateAgentTask = (data) => request('POST', '/api/agents/tasks',
 export const apiGetAgentTasks = (orgId) => request('GET', '/api/agents/tasks', { params: orgId ? { org_id: orgId } : {} })
 export const apiGetAgentTask = (taskId) => request('GET', `/api/agents/tasks/${taskId}`)
 export const apiCancelAgentTask = (taskId) => request('DELETE', `/api/agents/tasks/${taskId}`)
-export const apiAgentTaskStreamUrl = (taskId) => `${BASE}/api/agents/tasks/${taskId}/stream`
+export const apiAgentTaskStreamUrl = (taskId) => {
+  const token = localStorage.getItem('kence_token') || ''
+  return `${BASE}/api/agents/tasks/${taskId}/stream?token=${encodeURIComponent(token)}`
+}
