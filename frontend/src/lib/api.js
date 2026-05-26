@@ -343,3 +343,56 @@ export async function apiDeleteDocumentContext(documentName) {
 export async function apiGetDocumentContexts() {
   return request('GET', '/api/ai-settings/document-contexts')
 }
+
+// ── Enterprise E1: Organizations ─────────────────────────────────────────────
+export const apiGetMyOrgs = () => request('GET', '/api/orgs/me')
+export const apiGetOrg = (orgId) => request('GET', `/api/orgs/${orgId}`)
+export const apiCreateOrg = (data) => request('POST', '/api/orgs', { body: data })
+export const apiUpdateOrg = (orgId, data) => request('PATCH', `/api/orgs/${orgId}`, { body: data })
+export const apiGetOrgMembers = (orgId) => request('GET', `/api/orgs/${orgId}/members`)
+export const apiAddOrgMember = (orgId, data) => request('POST', `/api/orgs/${orgId}/members`, { body: data })
+export const apiRemoveOrgMember = (orgId, username) => request('DELETE', `/api/orgs/${orgId}/members/${username}`)
+export const apiChangeOrgMemberRole = (orgId, username, org_role) => request('PATCH', `/api/orgs/${orgId}/members/${username}/role`, { body: { org_role } })
+export const apiGetOrgQuota = (orgId) => request('GET', `/api/orgs/${orgId}/quota`)
+export const apiGetOrgApiKeys = (orgId) => request('GET', `/api/orgs/${orgId}/api-keys`)
+export const apiCreateOrgApiKey = (orgId, data) => request('POST', `/api/orgs/${orgId}/api-keys`, { body: data })
+export const apiRevokeOrgApiKey = (orgId, keyId) => request('DELETE', `/api/orgs/${orgId}/api-keys/${keyId}`)
+
+// ── Enterprise E2: Library ────────────────────────────────────────────────────
+export const apiGetLibrary = (orgId, search, tags) => request('GET', `/api/orgs/${orgId}/library`, { params: { ...(search && { search }), ...(tags && { tags }) } })
+export const apiAddToLibrary = (orgId, data) => request('POST', `/api/orgs/${orgId}/library`, { body: data })
+export const apiDeleteLibraryDoc = (orgId, docId) => request('DELETE', `/api/orgs/${orgId}/library/${docId}`)
+export const apiDownloadLibraryDoc = (orgId, docId) => `${BASE}/api/orgs/${orgId}/library/${docId}/download`
+export const apiOpenLibraryDocInSession = (orgId, docId) => request('POST', `/api/orgs/${orgId}/library/${docId}/open-session`)
+
+// ── Enterprise E2: Sharing ────────────────────────────────────────────────────
+export const apiGetSessionShares = (sessionId) => request('GET', `/api/sessions/${sessionId}/shares`)
+export const apiShareSession = (sessionId, data) => request('POST', `/api/sessions/${sessionId}/shares`, { body: data })
+export const apiRevokeShare = (sessionId, shareId) => request('DELETE', `/api/sessions/${sessionId}/shares/${shareId}`)
+export const apiGetSharedWithMe = (orgId) => request('GET', '/api/sessions/shared-with-me', { params: { org_id: orgId } })
+
+// ── Enterprise E2: Branding ───────────────────────────────────────────────────
+export const apiGetPublicBranding = (slug) => fetch(`${BASE}/api/branding/${slug}`).then(r => r.json())
+export const apiGetOrgBranding = (orgId) => request('GET', `/api/orgs/${orgId}/branding`)
+export const apiUpdateOrgBranding = (orgId, data) => request('PUT', `/api/orgs/${orgId}/branding`, { body: data })
+
+// ── Enterprise E2: Executive Dashboard ───────────────────────────────────────
+export const apiGetKPI = (orgId, period = 'day') => request('GET', `/api/orgs/${orgId}/executive/kpi`, { params: { period } })
+export const apiGetKPITrend = (orgId, period = 'day', n = 7) => request('GET', `/api/orgs/${orgId}/executive/trend`, { params: { period, n } })
+export const apiExportReport = (orgId, period, format) => `${BASE}/api/orgs/${orgId}/executive/export?period=${period}&format=${format}&token=${getToken()}`
+
+// ── Enterprise E3: Knowledge Graph ───────────────────────────────────────────
+export const apiTriggerExtraction = (orgId, session_id) => request('POST', `/api/orgs/${orgId}/graph/extract`, { body: { session_id } })
+export const apiGetExtractionJob = (orgId, jobId) => request('GET', `/api/orgs/${orgId}/graph/jobs/${jobId}`)
+export const apiGetGraphNodes = (orgId, entity_type) => request('GET', `/api/orgs/${orgId}/graph/nodes`, { params: entity_type ? { entity_type } : {} })
+export const apiExportGraph = (orgId) => request('GET', `/api/orgs/${orgId}/graph/export`)
+export const apiQueryGraph = (orgId, query) => request('POST', `/api/orgs/${orgId}/graph/query`, { body: { query } })
+export const apiDeleteGraph = (orgId) => request('DELETE', `/api/orgs/${orgId}/graph`)
+
+// ── Enterprise E4: Agents ─────────────────────────────────────────────────────
+export const apiGetAgentTypes = () => request('GET', '/api/agents/types')
+export const apiCreateAgentTask = (data) => request('POST', '/api/agents/tasks', { body: data })
+export const apiGetAgentTasks = (orgId) => request('GET', '/api/agents/tasks', { params: orgId ? { org_id: orgId } : {} })
+export const apiGetAgentTask = (taskId) => request('GET', `/api/agents/tasks/${taskId}`)
+export const apiCancelAgentTask = (taskId) => request('DELETE', `/api/agents/tasks/${taskId}`)
+export const apiAgentTaskStreamUrl = (taskId) => `${BASE}/api/agents/tasks/${taskId}/stream`

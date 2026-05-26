@@ -4,17 +4,23 @@ import { create } from 'zustand'
 try { localStorage.removeItem('kence-session-tabs-shadow') } catch { /* ignore */ }
 
 export const ROUTE_TAB_MAP = {
-  '/':             { title: 'Dashboard',    icon: 'LayoutDashboard' },
-  '/home':         { title: 'Home',         icon: 'Home' },
-  '/upload':       { title: 'Upload',       icon: 'Upload' },
-  '/workspace':    { title: 'Workspace',    icon: 'MessageSquare' },
-  '/compare':      { title: 'Compare',      icon: 'GitCompare' },
-  '/presentation': { title: 'Presentation', icon: 'Presentation' },
-  '/convert':      { title: 'Convert',      icon: 'RefreshCw' },
-  '/profile':      { title: 'Profile',      icon: 'User' },
-  '/admin':        { title: 'Admin',        icon: 'Shield' },
-  '/ai-settings':  { title: 'AI Settings',  icon: 'Cpu' },
-  '/analytics':    { title: 'Analytics',    icon: 'BarChart2' },
+  '/':              { title: 'Dashboard',    icon: 'LayoutDashboard' },
+  '/home':          { title: 'Home',         icon: 'Home' },
+  '/upload':        { title: 'Upload',       icon: 'Upload' },
+  '/workspace':     { title: 'Workspace',    icon: 'MessageSquare' },
+  '/compare':       { title: 'Compare',      icon: 'GitCompare' },
+  '/presentation':  { title: 'Presentation', icon: 'Presentation' },
+  '/convert':       { title: 'Convert',      icon: 'RefreshCw' },
+  '/profile':       { title: 'Profile',      icon: 'User' },
+  '/admin':         { title: 'Admin',        icon: 'Shield' },
+  '/ai-settings':   { title: 'AI Settings',  icon: 'Cpu' },
+  '/analytics':     { title: 'Analytics',    icon: 'BarChart2' },
+  '/library':       { title: 'Library',      icon: 'Library' },
+  '/org/settings':  { title: 'Org Settings', icon: 'Settings' },
+  '/executive':     { title: 'Executive',    icon: 'TrendingUp' },
+  '/graph':         { title: 'Graph',        icon: 'Network' },
+  '/agents':        { title: 'AI Agents',    icon: 'Bot' },
+  '/agents/history':{ title: 'Agent History',icon: 'Bot' },
 }
 
 let _tabIdCounter = 1

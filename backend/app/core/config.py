@@ -32,6 +32,15 @@ class Settings(BaseSettings):
     # PostgreSQL
     DATABASE_URL: str = "postgresql://kence:kence2026@127.0.0.1:5432/kenceai"
 
+    # Neo4j (Knowledge Graph — Phase E3)
+    NEO4J_URI: str = "bolt://localhost:7687"
+    NEO4J_USER: str = "neo4j"
+    NEO4J_PASSWORD: str = "kence_neo4j_2026"
+
+    # Enterprise defaults
+    DEFAULT_ORG_SLUG: str = "default"
+    API_KEY_PREFIX: str = "kce_"
+
     class Config:
         env_file = ".env"
 

@@ -25,6 +25,14 @@ filetype>=1.2.0
 rank-bm25>=0.2.2
 ollama>=0.3.0
 pillow-heif>=0.16.0
+# Enterprise: Knowledge Graph
+neo4j>=5.18.0
+# Enterprise: Agents
+langgraph>=0.2.0
+# Enterprise: KPI export
+reportlab>=4.0.0
+openpyxl>=3.1.0
+# Tests
 pytest>=7.4.0
 pytest-asyncio>=0.23.0
 pytest-cov>=4.1.0

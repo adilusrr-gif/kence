@@ -13,6 +13,13 @@ import ProfilePage from './pages/ProfilePage'
 import AdminPage from './pages/AdminPage'
 import AISettingsPage from './pages/AISettingsPage'
 import AnalyticsPage from './pages/AnalyticsPage'
+import OrgSettingsPage from './pages/OrgSettingsPage'
+import DocumentLibraryPage from './pages/DocumentLibraryPage'
+import ExecutiveDashboardPage from './pages/ExecutiveDashboardPage'
+import KnowledgeGraphPage from './pages/KnowledgeGraphPage'
+import AgentLauncherPage from './pages/AgentLauncherPage'
+import AgentTaskMonitorPage from './pages/AgentTaskMonitorPage'
+import AgentTaskHistoryPage from './pages/AgentTaskHistoryPage'
 import { getStoredUser, clearAuth } from './lib/api'
 import { AppShellLayout } from '@/app/layouts/app-shell'
 import ShellHydrator from '@/app/shell/ShellHydrator'
@@ -28,6 +35,7 @@ import {
   syncShellShadow,
   syncWorkspaceShadow,
 } from '@/shared/stores'
+import useOrgStore from '@/shared/stores/orgStore'
 import { useSessionTabsStore, ROUTE_TAB_MAP } from '@/shared/stores/sessionTabsStore'
 import { useShellStore } from '@/shared/stores/shellStore'
 
@@ -55,10 +63,17 @@ function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, se
               <Route path="/profile"      element={<ProfilePage currentUser={currentUser} />} />
               <Route path="/admin"        element={<AdminPage currentUser={currentUser} />} />
               <Route path="/ai-settings"  element={<AISettingsPage currentUser={currentUser} />} />
-              <Route path="/analytics"    element={<AnalyticsPage />} />
-              <Route path="/chat"         element={<Navigate to="/workspace" replace />} />
-              <Route path="/vector-base"  element={<Navigate to="/admin" replace />} />
-              <Route path="/login"        element={<Navigate to="/" replace />} />
+              <Route path="/analytics"       element={<AnalyticsPage />} />
+              <Route path="/library"         element={<DocumentLibraryPage currentUser={currentUser} />} />
+              <Route path="/org/settings"    element={<OrgSettingsPage currentUser={currentUser} />} />
+              <Route path="/executive"       element={<ExecutiveDashboardPage currentUser={currentUser} />} />
+              <Route path="/graph"           element={<KnowledgeGraphPage currentUser={currentUser} />} />
+              <Route path="/agents"          element={<AgentLauncherPage currentUser={currentUser} />} />
+              <Route path="/agents/tasks/:taskId" element={<AgentTaskMonitorPage currentUser={currentUser} />} />
+              <Route path="/agents/history"  element={<AgentTaskHistoryPage currentUser={currentUser} />} />
+              <Route path="/chat"            element={<Navigate to="/workspace" replace />} />
+              <Route path="/vector-base"     element={<Navigate to="/admin" replace />} />
+              <Route path="/login"           element={<Navigate to="/" replace />} />
             </Routes>
           </motion.div>
         </AnimatePresence>
@@ -80,6 +95,7 @@ export default function App() {
   const navigate = useNavigate()
   const openTab = useSessionTabsStore((s) => s.openTab)
   const theme = useShellStore((s) => s.theme)
+  const fetchMyOrgs = useOrgStore((s) => s.fetchMyOrgs)
 
   const handleSetSessionId = useCallback((id) => {
     setSessionId(id)
@@ -99,6 +115,11 @@ export default function App() {
     document.documentElement.style.colorScheme = theme
     localStorage.setItem('theme', theme)
   }, [theme])
+
+  // Fetch orgs after login
+  useEffect(() => {
+    if (currentUser) fetchMyOrgs()
+  }, [currentUser])
 
   // Sync shadow stores
   useEffect(() => { syncAuthShadow(currentUser) }, [currentUser])

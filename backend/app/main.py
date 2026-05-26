@@ -21,6 +21,13 @@ from app.api.auth_routes import router as auth_router
 from app.api.ai_settings_routes import router as ai_settings_router
 from app.api.presentation_routes import router as presentation_router
 from app.api.analytics_routes import router as analytics_router
+from app.api.org_routes import router as org_router
+from app.api.library_routes import router as library_router
+from app.api.share_routes import router as share_router
+from app.api.branding_routes import router as branding_router
+from app.api.executive_routes import router as executive_router
+from app.api.graph_routes import router as graph_router
+from app.api.agent_routes import router as agent_router
 from app.core.session import session_manager
 from app.core.config import get_settings
 from app.services.user_service import create_user, get_user
@@ -36,8 +43,18 @@ def _init_db():
         create_tables()
         print("[DB] Tables ready")
         _migrate_users_from_json()
+        _ensure_default_org()
     except Exception as e:
         print(f"[DB] Warning: {e} — running without persistent DB")
+
+
+def _ensure_default_org():
+    try:
+        from app.services.org_service import ensure_default_org
+        org = ensure_default_org()
+        print(f"[ORG] Default org ready: {org['slug']} (id={org['id']})")
+    except Exception as e:
+        print(f"[ORG] Warning: could not ensure default org: {e}")
 
 
 def _migrate_users_from_json():
@@ -86,6 +103,14 @@ async def lifespan(app: FastAPI):
     if "change-in-production" in settings.JWT_SECRET_KEY or "dev-only" in settings.JWT_SECRET_KEY:
         print("[SECURITY WARNING] JWT_SECRET_KEY is using the default value — set a strong secret in .env!")
 
+    # Initialize Neo4j constraints (best-effort — app starts even if Neo4j is down)
+    try:
+        from app.services.graph_service import ensure_constraints
+        await ensure_constraints()
+        print("[NEO4J] Constraints ready")
+    except Exception as e:
+        print(f"[NEO4J] Skipped constraints: {e}")
+
     async def cleanup_task():
         while True:
             await asyncio.sleep(300)
@@ -121,12 +146,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(auth_router, prefix="/api")
-app.include_router(main_router, prefix="/api")
-app.include_router(comparison_router, prefix="/api")
-app.include_router(ai_settings_router, prefix="/api")
+app.include_router(auth_router,         prefix="/api")
+app.include_router(main_router,         prefix="/api")
+app.include_router(comparison_router,   prefix="/api")
+app.include_router(ai_settings_router,  prefix="/api")
 app.include_router(presentation_router, prefix="/api/presentations", tags=["presentations"])
-app.include_router(analytics_router, prefix="/api")
+app.include_router(analytics_router,    prefix="/api")
+# Enterprise routers
+app.include_router(org_router,          prefix="/api")
+app.include_router(library_router,      prefix="/api")
+app.include_router(share_router,        prefix="/api")
+app.include_router(branding_router,     prefix="/api")
+app.include_router(executive_router,    prefix="/api")
+app.include_router(graph_router,        prefix="/api")
+app.include_router(agent_router,        prefix="/api")
 
 @app.get("/")
 async def root():

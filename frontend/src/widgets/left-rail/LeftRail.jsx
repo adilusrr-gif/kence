@@ -3,11 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Upload, MessageSquare, GitCompare,
   Presentation, RefreshCw, User, Shield, Cpu, BarChart2,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, Library, TrendingUp, Settings, Network, Bot,
 } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useShellStore } from '@/shared/stores/shellStore'
 import { useAuthStore, selectCurrentRole } from '@/shared/stores/authStore'
+import OrgSwitcher from '@/widgets/org-switcher/OrgSwitcher'
+import useOrgStore from '@/shared/stores/orgStore'
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 600)
@@ -27,13 +29,18 @@ const NAV_ITEMS = [
   { icon: GitCompare,      label: 'Compare',       path: '/compare' },
   { icon: Presentation,    label: 'Presentation',  path: '/presentation' },
   { icon: RefreshCw,       label: 'Convert',       path: '/convert' },
+  { icon: Library,         label: 'Library',       path: '/library' },
+  { icon: Network,         label: 'Graph',         path: '/graph' },
+  { icon: Bot,             label: 'AI Agents',     path: '/agents' },
 ]
 
 const UTILITY_ITEMS = [
-  { icon: BarChart2, label: 'Analytics',   path: '/analytics',   adminOnly: false },
-  { icon: User,      label: 'Profile',     path: '/profile',     adminOnly: false },
-  { icon: Shield,    label: 'Admin',       path: '/admin',       adminOnly: true },
-  { icon: Cpu,       label: 'AI Settings', path: '/ai-settings', adminOnly: true },
+  { icon: BarChart2,    label: 'Analytics',   path: '/analytics',    adminOnly: false },
+  { icon: TrendingUp,   label: 'Executive',   path: '/executive',    orgAdminOnly: true },
+  { icon: User,         label: 'Profile',     path: '/profile',      adminOnly: false },
+  { icon: Settings,     label: 'Org',         path: '/org/settings', orgAdminOnly: true },
+  { icon: Shield,       label: 'Admin',       path: '/admin',        adminOnly: true },
+  { icon: Cpu,          label: 'AI Settings', path: '/ai-settings',  adminOnly: true },
 ]
 
 function NavItem({ icon: Icon, label, path, isActive, collapsed, onNavigate, isMobile }) {
@@ -120,6 +127,9 @@ export default function LeftRail({ user, onNavigate }) {
   const username = user?.username || ''
   const userRole = user?.role || role || 'user'
   const isAdmin = userRole === 'admin'
+  const { currentOrgId } = useOrgStore()
+  // Determine if user is org admin (simplified: global admin always qualifies)
+  const isOrgAdmin = isAdmin
 
   return (
     <motion.nav
@@ -155,13 +165,16 @@ export default function LeftRail({ user, onNavigate }) {
         </button>
       </div>
 
+      {/* Org Switcher */}
+      <OrgSwitcher collapsed={collapsed} />
+
       {/* Main nav */}
       <div className="left-rail__nav-section">
         {NAV_ITEMS.map((item) => (
           <NavItem
             key={item.path}
             {...item}
-            isActive={pathname === item.path}
+            isActive={pathname === item.path || pathname.startsWith(item.path + '/')}
             collapsed={collapsed}
             onNavigate={handleNavigate}
             isMobile={isMobile}
@@ -173,7 +186,11 @@ export default function LeftRail({ user, onNavigate }) {
 
       {/* Utility nav */}
       <div className="left-rail__nav-section left-rail__nav-section--utility">
-        {UTILITY_ITEMS.filter((item) => !item.adminOnly || isAdmin).map((item) => (
+        {UTILITY_ITEMS.filter((item) => {
+          if (item.adminOnly && !isAdmin) return false
+          if (item.orgAdminOnly && !isOrgAdmin) return false
+          return true
+        }).map((item) => (
           <NavItem
             key={item.path}
             {...item}

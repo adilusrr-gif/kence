@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError
 from pydantic import BaseModel, field_validator
@@ -15,10 +15,10 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 router = APIRouter(prefix="/auth", tags=["auth"])
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
-# ── Dependency ──────────────────────────────────────────────────────────────
+# ── Dependencies ─────────────────────────────────────────────────────────────
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     exc = HTTPException(
@@ -26,6 +26,8 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         detail="Токен недействителен или истёк",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    if not token:
+        raise exc
     try:
         payload = decode_token(token)
         username: str = payload.get("sub")
@@ -39,10 +41,65 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     return user
 
 
+async def get_current_user_or_api_key(
+    request: Request,
+    token: Optional[str] = Depends(oauth2_scheme),
+) -> dict:
+    """Accepts Bearer JWT token OR X-API-Key header."""
+    # Try JWT first
+    if token:
+        try:
+            payload = decode_token(token)
+            username: str = payload.get("sub")
+            if username:
+                user = get_user(username)
+                if user and user.get("is_active"):
+                    return user
+        except JWTError:
+            pass
+
+    # Fall back to API key
+    api_key = request.headers.get("X-API-Key")
+    if api_key:
+        from app.services.api_key_service import validate_api_key
+        result = validate_api_key(api_key)
+        if result:
+            return result
+
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Требуется аутентификация",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
 async def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
     if current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Доступ только для администраторов")
     return current_user
+
+
+def require_org_member(org_id: int, current_user: dict) -> dict:
+    """Returns membership dict or raises 403. Call inline, not as Depends."""
+    from app.services.org_service import get_membership
+    m = get_membership(org_id, current_user["username"])
+    if not m:
+        raise HTTPException(status_code=403, detail="Вы не состоите в этой организации")
+    return m
+
+
+def require_org_admin(org_id: int, current_user: dict) -> dict:
+    m = require_org_member(org_id, current_user)
+    if m["org_role"] not in ("owner", "admin"):
+        raise HTTPException(status_code=403, detail="Требуется роль admin или owner в организации")
+    return m
+
+
+def require_org_owner(org_id: int, current_user: dict) -> dict:
+    m = require_org_member(org_id, current_user)
+    if m["org_role"] != "owner":
+        raise HTTPException(status_code=403, detail="Требуется роль owner в организации")
+    return m
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
