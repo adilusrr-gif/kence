@@ -78,7 +78,7 @@
   --shadow-glass: 0 20px 48px rgba(2, 6, 23, 0.32);
 
   /* Typography tokens */
-  --font-sans: "Inter", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Plus Jakarta Sans", "Inter", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, monospace;
 
   --text-xs: 0.75rem;
@@ -144,4 +144,24 @@
   --glass-highlight: rgba(255, 255, 255, 0.08);
   --glass-blur: 18px;
   --glass-shadow: var(--shadow-glass);
+
+  /* Z-index scale */
+  --z-rail:         10;
+  --z-tabs:         15;
+  --z-topbar:       20;
+  --z-panel:        20;
+  --z-dock:         25;
+  --z-dropdown:     30;
+  --z-tooltip:      40;
+  --z-overlay:      45;
+  --z-modal:        50;
+  --z-notification: 55;
+
+  /* Shell dimension tokens */
+  --rail-width-expanded:  240px;
+  --rail-width-collapsed:  56px;
+  --topbar-height:         48px;
+  --tabsbar-height:        40px;
+  --bottom-rail-height:    32px;
+  --right-panel-width:    280px;
 }

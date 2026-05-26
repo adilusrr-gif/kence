@@ -140,6 +140,20 @@ export async function apiCreateSession() {
   return request('POST', '/api/sessions')
 }
 
+export async function apiDeleteSession(sessionId) {
+  return request('DELETE', `/api/sessions/${sessionId}`)
+}
+
+// ── Chat History ──────────────────────────────────────────────────────────
+
+export async function apiGetChatHistory(sessionId, limit = 20) {
+  return request('GET', `/api/chat/history/${sessionId}`, { params: { limit } })
+}
+
+export async function apiClearChatHistory(sessionId) {
+  return request('DELETE', `/api/chat/history/${sessionId}`)
+}
+
 // ── Documents ─────────────────────────────────────────────────────────────
 
 export async function apiUploadDocument(sessionId, file) {
@@ -262,6 +276,34 @@ export async function apiCompareTechnical(sessionId) {
 
 export async function apiCompareExact(sessionId) {
   return request('POST', '/api/compare/exact', { params: { session_id: sessionId } })
+}
+
+// ── Analytics ─────────────────────────────────────────────────────────────
+
+export async function apiAnalyticsOverview() {
+  return request('GET', '/api/analytics/overview')
+}
+
+export async function apiAnalyticsTimeline(days = 7) {
+  return request('GET', '/api/analytics/timeline', { params: { days } })
+}
+
+export async function apiAnalyticsFormats() {
+  return request('GET', '/api/analytics/formats')
+}
+
+export async function apiAnalyticsEvents(limit = 20) {
+  return request('GET', '/api/analytics/events', { params: { limit } })
+}
+
+// ── Vision (multimodal) ───────────────────────────────────────────────────
+
+export async function apiVisionStatus() {
+  return request('GET', '/api/vision/status')
+}
+
+export async function apiVisualDescribe(sessionId) {
+  return request('GET', `/api/documents/${sessionId}/visual-describe`)
 }
 
 // ── AI Settings (Admin: prompts) ──────────────────────────────────────────

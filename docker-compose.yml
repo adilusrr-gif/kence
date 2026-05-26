@@ -24,7 +24,7 @@ services:
     image: ollama/ollama:latest
     container_name: kence-ollama
     volumes:
-      - C:/Users/Professional/.ollama:/root/.ollama
+      - C:/Users/Admin/.ollama:/root/.ollama
     ports:
       - "11434:11434"
     environment:
@@ -42,7 +42,7 @@ services:
     restart: unless-stopped
 
   backend:
-    build: ./backend
+    image: docai-backend:latest
     container_name: kence-backend
     ports:
       - "8000:8000"
@@ -55,6 +55,8 @@ services:
       - LLM_MODEL=qwen2.5:7b
       - EMBEDDING_MODEL=nomic-embed-text
       - DATABASE_URL=postgresql://kence:kence2026@postgres:5432/kenceai
+      # Set a strong random value in production (e.g. openssl rand -hex 32)
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-only-insecure-change-in-production}
     depends_on:
       postgres:
         condition: service_healthy
@@ -63,7 +65,7 @@ services:
     restart: unless-stopped
 
   frontend:
-    build: ./frontend
+    image: docai-frontend:latest
     container_name: kence-frontend
     ports:
       - "3000:80"

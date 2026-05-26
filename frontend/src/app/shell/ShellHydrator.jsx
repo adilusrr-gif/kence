@@ -1,0 +1,47 @@
+import React, { useEffect, useState } from 'react'
+import { getStoredUser } from '@/lib/api'
+import { useAuthStore } from '@/shared/stores/authStore'
+import { useShellStore } from '@/shared/stores/shellStore'
+
+function ShellSkeleton() {
+  return (
+    <div className="shell-skeleton" aria-hidden="true" aria-label="Loading shell">
+      <div className="shell-skeleton__topbar skeleton" />
+      <div className="shell-skeleton__tabbar skeleton" />
+      <div className="shell-skeleton__body">
+        <div className="shell-skeleton__rail skeleton" />
+        <div className="shell-skeleton__canvas" />
+      </div>
+    </div>
+  )
+}
+
+export default function ShellHydrator({ children }) {
+  const [ready, setReady] = useState(false)
+  const [slow, setSlow] = useState(false)
+
+  useEffect(() => {
+    const slowTimer = setTimeout(() => setSlow(true), 500)
+
+    // Phase boot: hydrate auth
+    const storedUser = getStoredUser()
+    useAuthStore.getState().hydrateAuth(storedUser)
+
+    // Phase shell-preferences
+    useShellStore.getState().hydrateShell({
+      theme: localStorage.getItem('theme') || 'dark',
+      appName: localStorage.getItem('appName'),
+      appEmoji: localStorage.getItem('appEmoji'),
+      leftRail: {
+        collapsed: localStorage.getItem('leftRailCollapsed') === 'true',
+      },
+    })
+
+    setReady(true)
+    clearTimeout(slowTimer)
+    return () => clearTimeout(slowTimer)
+  }, [])
+
+  if (!ready && slow) return <ShellSkeleton />
+  return <>{children}</>
+}

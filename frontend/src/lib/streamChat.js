@@ -6,10 +6,10 @@ import { getBaseUrl } from './api'
  * @param {string} question
  * @param {{ onStatus, onChunk, onDone, onError }} callbacks
  */
-export async function streamChat(sessionId, question, { onStatus, onChunk, onDone, onError, mode = 'precise' }) {
+export async function streamChat(sessionId, question, { onStatus, onChunk, onDone, onError, mode = 'precise', customUrl = null }) {
   const BASE  = getBaseUrl()
   const token = localStorage.getItem('kence_token')
-  const url   = `${BASE}/api/chat/stream?` + new URLSearchParams({ session_id: sessionId, question, mode })
+  const url   = customUrl ?? (`${BASE}/api/chat/stream?` + new URLSearchParams({ session_id: sessionId, question, mode }))
 
   let res
   try {

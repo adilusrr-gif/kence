@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException, Depends
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from pathlib import Path
 from typing import List, Optional
+import asyncio
+import json
 
 from app.core.session import session_manager
 from app.core.config import get_settings
@@ -12,6 +14,7 @@ from app.services.presentation_plan import (
 )
 from app.services.presentation_builder import build_presentation
 from app.services.llm import llm_service
+from app.services import analytics_service
 
 router = APIRouter()
 settings = get_settings()
@@ -69,12 +72,74 @@ async def build(session_id: str, body: BuildRequest, user: dict = Depends(get_cu
         raise HTTPException(status_code=400, detail="No plan found — call POST /plan first")
     try:
         path = build_presentation(plan, body.theme, body.slide_ids, session_id, llm_service)
+        analytics_service.log_event("presentation", username=user.get("sub"), session_id=session_id, theme=body.theme)
         return {
             "status": "built",
             "download_url": f"/api/presentations/download/{session_id}",
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/build/stream")
+async def build_stream(
+    request: Request,
+    session_id: str,
+    theme: str = "corporate",
+    slide_ids: str = "",
+    user: dict = Depends(get_current_user),
+):
+    """SSE endpoint — streams build progress, yields [DONE] when finished."""
+    session = session_manager.get_session(session_id)
+    if not session or not session.get("vector_store"):
+        raise HTTPException(status_code=400, detail="No document uploaded")
+    plan = get_plan(session_id)
+    if not plan:
+        raise HTTPException(status_code=400, detail="No plan found — call POST /plan first")
+
+    ids = [s for s in slide_ids.split(",") if s]
+
+    queue: asyncio.Queue = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+
+    def progress_cb(event: dict):
+        loop.call_soon_threadsafe(queue.put_nowait, event)
+
+    async def run_build():
+        try:
+            await asyncio.to_thread(
+                build_presentation, plan, theme, ids, session_id, llm_service, progress_cb
+            )
+            await queue.put({"done": True, "download_url": f"/api/presentations/download/{session_id}"})
+        except Exception as exc:
+            await queue.put({"error": str(exc)})
+
+    asyncio.create_task(run_build())
+
+    async def generate():
+        yield f"data: {json.dumps({'status': 'Подготовка…'})}\n\n"
+        while True:
+            if await request.is_disconnected():
+                break
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=60.0)
+            except asyncio.TimeoutError:
+                yield f"data: {json.dumps({'error': 'Timeout'})}\n\n"
+                break
+            if "error" in event:
+                yield f"data: {json.dumps({'error': event['error']})}\n\n"
+                break
+            if event.get("done"):
+                yield f"data: {json.dumps({'done': True, 'download_url': event['download_url']})}\n\n"
+                break
+            yield f"data: {json.dumps(event)}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/download/{session_id}")

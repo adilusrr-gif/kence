@@ -16,12 +16,15 @@ class Settings(BaseSettings):
     ALLOWED_UPLOAD_FORMATS: frozenset = frozenset({
         ".pdf", ".docx", ".pptx", ".xlsx",
         ".html", ".htm",
-        ".png", ".jpg", ".jpeg", ".tiff", ".bmp",
+        ".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp", ".heic",
         ".txt", ".md", ".csv", ".tex",
     })
 
-    # JWT Auth
-    JWT_SECRET_KEY: str = "kence-ai-super-secret-key-change-in-production-2026"
+    # Vision (multimodal) model — set to "" to disable and fall back to OCR
+    VISION_MODEL: str = "llava:7b"
+
+    # JWT Auth — override via JWT_SECRET_KEY env var or .env file in production
+    JWT_SECRET_KEY: str = "dev-only-insecure-change-in-production"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     USERS_FILE: str = "./data/users.json"

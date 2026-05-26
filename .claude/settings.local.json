@@ -83,7 +83,21 @@
       "Bash(echo \"exit: $?\")",
       "PowerShell(docker compose build *)",
       "PowerShell(docker compose up *)",
-      "PowerShell(Start-Sleep -Seconds 3; Invoke-RestMethod -Uri \"http://localhost:8000/api/health\" 2>&1)"
+      "PowerShell(Start-Sleep -Seconds 3; Invoke-RestMethod -Uri \"http://localhost:8000/api/health\" 2>&1)",
+      "Bash(xargs grep -l \"collapse\\\\|expand\\\\|left.*rail\\\\|toggleLeftRail\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
+      "Bash(claude plugin *)",
+      "Bash(docker-compose restart *)",
+      "Bash(docker-compose build *)",
+      "Bash(docker-compose up *)",
+      "Bash(docker build *)",
+      "Bash(docker exec *)",
+      "Bash(docker load *)",
+      "WebFetch(domain:localhost)",
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"enterprise AI workspace dashboard dark glassmorphism\" --design-system -p \"KENCE.ai\" -f markdown)",
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"sidebar navigation rail collapse animation\" --domain ux -n 6)",
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"glassmorphism dark panel\" --domain style -n 4)",
+      "Bash(python3 *)"
     ]
   },
   "prefersReducedMotion": false

@@ -1,20 +1,33 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from contextlib import asynccontextmanager
 import asyncio
 import json
 from pathlib import Path
+
+try:
+    from pillow_heif import register_heif_opener
+    register_heif_opener()
+except ImportError:
+    pass
 
 from app.api.routes import router as main_router
 from app.api.comparison_routes import router as comparison_router
 from app.api.auth_routes import router as auth_router
 from app.api.ai_settings_routes import router as ai_settings_router
 from app.api.presentation_routes import router as presentation_router
+from app.api.analytics_routes import router as analytics_router
 from app.core.session import session_manager
 from app.core.config import get_settings
 from app.services.user_service import create_user, get_user
 
 settings = get_settings()
+
+limiter = Limiter(key_func=get_remote_address)
 
 
 def _init_db():
@@ -70,7 +83,7 @@ async def lifespan(app: FastAPI):
     print(f"[LLM] {settings.LLM_MODEL} @ {settings.OLLAMA_BASE_URL}")
     print(f"[AUTH] JWT / {settings.JWT_ALGORITHM} / {settings.ACCESS_TOKEN_EXPIRE_MINUTES}min")
     print(f"[DB] {settings.DATABASE_URL.split('@')[-1]}")
-    if "change-in-production" in settings.JWT_SECRET_KEY:
+    if "change-in-production" in settings.JWT_SECRET_KEY or "dev-only" in settings.JWT_SECRET_KEY:
         print("[SECURITY WARNING] JWT_SECRET_KEY is using the default value — set a strong secret in .env!")
 
     async def cleanup_task():
@@ -89,6 +102,9 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -110,6 +126,7 @@ app.include_router(main_router, prefix="/api")
 app.include_router(comparison_router, prefix="/api")
 app.include_router(ai_settings_router, prefix="/api")
 app.include_router(presentation_router, prefix="/api/presentations", tags=["presentations"])
+app.include_router(analytics_router, prefix="/api")
 
 @app.get("/")
 async def root():

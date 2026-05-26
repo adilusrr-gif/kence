@@ -5,6 +5,8 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { apiPresentationPlan, apiUpdatePresentationPlan, apiBuildPresentation, apiDownloadPresentation } from '../lib/api'
+import { useToast } from '@/shared/ui/toast'
+import Skeleton from '@/shared/ui/skeleton/Skeleton'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
@@ -126,6 +128,7 @@ export default function PresentationPage({ sessionId }) {
   const [plan,             setPlan]             = useState(null)
   const [loading,          setLoading]          = useState(false)
   const [building,         setBuilding]         = useState(false)
+  const [buildStatus,      setBuildStatus]      = useState('')
   const [error,            setError]            = useState('')
   const [theme,            setTheme]            = useState('corporate')
   const [selectedIds,      setSelectedIds]      = useState([])
@@ -133,6 +136,7 @@ export default function PresentationPage({ sessionId }) {
   const [built,            setBuilt]            = useState(false)
   const [userInstructions, setUserInstructions] = useState('')
   const [numSlides,        setNumSlides]        = useState(6)
+  const toast = useToast()
 
   // ── Step 0 → Step 1: Generate plan ────────────────────────────────────────
 
@@ -146,7 +150,9 @@ export default function PresentationPage({ sessionId }) {
       setSelectedIds((data.slides || []).map(s => s.id))
       setStep(1)
     } catch (err) {
-      setError(err.message || 'Ошибка генерации плана')
+      const msg = err.message || 'Ошибка генерации плана'
+      setError(msg)
+      toast.error(msg)
     } finally {
       setLoading(false)
     }
@@ -196,20 +202,75 @@ export default function PresentationPage({ sessionId }) {
     )
   }
 
-  const handleBuild = async () => {
+  const handleBuild = useCallback(async () => {
     if (selectedIds.length === 0) { setError('Выберите хотя бы один слайд'); return }
     setBuilding(true)
     setError('')
+    setBuildStatus('Подготовка…')
+
+    const token = localStorage.getItem('kence_token')
+    const idsParam = selectedIds.join(',')
+    const url = `/api/presentations/build/stream?${new URLSearchParams({
+      session_id: sessionId,
+      theme,
+      slide_ids: idsParam,
+    })}`
+
+    let res
     try {
-      await apiBuildPresentation(sessionId, theme, selectedIds)
-      setBuilt(true)
-      setStep(3)
-    } catch (err) {
-      setError(err.message || 'Ошибка генерации PPTX')
-    } finally {
-      setBuilding(false)
+      res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    } catch (e) {
+      setBuilding(false); setBuildStatus('')
+      const msg = 'Ошибка соединения: ' + e.message
+      setError(msg); toast.error(msg)
+      return
     }
-  }
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }))
+      setBuilding(false); setBuildStatus('')
+      const msg = err.detail || 'Ошибка генерации PPTX'
+      setError(msg); toast.error(msg)
+      return
+    }
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop()
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const raw = line.slice(6).trim()
+          if (raw === '[DONE]') { setBuilding(false); setBuildStatus(''); return }
+          try {
+            const payload = JSON.parse(raw)
+            if (payload.error) {
+              throw new Error(payload.error)
+            } else if (payload.done) {
+              setBuilt(true); setStep(3); setBuilding(false); setBuildStatus('')
+              return
+            } else if (payload.status) {
+              setBuildStatus(payload.status)
+            }
+          } catch (parseErr) {
+            if (parseErr.message !== 'Unexpected end') throw parseErr
+          }
+        }
+      }
+    } catch (e) {
+      const msg = e.message || 'Ошибка генерации PPTX'
+      setError(msg); toast.error(msg)
+    } finally {
+      setBuilding(false); setBuildStatus('')
+    }
+  }, [selectedIds, sessionId, theme, toast])
 
   // ── Step 3: Download ───────────────────────────────────────────────────────
 
@@ -522,9 +583,18 @@ export default function PresentationPage({ sessionId }) {
               </Stack>
 
               {building && (
-                <Card style={{ padding: 'var(--space-4)', textAlign: 'center' }}>
-                  <Loader2 size={24} className="animate-spin" style={{ color: 'var(--accent-primary)', margin: '0 auto 8px' }} />
-                  <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Собираю PPTX…</p>
+                <Card style={{ padding: '16px 20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                    <Loader2 size={15} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent-primary)', flexShrink: 0 }} />
+                    <span style={{ fontSize: '0.83rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                      {buildStatus || 'Собираю PPTX…'}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <Skeleton height="12px" width="75%" />
+                    <Skeleton height="12px" />
+                    <Skeleton height="12px" width="55%" />
+                  </div>
                 </Card>
               )}
             </Stack>

@@ -1,16 +1,20 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Literal
 from pathlib import Path
 import shutil
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from app.core.session import session_manager
 from app.core.config import get_settings
 from app.services.comparison import comparator
+from app.services import analytics_service
 from app.api.auth_routes import get_current_user
 
 router = APIRouter()
 settings = get_settings()
+limiter = Limiter(key_func=get_remote_address)
 
 # ─── Сравнение документов ─────────────────────────────────
 
@@ -52,7 +56,8 @@ async def upload_comparison_documents(
     }
 
 @router.post("/compare/semantic")
-async def compare_semantic(session_id: str, user: dict = Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def compare_semantic(request: Request, session_id: str, user: dict = Depends(get_current_user)):
     """Сравнение по смыслу — общие темы, различия, схожесть"""
     session = session_manager.get_session(session_id)
     if not session or "comparison_docs" not in session:
@@ -61,12 +66,14 @@ async def compare_semantic(session_id: str, user: dict = Depends(get_current_use
 
     try:
         result = comparator.compare_semantic(docs["doc1"], docs["doc2"])
+        analytics_service.log_event("compare", username=user.get("sub"), session_id=session_id, mode="semantic")
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/compare/technical")
-async def compare_technical(session_id: str, user: dict = Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def compare_technical(request: Request, session_id: str, user: dict = Depends(get_current_user)):
     """Сравнение технических спецификаций — параметры, значения, совпадения"""
     session = session_manager.get_session(session_id)
     if not session or "comparison_docs" not in session:
@@ -75,6 +82,7 @@ async def compare_technical(session_id: str, user: dict = Depends(get_current_us
 
     try:
         result = comparator.compare_technical_specs(docs["doc1"], docs["doc2"])
+        analytics_service.log_event("compare", username=user.get("sub"), session_id=session_id, mode="technical")
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

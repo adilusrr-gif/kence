@@ -9,12 +9,11 @@ export default function AppShellLayout({
   rightPanel,
   bottomActivity,
 }) {
-  const hasRightPanel = Boolean(rightPanel)
   const hasBottomActivity = Boolean(bottomActivity)
 
   return (
     <div
-      className={`app-shell-layout${hasRightPanel ? ' app-shell-layout--with-right-panel' : ''}${hasBottomActivity ? ' app-shell-layout--with-bottom-rail' : ''}`}
+      className={`app-shell-layout${hasBottomActivity ? ' app-shell-layout--with-bottom-rail' : ''}`}
     >
       <ShellRegionBoundary regionName="left-rail-shell">
         <div className="app-shell-layout__left-rail" aria-label="Primary navigation">
@@ -46,20 +45,18 @@ export default function AppShellLayout({
             </main>
           </ShellRegionBoundary>
 
-          {hasRightPanel ? (
+          {rightPanel ? (
             <ShellRegionBoundary regionName="right-panel-shell">
-              <aside className="app-shell-layout__right-panel" aria-label="Workspace context">
-                {rightPanel}
-              </aside>
+              {rightPanel}
             </ShellRegionBoundary>
           ) : null}
         </div>
 
         {hasBottomActivity ? (
           <ShellRegionBoundary regionName="bottom-activity-shell">
-            <footer className="app-shell-layout__bottom-rail" aria-label="Workspace activity">
+            <div className="app-shell-layout__bottom-rail">
               {bottomActivity}
-            </footer>
+            </div>
           </ShellRegionBoundary>
         ) : null}
       </div>

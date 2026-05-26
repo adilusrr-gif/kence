@@ -9,6 +9,8 @@ import { Inline } from '@/shared/ui/inline'
 import { Stack } from '@/shared/ui/stack'
 import { StatusPill } from '@/shared/ui/status-pill'
 import { apiCreateSession, apiUploadDocument } from '../lib/api'
+import { useToast } from '@/shared/ui/toast'
+import { useEventStore } from '@/shared/stores/eventStore'
 
 const FORMAT_ICONS = {
   '.pdf': FileText, '.docx': FileText, '.doc': FileText,
@@ -43,6 +45,8 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
   const [charCount, setCharCount] = useState(0)
   const fileInputRef = useRef(null)
   const navigate = useNavigate()
+  const toast = useToast()
+  const ingestEvent = useEventStore((s) => s.ingestEvent)
 
   const validate = f => {
     const ext = `.${f.name.split('.').pop().toLowerCase()}`
@@ -74,6 +78,7 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
     setUploading(true)
     setError('')
     setStageIdx(0)
+    ingestEvent({ type: 'DOCUMENT_UPLOADING', message: `Uploading ${file.name}…` })
     try {
       const { session_id: sid } = await apiCreateSession()
       setSessionId(sid)
@@ -87,9 +92,14 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
       setPreview(data.preview || null)
       setCharCount(data.char_count || 0)
       setUploaded(true)
+      ingestEvent({ type: 'DOCUMENT_READY', message: `Document ready: ${file.name}` })
+      toast.success(`Документ загружен: ${file.name}`)
       setTimeout(() => navigate('/workspace'), 1500)
     } catch (err) {
-      setError(err.message || 'Ошибка загрузки')
+      const msg = err.message || 'Ошибка загрузки'
+      setError(msg)
+      toast.error(msg)
+      ingestEvent({ type: 'DOCUMENT_ERROR', message: msg })
       setStageIdx(-1)
     } finally {
       setUploading(false)

@@ -1,0 +1,29 @@
+DocAI Test Document
+===================
+
+This is a sample document used for automated E2E testing.
+
+Section 1: Introduction
+------------------------
+DocAI is an intelligent document assistant that supports RAG-based chat,
+document translation (KZ/RU/EN), comparison, conversion, and presentation generation.
+
+Section 2: Key Features
+------------------------
+- Upload documents in PDF, DOCX, PPTX, XLSX, TXT, and image formats
+- Ask questions about the document content using AI
+- Translate document to Kazakh, Russian, or English
+- Compare two documents semantically and technically
+- Convert documents to TXT, Markdown, or DOCX
+- Generate PowerPoint presentations from document content
+
+Section 3: Technology Stack
+----------------------------
+Backend: FastAPI + Ollama + ChromaDB + Docling + PostgreSQL
+Frontend: React + Vite + Framer Motion + Zustand
+Infrastructure: Docker Compose
+
+Section 4: Conclusion
+----------------------
+This document is used only for testing purposes.
+The answer to the question "О чём этот документ?" should reference DocAI.

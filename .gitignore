@@ -38,3 +38,12 @@ docker-data/
 # Runtime
 tmp/
 temp/
+
+# Ollama local model cache (large binary blobs)
+.ollama/
+
+# Docker image tarballs
+*.tar
+
+# Test databases
+backend/*.db

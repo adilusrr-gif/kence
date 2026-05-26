@@ -33,7 +33,7 @@ def _add_text_box(slide, text: str, left, top, width, height,
 
 
 def build_presentation(plan: dict, theme_name: str, selected_ids: list, session_id: str,
-                        llm_service=None) -> str:
+                        llm_service=None, progress_cb=None) -> str:
     from app.services.chart_service import generate_chart_bytes
 
     theme = THEMES.get(theme_name, THEMES["corporate"])
@@ -51,8 +51,11 @@ def build_presentation(plan: dict, theme_name: str, selected_ids: list, session_
     blank_layout = prs.slide_layouts[6]
 
     slides_to_build = [s for s in plan.get("slides", []) if s.get("id") in selected_ids]
+    total = len(slides_to_build)
 
-    for slide_data in slides_to_build:
+    for idx, slide_data in enumerate(slides_to_build, 1):
+        if progress_cb:
+            progress_cb({"status": f"Слайд {idx}/{total}: {slide_data.get('title', '')[:40]}", "slide": idx, "total": total})
         slide = prs.slides.add_slide(blank_layout)
         bg = slide.background
         fill = bg.fill
@@ -122,6 +125,8 @@ def build_presentation(plan: dict, theme_name: str, selected_ids: list, session_
                               font_size=16, color=text_color)
                 y += step
 
+    if progress_cb:
+        progress_cb({"status": "Сохраняю файл…"})
     out_path = Path(settings.UPLOAD_DIR) / session_id / "presentation_v2.pptx"
     out_path.parent.mkdir(parents=True, exist_ok=True)
     prs.save(str(out_path))

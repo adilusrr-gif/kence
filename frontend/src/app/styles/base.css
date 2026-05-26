@@ -36,7 +36,9 @@ body {
 }
 
 :focus-visible {
-  outline: none;
+  outline: 2px solid var(--focus-ring, rgba(34, 211, 238, 0.6));
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {

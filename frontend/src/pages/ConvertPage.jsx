@@ -177,7 +177,7 @@ function ConvertPage({ sessionId }) {
           title="Сначала загрузите документ"
           description="Конвертация доступна после загрузки и обработки файла."
           actions={
-            <Button onClick={() => navigate('/')} leadingIcon={<FileText size={16} />}>
+            <Button onClick={() => navigate('/upload')} leadingIcon={<FileText size={16} />}>
               Загрузить документ
             </Button>
           }

@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Upload, Loader2, GitCompare, Brain, Wrench, CheckCircle, XCircle, AlertTriangle, FileText, ScanText } from 'lucide-react'
 import { apiCreateSession, apiCompareUpload, apiCompareSemantic, apiCompareTechnical, apiCompareExact } from '../lib/api'
+import { useToast } from '@/shared/ui/toast'
+import Skeleton from '@/shared/ui/skeleton/Skeleton'
 
 // ── Exact diff viewer ────────────────────────────────────────────────────────
 
@@ -170,6 +172,7 @@ function ComparisonPage() {
     const [error, setError] = useState('')
     const navigate = useNavigate()
 
+    const toast = useToast()
     const allowedFormats = ['.pdf','.docx','.doc','.pptx','.ppt','.xlsx','.xls','.html','.htm','.txt','.png','.jpg','.jpeg','.tiff','.tex']
 
     const handleFile1 = (e) => {
@@ -199,7 +202,9 @@ function ComparisonPage() {
             await apiCompareUpload(sid, file1, file2)
             setUploading(false)
         } catch (err) {
-            setError(err.message || 'Ошибка загрузки')
+            const msg = err.message || 'Ошибка загрузки'
+            setError(msg)
+            toast.error(msg)
             setUploading(false)
         }
     }
@@ -215,7 +220,9 @@ function ComparisonPage() {
                 : await apiCompareExact(sessionId)
             setResult(data)
         } catch (err) {
-            setError(err.message || 'Ошибка сравнения')
+            const msg = err.message || 'Ошибка сравнения'
+            setError(msg)
+            toast.error(msg)
         } finally {
             setComparing(false)
         }
@@ -308,14 +315,20 @@ function ComparisonPage() {
             )}
 
             {comparing && (
-                <div className="card text-center py-12">
-                    <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-                    <h3 className="text-lg font-medium">
-                        {mode === 'semantic' ? 'Анализируем смысловое содержание...'
-                        : mode === 'technical' ? 'Сравниваем технические характеристики...'
-                        : 'Выполняем точное посимвольное сравнение...'}
-                    </h3>
-                    <p className="text-gray-500 text-sm mt-2">Это может занять 10-30 секунд</p>
+                <div className="card" style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+                        <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent, #6366f1)' }} />
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            {mode === 'semantic' ? 'Анализируем смысловое содержание…'
+                            : mode === 'technical' ? 'Сравниваем технические характеристики…'
+                            : 'Выполняем точное посимвольное сравнение…'}
+                        </span>
+                    </div>
+                    <Skeleton height="14px" width="85%" />
+                    <Skeleton height="14px" />
+                    <Skeleton height="14px" width="70%" />
+                    <Skeleton height="14px" width="90%" />
+                    <Skeleton height="14px" width="60%" />
                 </div>
             )}
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Text, DateTime, Integer, UniqueConstraint, JSON
+from sqlalchemy import Column, String, Boolean, Text, DateTime, Integer, UniqueConstraint, JSON, ForeignKey
 from sqlalchemy.sql import func
 from app.core.database import Base
 
@@ -33,6 +33,28 @@ class AIPrompt(Base):
     prompt_type = Column(String(64), primary_key=True)
     content     = Column(Text, nullable=False)
     updated_at  = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id         = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(String(64), nullable=False, index=True)
+    role       = Column(String(16), nullable=False)   # "user" | "assistant"
+    content    = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class UsageLog(Base):
+    __tablename__ = "usage_logs"
+
+    id          = Column(Integer, primary_key=True, autoincrement=True)
+    event_type  = Column(String(64), nullable=False, index=True)
+    username    = Column(String(64), nullable=True, index=True)
+    session_id  = Column(String(64), nullable=True)
+    file_format = Column(String(32), nullable=True)
+    extra       = Column(JSON, nullable=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 
 class DocumentContext(Base):

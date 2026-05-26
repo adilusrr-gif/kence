@@ -2,21 +2,35 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Send, Bot, User, Loader2, Copy, FileText, Check,
+  Send, Bot, User, Loader2, Copy, FileText, Check, Trash2,
   Languages, FileDown, BarChart2, GitCompare, RefreshCw,
   BookOpen, SlidersHorizontal, ChevronUp, ChevronDown,
-  List, AlertTriangle, Upload,
+  List, AlertTriangle, Upload, Eye, Scan,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Badge } from '@/shared/ui/badge'
+import Skeleton from '@/shared/ui/skeleton/Skeleton'
 import DocumentViewer from '@/widgets/document-viewer'
 import {
   apiGetDocumentContent, apiTranslate, apiTranslateExport, apiDownloadPath,
   apiGetDocumentContext, apiSaveDocumentContext, apiDeleteDocumentContext,
-  copyToClipboard,
+  apiGetChatHistory, apiClearChatHistory, apiVisualDescribe,
+  copyToClipboard, getBaseUrl,
 } from '../lib/api'
-import { streamChat } from '../lib/streamChat'
+import { streamWithEvents } from '../lib/sseAdapter'
+
+const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.webp', '.heic'])
+
+function TypingDots() {
+  return <span className="typing-dots"><span /><span /><span /></span>
+}
+
+function formatTime(ts) {
+  if (!ts) return null
+  const d = new Date(ts)
+  return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+}
 
 const TIPS = [
   'Краткое содержание документа',
@@ -65,7 +79,11 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
   const messagesEndRef = useRef(null)
 
   /* chat mode */
-  const [chatMode, setChatMode] = useState('precise') // 'precise' | 'consultation'
+  const [chatMode, setChatMode] = useState('precise') // 'precise' | 'consultation' | 'visual'
+
+  /* visual */
+  const isImageDoc = documentName ? IMAGE_EXTS.has('.' + documentName.split('.').pop().toLowerCase()) : false
+  const [visualizing, setVisualizing] = useState(false)
 
   /* translation */
   const [translating, setTranslating] = useState(false)
@@ -89,6 +107,23 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
       })
       .catch(() => { setMarkdown(''); setHtmlDoc('') })
       .finally(() => setLoadingDoc(false))
+  }, [sessionId])
+
+  /* ── Load chat history on session open ── */
+  useEffect(() => {
+    if (!sessionId) return
+    apiGetChatHistory(sessionId, 20)
+      .then((data) => {
+        const msgs = data?.messages || []
+        if (msgs.length === 0) return
+        const historical = msgs.map((m) => ({ role: m.role, content: m.content, historical: true }))
+        setMessages([
+          ...historical,
+          { role: 'divider' },
+          { role: 'assistant', content: 'Привет! Выделите текст в документе или задайте вопрос.' },
+        ])
+      })
+      .catch(() => {})
   }, [sessionId])
 
   /* ── Load doc context ── */
@@ -134,20 +169,56 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
     container.scrollBy({ top: dir * container.clientHeight * 0.8, behavior: 'smooth' })
   }
 
+  /* ── Visual describe ── */
+  const handleVisualDescribe = async () => {
+    if (!sessionId || visualizing) return
+    setVisualizing(true)
+    setMessages(prev => [...prev,
+      { role: 'user', content: 'Описать изображение подробно', ts: Date.now() },
+      { role: 'assistant', content: '', status: 'typing', streaming: true },
+    ])
+    try {
+      const data = await apiVisualDescribe(sessionId)
+      setMessages(prev => {
+        const m = [...prev]
+        m[m.length - 1] = { role: 'assistant', content: data.description, streaming: false, ts: Date.now() }
+        return m
+      })
+    } catch (err) {
+      setMessages(prev => {
+        const m = [...prev]
+        m[m.length - 1] = { role: 'assistant', content: `Ошибка: ${err.message}`, streaming: false, isError: true }
+        return m
+      })
+    } finally { setVisualizing(false) }
+  }
+
+  /* ── Clear history ── */
+  const handleClearHistory = async () => {
+    if (!sessionId) return
+    await apiClearChatHistory(sessionId).catch(() => {})
+    setMessages([{ role: 'assistant', content: 'Привет! Выделите текст в документе или задайте вопрос.' }])
+  }
+
   /* ── Send chat message ── */
   const handleSend = async () => {
     if (!input.trim() || loading) return
     const question = input.trim()
     setInput('')
-    setMessages(prev => [...prev, { role: 'user', content: question }])
+    setMessages(prev => [...prev, { role: 'user', content: question, ts: Date.now() }])
     setLoading(true)
-    setMessages(prev => [...prev, { role: 'assistant', content: '', status: '…', streaming: true }])
+    setMessages(prev => [...prev, { role: 'assistant', content: '', status: 'typing', streaming: true }])
 
-    await streamChat(sessionId, question, {
-      mode: chatMode,
+    const streamUrl = chatMode === 'visual' && isImageDoc
+      ? `${getBaseUrl()}/api/chat/visual-stream?session_id=${sessionId}&question=${encodeURIComponent(question)}`
+      : null
+
+    await streamWithEvents(sessionId, question, {
+      mode: chatMode === 'visual' ? 'precise' : chatMode,
+      customUrl: streamUrl,
       onStatus: (status) => setMessages(prev => { const m=[...prev]; m[m.length-1]={...m[m.length-1],status}; return m }),
       onChunk:  (_, full) => setMessages(prev => { const m=[...prev]; m[m.length-1]={...m[m.length-1],content:full,status:null}; return m }),
-      onDone:   (full)    => setMessages(prev => { const m=[...prev]; m[m.length-1]={role:'assistant',content:full,streaming:false}; return m }),
+      onDone:   (full)    => setMessages(prev => { const m=[...prev]; m[m.length-1]={role:'assistant',content:full,streaming:false,ts:Date.now()}; return m }),
       onError:  (err)     => setMessages(prev => { const m=[...prev]; m[m.length-1]={role:'assistant',content:'Ошибка: '+(err.message||'—'),streaming:false,isError:true}; return m }),
     })
     setLoading(false)
@@ -257,7 +328,16 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
         {/* Doc body */}
         <div className="ws-doc-body">
           {loadingDoc
-            ? <div className="ws-loading">Загрузка документа…</div>
+            ? <div className="ws-loading" style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '20px 24px' }}>
+                <Skeleton height="18px" width="70%" />
+                <Skeleton height="14px" />
+                <Skeleton height="14px" width="90%" />
+                <Skeleton height="14px" width="80%" />
+                <Skeleton height="18px" width="55%" style={{ marginTop: 8 }} />
+                <Skeleton height="14px" />
+                <Skeleton height="14px" width="85%" />
+                <Skeleton height="14px" width="60%" />
+              </div>
             : !sessionId
               ? <div className="ws-empty">
                   <FileText size={32} style={{ opacity: 0.2, marginBottom: 8 }} />
@@ -266,7 +346,24 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
                     <Upload size={13} /> Загрузить
                   </button>
                 </div>
-              : <DocumentViewer ref={docViewerRef} markdown={markdown} html={htmlDoc} onSelection={handleSelection} />
+              : isImageDoc
+                ? (
+                  <div className="ws-image-preview">
+                    <img
+                      src={`${getBaseUrl()}/api/documents/${sessionId}/file`}
+                      alt={documentName}
+                      className="ws-image-preview__img"
+                      onError={(e) => { e.target.style.display = 'none' }}
+                    />
+                    {markdown && (
+                      <details className="ws-image-preview__ocr">
+                        <summary>Извлечённый текст / OCR</summary>
+                        <pre className="ws-image-preview__ocr-text">{markdown}</pre>
+                      </details>
+                    )}
+                  </div>
+                )
+                : <DocumentViewer ref={docViewerRef} markdown={markdown} html={htmlDoc} onSelection={handleSelection} />
           }
         </div>
       </div>
@@ -279,6 +376,11 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
           <Bot size={13} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
           <span className="ws-panel-title">AI-ассистент</span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+            {messages.length > 1 && (
+              <button className="ws-action-btn" onClick={handleClearHistory} title="Очистить историю">
+                <Trash2 size={11} />
+              </button>
+            )}
             <button className="ws-action-btn" onClick={() => navigate('/compare')} title="Сравнение">
               <GitCompare size={11} />
             </button>
@@ -335,33 +437,43 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
         {/* Messages — flex-end so they stack from bottom */}
         <div className="ws-messages">
           <div className="ws-messages-inner">
-            {messages.map((msg, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.18 }}
-                className={`ws-msg${msg.role === 'user' ? ' ws-msg--user' : ''}`}
-              >
-                <div className={`ws-avatar${msg.role === 'user' ? ' ws-avatar--user' : ''}`}>
-                  {msg.role === 'user' ? <User size={13} color="#fff" /> : <Bot size={13} style={{ color: 'var(--accent-primary)' }} />}
-                </div>
-                <div className={`ws-bubble${msg.role === 'user' ? ' ws-bubble--user' : ' ws-bubble--bot'}${msg.isError ? ' ws-bubble--error' : ''}`}>
-                  {msg.status && !msg.content
-                    ? <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{msg.status}</span>
-                    : msg.role === 'assistant' && msg.content
-                      ? <div className="chat-md"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ table: ({node, ...p}) => <div className="table-wrap"><table {...p} /></div> }}>{msg.content}</ReactMarkdown></div>
-                      : <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
-                  }
-                  {msg.streaming && <Loader2 size={11} className="animate-spin" style={{ marginLeft: 4, display: 'inline-block', opacity: 0.5 }} />}
-                  {msg.role === 'assistant' && msg.content && !msg.streaming && (
-                    <button className="ws-copy-btn" onClick={() => { copyToClipboard(msg.content); setCopied(i); setTimeout(() => setCopied(null), 1800) }}>
-                      {copied === i ? <Check size={10} /> : <Copy size={10} />}
-                    </button>
-                  )}
-                </div>
-              </motion.div>
-            ))}
+            {messages.map((msg, i) => {
+              if (msg.role === 'divider') {
+                return <div key={i} className="ws-history-divider">Предыдущий сеанс</div>
+              }
+              return (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className={`ws-msg${msg.role === 'user' ? ' ws-msg--user' : ''}`}
+                >
+                  <div className={`ws-avatar${msg.role === 'user' ? ' ws-avatar--user' : ''}`}>
+                    {msg.role === 'user' ? <User size={13} color="#fff" /> : <Bot size={13} style={{ color: 'var(--accent-primary)' }} />}
+                  </div>
+                  <div className={`ws-bubble${msg.role === 'user' ? ' ws-bubble--user' : ' ws-bubble--bot'}${msg.isError ? ' ws-bubble--error' : ''}`}>
+                    {msg.status === 'typing' && !msg.content
+                      ? <TypingDots />
+                      : msg.status && !msg.content
+                        ? <span style={{ opacity: 0.5, fontStyle: 'italic' }}>{msg.status}</span>
+                        : msg.role === 'assistant' && msg.content
+                          ? <div className="chat-md"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ table: ({node, ...p}) => <div className="table-wrap"><table {...p} /></div> }}>{msg.content}</ReactMarkdown></div>
+                          : <span style={{ whiteSpace: 'pre-wrap' }}>{msg.content}</span>
+                    }
+                    {msg.streaming && msg.content && <Loader2 size={11} className="animate-spin" style={{ marginLeft: 4, display: 'inline-block', opacity: 0.5 }} />}
+                    {msg.role === 'assistant' && msg.content && !msg.streaming && (
+                      <button className="ws-copy-btn ws-bubble__copy" onClick={() => { copyToClipboard(msg.content); setCopied(i); setTimeout(() => setCopied(null), 1800) }}>
+                        {copied === i ? <Check size={10} /> : <Copy size={10} />}
+                      </button>
+                    )}
+                    {msg.ts && !msg.historical && (
+                      <div className="ws-msg-time">{formatTime(msg.ts)}</div>
+                    )}
+                  </div>
+                </motion.div>
+              )
+            })}
             <div ref={messagesEndRef} />
           </div>
         </div>
@@ -392,10 +504,33 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
                   >
                     Консультация
                   </button>
+                  {isImageDoc && (
+                    <button
+                      className={`ws-mode-btn ws-mode-btn--vision${chatMode === 'visual' ? ' ws-mode-btn--active' : ''}`}
+                      onClick={() => setChatMode('visual')}
+                      title="Визуальный анализ изображения через VLM"
+                    >
+                      <Eye size={11} style={{ marginRight: 3 }} />
+                      Визуальный
+                    </button>
+                  )}
                 </div>
-                {TIPS.map((t, i) => (
-                  <button key={i} className="ws-tip" onClick={() => { setInput(t); inputRef.current?.focus() }}>{t}</button>
-                ))}
+                {isImageDoc && chatMode === 'visual'
+                  ? (
+                    <>
+                      <button className="ws-tip ws-tip--vision" onClick={handleVisualDescribe} disabled={visualizing}>
+                        <Scan size={10} style={{ marginRight: 3 }} />
+                        {visualizing ? 'Анализирую…' : 'Описать изображение'}
+                      </button>
+                      <button className="ws-tip" onClick={() => { setInput('Что изображено на этом документе?'); inputRef.current?.focus() }}>Что здесь изображено?</button>
+                      <button className="ws-tip" onClick={() => { setInput('Извлеки весь текст с изображения'); inputRef.current?.focus() }}>Извлечь текст</button>
+                      <button className="ws-tip" onClick={() => { setInput('Опиши данные из таблицы или графика'); inputRef.current?.focus() }}>Данные из таблицы/графика</button>
+                    </>
+                  )
+                  : TIPS.map((t, i) => (
+                    <button key={i} className="ws-tip" onClick={() => { setInput(t); inputRef.current?.focus() }}>{t}</button>
+                  ))
+                }
               </div>
 
               {/* Textarea + send */}

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from pathlib import Path
@@ -7,14 +7,21 @@ from uuid import UUID
 import shutil
 import json
 import asyncio
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 
 from app.core.session import session_manager
 from app.core.config import get_settings
+from app.core.mime_validator import validate_mime
 from app.services.document import doc_processor
 from app.services.llm import llm_service
 from app.services.translation import translation_service
 from app.services.converter import converter_service
 from app.services.ai_settings_service import get_document_context
+from app.services import memory_service
+from app.services import analytics_service
 from app.api.auth_routes import get_current_user
 
 router = APIRouter()
@@ -43,15 +50,57 @@ async def create_session(user: dict = Depends(get_current_user)):
     session_id = session_manager.create_session()
     return {"session_id": session_id, "status": "created"}
 
+@router.get("/sessions")
+async def list_sessions(user: dict = Depends(get_current_user)):
+    """Возвращает все активные сессии из БД (с загруженным документом)."""
+    try:
+        from app.core.database import SessionLocal
+        from app.models.models import DocSession
+        with SessionLocal() as db:
+            rows = (
+                db.query(DocSession)
+                .filter(DocSession.has_vector_store == True)
+                .order_by(DocSession.last_activity.desc())
+                .limit(20)
+                .all()
+            )
+            return [
+                {
+                    "session_id": r.session_id,
+                    "document_name": r.document_name,
+                    "has_vector_store": r.has_vector_store,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                    "last_activity": r.last_activity.isoformat() if r.last_activity else None,
+                }
+                for r in rows
+            ]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.delete("/sessions/{session_id}")
 async def delete_session(session_id: str, user: dict = Depends(get_current_user)):
     session_manager.cleanup_session(session_id)
+    memory_service.clear_history(session_id)
     return {"status": "deleted"}
+
+# ─── История чата ────────────────────────────────────────
+
+@router.get("/chat/history/{session_id}")
+async def get_chat_history(session_id: str, limit: int = 20, user: dict = Depends(get_current_user)):
+    return {"session_id": session_id, "messages": memory_service.get_history(session_id, limit)}
+
+@router.delete("/chat/history/{session_id}")
+async def clear_chat_history(session_id: str, user: dict = Depends(get_current_user)):
+    memory_service.clear_history(session_id)
+    return {"status": "cleared"}
+
+_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp", ".heic"}
 
 # ─── Документы ──────────────────────────────────────────
 
 @router.post("/documents/upload")
-async def upload_document(session_id: str, file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def upload_document(request: Request, session_id: str, file: UploadFile = File(...), user: dict = Depends(get_current_user)):
     try:
         UUID(session_id)
     except ValueError:
@@ -74,6 +123,11 @@ async def upload_document(session_id: str, file: UploadFile = File(...), user: d
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
+    ok, detected_mime = validate_mime(file_path)
+    if not ok:
+        file_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=415, detail=f"File content does not match its extension (detected: {detected_mime})")
+
     try:
         vector_store, markdown_text, html_text = doc_processor.process_file(str(file_path), session_id)
         session["document"] = file.filename
@@ -82,39 +136,146 @@ async def upload_document(session_id: str, file: UploadFile = File(...), user: d
         session["markdown_text"] = markdown_text
         session["html_text"] = html_text if len(html_text) < 15_000_000 else ""
         session_manager.save_session(session_id)
+        analytics_service.log_event("upload", username=user.get("sub"), session_id=session_id, file_format=ext.lstrip(".").upper())
 
+        IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp", ".heic"}
         return {
             "status": "processed",
             "filename": file.filename,
             "session_id": session_id,
             "format": ext,
+            "is_image": ext in IMAGE_EXTS,
             "preview": markdown_text[:800],
             "char_count": len(markdown_text),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# ─── Отдача файла изображения ───────────────────────────
+
+@router.get("/documents/{session_id}/image")
+async def get_document_image(session_id: str, user: dict = Depends(get_current_user)):
+    """Возвращает исходный файл изображения для превью в UI."""
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    doc_name = session.get("document", "")
+    ext = Path(doc_name).suffix.lower()
+    if ext not in _IMAGE_EXTS:
+        raise HTTPException(status_code=400, detail="Document is not an image")
+    image_path = Path(f"{settings.UPLOAD_DIR}/{session_id}/{doc_name}")
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image file not found")
+    mime_map = {
+        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".tiff": "image/tiff", ".bmp": "image/bmp",
+        ".webp": "image/webp", ".heic": "image/heic",
+    }
+    return FileResponse(str(image_path), media_type=mime_map.get(ext, "application/octet-stream"))
+
+# ─── Мультимодальный / визуальный анализ ─────────────────
+
+
+@router.get("/documents/{session_id}/visual-describe")
+async def visual_describe(session_id: str, user: dict = Depends(get_current_user)):
+    """Полное визуальное описание изображения-документа через VLM."""
+    from app.services.vision_service import vision_service
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    doc_name = session.get("document", "")
+    if not doc_name:
+        raise HTTPException(status_code=400, detail="No document uploaded")
+    ext = Path(doc_name).suffix.lower()
+    if ext not in _IMAGE_EXTS:
+        raise HTTPException(status_code=400, detail="Document is not an image")
+    if not vision_service.is_available():
+        raise HTTPException(status_code=503, detail=f"Vision model '{settings.VISION_MODEL}' not available. Run: ollama pull {settings.VISION_MODEL}")
+    image_path = Path(f"{settings.UPLOAD_DIR}/{session_id}/{doc_name}")
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image file not found")
+    try:
+        description = await asyncio.to_thread(vision_service.describe, str(image_path))
+        return {"description": description, "session_id": session_id, "filename": doc_name}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/chat/visual-stream")
+@limiter.limit("10/minute")
+async def visual_chat_stream(
+    request: Request,
+    session_id: str,
+    question: str,
+    user: dict = Depends(get_current_user),
+):
+    """SSE-стриминг ответа VLM на вопрос по изображению."""
+    from app.services.vision_service import vision_service
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=400, detail="No document uploaded")
+    doc_name = session.get("document", "")
+    ext = Path(doc_name).suffix.lower() if doc_name else ""
+    if ext not in _IMAGE_EXTS:
+        raise HTTPException(status_code=400, detail="Document is not an image; use /chat/stream instead")
+    if not vision_service.is_available():
+        raise HTTPException(status_code=503, detail=f"Vision model '{settings.VISION_MODEL}' not available. Run: ollama pull {settings.VISION_MODEL}")
+    image_path = Path(f"{settings.UPLOAD_DIR}/{session_id}/{doc_name}")
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image file not found")
+
+    async def generate():
+        yield f"data: {json.dumps({'status': 'Анализирую изображение…'})}\n\n"
+        full: list[str] = []
+        try:
+            first = True
+            async for chunk in vision_service.answer_stream(str(image_path), question):
+                if first:
+                    yield f"data: {json.dumps({'status': 'Формирую ответ…'})}\n\n"
+                    first = False
+                if chunk:
+                    full.append(chunk)
+                    yield f"data: {json.dumps({'text': chunk})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        finally:
+            yield "data: [DONE]\n\n"
+            if full:
+                memory_service.add_message(session_id, "user", question)
+                memory_service.add_message(session_id, "assistant", "".join(full))
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
 # ─── Чат ────────────────────────────────────────────────
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
-    session = session_manager.get_session(request.session_id)
+@limiter.limit("20/minute")
+async def chat(request: Request, body: ChatRequest, user: dict = Depends(get_current_user)):
+    session = session_manager.get_session(body.session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
 
     doc_name = session.get("document", "")
     doc_context = get_document_context(user["username"], doc_name) if doc_name else None
+    history = memory_service.get_history(body.session_id, limit=10)
 
     try:
-        answer = llm_service.chat(request.question, request.session_id, doc_context)
-        return ChatResponse(answer=answer, session_id=request.session_id)
+        answer = llm_service.chat(body.question, body.session_id, doc_context, history)
+        memory_service.add_message(body.session_id, "user", body.question)
+        memory_service.add_message(body.session_id, "assistant", answer)
+        return ChatResponse(answer=answer, session_id=body.session_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 # ─── Стриминг чата ──────────────────────────────────────
 
 @router.get("/chat/stream")
+@limiter.limit("20/minute")
 async def chat_stream(
+    request: Request,
     session_id: str,
     question: str,
     mode: str = "precise",
@@ -127,20 +288,30 @@ async def chat_stream(
     doc_name = session.get("document", "")
     doc_context = get_document_context(user["username"], doc_name) if doc_name else None
 
+    history = memory_service.get_history(session_id, limit=10)
+
     async def generate():
         yield f"data: {json.dumps({'status': 'Ищу релевантные фрагменты...'})}\n\n"
+        full_answer: list[str] = []
         try:
             first = True
-            async for chunk in llm_service.chat_astream(question, session_id, doc_context, mode):
+            async for chunk in llm_service.chat_astream(
+                question, session_id, doc_context, mode, history
+            ):
                 if first:
                     yield f"data: {json.dumps({'status': 'Формирую ответ...'})}\n\n"
                     first = False
                 if chunk:
+                    full_answer.append(chunk)
                     yield f"data: {json.dumps({'text': chunk})}\n\n"
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         finally:
             yield "data: [DONE]\n\n"
+            if full_answer:
+                memory_service.add_message(session_id, "user", question)
+                memory_service.add_message(session_id, "assistant", "".join(full_answer))
+                analytics_service.log_event("chat", username=user.get("sub"), session_id=session_id, mode=mode)
 
     return StreamingResponse(
         generate(),
@@ -160,15 +331,16 @@ async def get_document_content(session_id: str, user: dict = Depends(get_current
         "filename": session.get("document", ""),
         "markdown": session.get("markdown_text", ""),
         "html": session.get("html_text", ""),
-        "char_count": len(session.get("markdown_text", "")),
+        "char_count": len(session.get("markdown_text") or ""),
     }
 
 # ─── Перевод ────────────────────────────────────────────
 
 @router.post("/translate")
-async def translate_document(request: TranslateRequest, user: dict = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def translate_document(request: Request, body: TranslateRequest, user: dict = Depends(get_current_user)):
     """Переводит содержимое документа на kz / ru / en"""
-    session = session_manager.get_session(request.session_id)
+    session = session_manager.get_session(body.session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
     markdown_text = session.get("markdown_text", "")
@@ -177,12 +349,13 @@ async def translate_document(request: TranslateRequest, user: dict = Depends(get
     try:
         translated = await asyncio.to_thread(
             translation_service.translate_document,
-            markdown_text, request.target_language
+            markdown_text, body.target_language
         )
+        analytics_service.log_event("translate", username=user.get("sub"), session_id=body.session_id, language=body.target_language)
         return {
             "translated": translated,
-            "language": request.target_language,
-            "session_id": request.session_id
+            "language": body.target_language,
+            "session_id": body.session_id
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -234,6 +407,7 @@ async def convert_document(session_id: str, target_format: Literal["txt", "md", 
         raise HTTPException(status_code=400, detail="No document uploaded")
     try:
         output_path = converter_service.convert(session_id, target_format)
+        analytics_service.log_event("convert", username=user.get("sub"), session_id=session_id, target_format=target_format)
         return {
             "status": "converted",
             "format": target_format,
@@ -267,6 +441,17 @@ async def download_converted(session_id: str, fmt: str, translated: bool = False
         filename=candidates[0].name,
         media_type=media_types[fmt]
     )
+
+# ─── Vision status ──────────────────────────────────────
+
+@router.get("/vision/status")
+async def vision_status(user: dict = Depends(get_current_user)):
+    from app.services.vision_service import vision_service
+    return {
+        "model": settings.VISION_MODEL,
+        "available": vision_service.is_available(),
+        "pull_command": f"ollama pull {settings.VISION_MODEL}" if not vision_service.is_available() else None,
+    }
 
 # ─── Health Check ───────────────────────────────────────
 
