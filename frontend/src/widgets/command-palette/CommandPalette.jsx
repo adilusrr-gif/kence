@@ -5,6 +5,7 @@ import {
   Search, LayoutDashboard, Upload, MessageSquare,
   GitCompare, Presentation, RefreshCw, User, Shield,
   Cpu, X, ArrowRight, FileText, Command,
+  Library, Network, Bot, TrendingUp, Settings, BarChart2,
 } from 'lucide-react'
 import { useSessionTabsStore } from '@/shared/stores/sessionTabsStore'
 import { useWorkspaceStore } from '@/shared/stores/workspaceStore'
@@ -16,7 +17,13 @@ const STATIC_COMMANDS = [
   { id: 'nav-compare',      label: 'Сравнение',          desc: 'Семантическое и техническое', icon: GitCompare,     path: '/compare',       group: 'Навигация' },
   { id: 'nav-presentation', label: 'Презентация',        desc: 'Сгенерировать PPTX',         icon: Presentation,   path: '/presentation',  group: 'Навигация' },
   { id: 'nav-convert',      label: 'Конвертация',        desc: 'Изменить формат документа',  icon: RefreshCw,      path: '/convert',       group: 'Навигация' },
+  { id: 'nav-library',      label: 'Библиотека',         desc: 'Документы организации',      icon: Library,        path: '/library',       group: 'Навигация' },
+  { id: 'nav-analytics',    label: 'Аналитика',          desc: 'Статистика использования',   icon: BarChart2,      path: '/analytics',     group: 'Навигация' },
+  { id: 'nav-graph',        label: 'Граф знаний',        desc: 'Граф сущностей Neo4j',       icon: Network,        path: '/graph',         group: 'Навигация' },
+  { id: 'nav-agents',       label: 'AI Агенты',          desc: 'Запуск автономных агентов',  icon: Bot,            path: '/agents',        group: 'Навигация' },
   { id: 'nav-profile',      label: 'Профиль',            desc: 'Настройки пользователя',     icon: User,           path: '/profile',       group: 'Аккаунт'  },
+  { id: 'nav-executive',    label: 'Executive',          desc: 'KPI дашборд организации',    icon: TrendingUp,     path: '/executive',     group: 'Аккаунт'  },
+  { id: 'nav-org',          label: 'Настройки орг.',     desc: 'Участники, API-ключи, бренд', icon: Settings,      path: '/org/settings',  group: 'Аккаунт'  },
   { id: 'nav-admin',        label: 'Панель админа',      desc: 'Управление пользователями',  icon: Shield,         path: '/admin',         group: 'Аккаунт'  },
   { id: 'nav-ai-settings',  label: 'AI настройки',       desc: 'Промпты и поведение модели', icon: Cpu,            path: '/ai-settings',   group: 'Аккаунт'  },
 ]

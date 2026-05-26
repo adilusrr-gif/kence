@@ -288,4 +288,15 @@ class DocumentComparator:
         }
 
 
+    async def semantic_compare_async(self, text1: str, text2: str, llm_service) -> dict:
+        prompt = f"Сравни два документа семантически (темы, содержание, выводы):\n\nДокумент 1:\n{text1[:3000]}\n\nДокумент 2:\n{text2[:3000]}"
+        result = await llm_service.agenerate(prompt)
+        return {"comparison": result, "type": "semantic"}
+
+    async def technical_compare_async(self, text1: str, text2: str, llm_service) -> dict:
+        prompt = f"Сравни два документа технически (структура, форматирование, метаданные, длина):\n\nДокумент 1:\n{text1[:3000]}\n\nДокумент 2:\n{text2[:3000]}"
+        result = await llm_service.agenerate(prompt)
+        return {"comparison": result, "type": "technical"}
+
+
 comparator = DocumentComparator()

@@ -66,20 +66,15 @@ def _migrate_users_from_json():
             users = json.load(f)
         from app.core.database import SessionLocal
         from app.models.models import User
-        from sqlalchemy.dialects.postgresql import insert as pg_insert
         with SessionLocal() as db:
             for username, data in users.items():
-                stmt = (
-                    pg_insert(User)
-                    .values(
+                if not db.get(User, username):
+                    db.add(User(
                         username=username,
                         hashed_password=data["hashed_password"],
                         role=data.get("role", "user"),
                         is_active=data.get("is_active", True),
-                    )
-                    .on_conflict_do_nothing(index_elements=["username"])
-                )
-                db.execute(stmt)
+                    ))
             db.commit()
         print(f"[DB] Migrated {len(users)} users from {users_file}")
     except Exception as e:

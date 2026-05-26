@@ -164,4 +164,11 @@
   --tabsbar-height:        40px;
   --bottom-rail-height:    32px;
   --right-panel-width:    280px;
+
+  /* Shorthand aliases used by enterprise pages and widgets */
+  --bg-surface: var(--bg-surface-1);
+  --bg-hover:   var(--bg-surface-2);
+  --bg-input:   var(--bg-surface-1);
+  --accent:     var(--accent-primary);
+  --border:     var(--border-default);
 }

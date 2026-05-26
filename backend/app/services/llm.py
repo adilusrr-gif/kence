@@ -81,6 +81,9 @@ class LLMService:
     def simple_chat(self, prompt: str) -> str:
         return self.llm.invoke(prompt)
 
+    async def agenerate(self, prompt: str) -> str:
+        return await asyncio.to_thread(self.simple_chat, prompt)
+
     def generate_presentation_structure(self, session_id: str) -> dict:
         retriever = doc_processor.get_retriever(session_id)
         docs = retriever.invoke("основное содержание документа")
