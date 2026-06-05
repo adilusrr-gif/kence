@@ -27,3 +27,4 @@ export const apiAdminDeactivateUser = u => request('POST', `/api/auth/users/${u}
 export const apiAdminDeleteUser     = u => request('DELETE', `/api/auth/users/${u}`)
 export const apiAdminChangeRole     = (u, role) => request('PATCH', `/api/auth/users/${u}/role`, { body: { role } })
 export const apiAdminStats          = () => request('GET', '/api/auth/stats')
+export const apiRefreshToken        = () => request('POST', '/api/auth/refresh')

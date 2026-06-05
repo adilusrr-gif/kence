@@ -39,9 +39,12 @@ class SessionManager:
         )
 
     def _from_row(self, row) -> dict:
+        session_id = row.session_id
+        # Verify ChromaDB actually exists on disk — DB flag may be stale after a crash
+        chroma_ok = (self.chroma_dir / session_id).exists() if row.has_vector_store else False
         return {
             "document": row.document_name,
-            "vector_store": row.has_vector_store,
+            "vector_store": chroma_ok,
             "preview": row.preview,
             "markdown_text": row.markdown_text,
             "html_text": row.html_text,
@@ -103,15 +106,17 @@ class SessionManager:
             return
         try:
             from app.models.models import DocSession
+            from datetime import datetime, timezone
             with self._db() as db:
                 row = db.get(DocSession, session_id)
                 if row:
-                    row.document_name = data.get("document")
-                    row.has_vector_store = bool(data.get("vector_store"))
-                    row.preview = data.get("preview")
-                    row.markdown_text = data.get("markdown_text")
-                    row.html_text = data.get("html_text")
-                    row.presentation_plan = data.get("presentation_plan")
+                    row.document_name      = data.get("document")
+                    row.has_vector_store   = bool(data.get("vector_store"))
+                    row.preview            = data.get("preview")
+                    row.markdown_text      = data.get("markdown_text")
+                    row.html_text          = data.get("html_text")
+                    row.presentation_plan  = data.get("presentation_plan")
+                    row.last_activity      = datetime.now(timezone.utc)
                 else:
                     db.add(self._to_row(session_id, data))
                 db.commit()
@@ -137,12 +142,28 @@ class SessionManager:
 
     def cleanup_expired(self, timeout: int = 3600):
         now = time.time()
+        # Clean RAM sessions
         expired = [
             sid for sid, s in list(self._mem.items())
             if now - s.get("last_activity", now) > timeout
         ]
         for sid in expired:
             self.cleanup_session(sid)
+
+        # Also clean DB sessions that were never loaded into RAM (e.g. from previous process)
+        try:
+            from app.models.models import DocSession
+            from datetime import datetime, timezone
+            cutoff = datetime.fromtimestamp(now - timeout, tz=timezone.utc)
+            with self._db() as db:
+                stale_rows = db.query(DocSession).filter(
+                    DocSession.last_activity < cutoff,
+                    ~DocSession.session_id.in_(list(self._mem.keys())),
+                ).all()
+                for row in stale_rows:
+                    self.cleanup_session(row.session_id)
+        except Exception as e:
+            logger.warning("[session] cleanup_expired DB query failed: %s", e)
 
 
 session_manager = SessionManager()

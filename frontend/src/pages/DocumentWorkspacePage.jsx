@@ -6,7 +6,7 @@ import { FlagIcon } from '@/shared/ui/flag-icon/FlagIcon'
 import {
   Send, Bot, User, Loader2, Copy, FileText, Check, Trash2,
   Languages, FileDown, BarChart2, GitCompare, RefreshCw,
-  BookOpen, SlidersHorizontal, ChevronUp, ChevronDown,
+  BookOpen, SlidersHorizontal, ChevronUp, ChevronDown, ChevronRight,
   List, AlertTriangle, Upload, Eye, Scan, Pencil,
   Table2, LineChart, Download,
 } from 'lucide-react'
@@ -28,7 +28,7 @@ import {
 } from '../lib/api'
 import { apiCreateAgentTask, apiGetAgentTask } from '../lib/api/enterprise.js'
 import { useDocumentContent } from '../hooks/useDocumentContent'
-import { useChatMessages } from '../hooks/useChatMessages'
+import { useChatMessages, detectNotFound } from '../hooks/useChatMessages'
 import { useDocContext } from '../hooks/useDocContext'
 import { useToastStore } from '../shared/stores/toastStore'
 
@@ -182,6 +182,46 @@ function InlineChartRenderer({ type, title, data: dataStr, hint, raw, onEdit, on
   )
 }
 
+// ── Sources panel ─────────────────────────────────────────────────────────────
+
+function SourcesPanel({ sources }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  if (!sources?.length) return null
+  return (
+    <div className="ws-sources">
+      <button className="ws-sources__toggle" onClick={() => setOpen(o => !o)}>
+        <ChevronRight size={11} className={`ws-sources__icon${open ? ' ws-sources__icon--open' : ''}`} />
+        {t('workspace.sourcesFmt', { count: sources.length })}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="ws-sources__list"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            style={{ overflow: 'hidden' }}
+          >
+            {sources.map((src, i) => (
+              <div key={i} className="ws-source-item">
+                <div className="ws-source-item__text">«{src.text.trim()}»</div>
+                {(src.source || src.page != null) && (
+                  <div className="ws-source-item__meta">
+                    {src.source && <span>{src.source}</span>}
+                    {src.page != null && <span style={{ marginLeft: 6 }}>стр. {src.page}</span>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
 const TIP_KEYS = ['workspace.tips.summary', 'workspace.tips.keyFindings', 'workspace.tips.dates', 'workspace.tips.explain']
 
 const LANGS = [
@@ -201,7 +241,8 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
-function ChatMessage({ msg, i, copied, onCopy }) {
+function ChatMessage({ msg, i, copied, onCopy, onRegenerate }) {
+  const { t } = useTranslation()
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
@@ -213,6 +254,12 @@ function ChatMessage({ msg, i, copied, onCopy }) {
         {msg.role === 'user' ? <User size={13} color="#fff" /> : <Bot size={13} style={{ color: 'var(--accent-primary)' }} />}
       </div>
       <div className={`ws-bubble${msg.role === 'user' ? ' ws-bubble--user' : ' ws-bubble--bot'}${msg.isError ? ' ws-bubble--error' : ''}`}>
+        {/* Not-found indicator */}
+        {msg.role === 'assistant' && msg.notFound && !msg.streaming && (
+          <div className="ws-not-found-chip">
+            <AlertTriangle size={10} /> {t('workspace.notFoundInDoc')}
+          </div>
+        )}
         {msg.status === 'typing' && !msg.content
           ? <TypingDots />
           : msg.status && !msg.content
@@ -223,12 +270,28 @@ function ChatMessage({ msg, i, copied, onCopy }) {
         }
         {msg.streaming && msg.content && <span className="ws-stream-cursor" aria-hidden="true" />}
         {msg.role === 'assistant' && msg.content && !msg.streaming && (
-          <button className="ws-copy-btn ws-bubble__copy" onClick={() => onCopy(i, msg.content)}>
-            {copied === i ? <Check size={10} /> : <Copy size={10} />}
-          </button>
+          <>
+            <button className="ws-copy-btn ws-bubble__copy" onClick={() => onCopy(i, msg.content)}>
+              {copied === i ? <Check size={10} /> : <Copy size={10} />}
+            </button>
+            {onRegenerate && (
+              <button
+                className="ws-action-btn ws-regen-btn"
+                onClick={() => onRegenerate(i)}
+                title={t('workspace.regenerate')}
+                aria-label={t('workspace.regenerate')}
+              >
+                <RefreshCw size={11} />
+              </button>
+            )}
+          </>
         )}
         {msg.ts && !msg.historical && (
           <div className="ws-msg-time">{formatTime(msg.ts)}</div>
+        )}
+        {/* Sources panel */}
+        {msg.role === 'assistant' && !msg.streaming && (
+          <SourcesPanel sources={msg.sources} />
         )}
       </div>
     </motion.div>
@@ -293,6 +356,21 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
 
   const { markdown, htmlDoc, loadingDoc, headings } = useDocumentContent(sessionId)
 
+  // ── Session expiry warning ─────────────────────────────────────────────────
+  // Touch last_activity by fetching content; warn 5 min before 1-hour expiry.
+  useEffect(() => {
+    if (!sessionId) return
+    const SESSION_TTL_MS = 60 * 60 * 1000       // 1 hour (matches backend SESSION_TIMEOUT)
+    const WARN_BEFORE_MS = 5  * 60 * 1000       // warn 5 min before expiry
+    const WARN_AT_MS     = SESSION_TTL_MS - WARN_BEFORE_MS  // 55 min
+
+    const warnTimer = setTimeout(() => {
+      addToast('warning', t('workspace.sessionExpiryWarning', 'Сессия истекает через 5 минут. Нажмите «Продлить» для сохранения работы.'))
+    }, WARN_AT_MS)
+
+    return () => clearTimeout(warnTimer)
+  }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Pre-process [CHART ...] directives for view-mode rendering
   const displayMarkdown = useMemo(() => preprocessChartDirectives(markdown), [markdown])
 
@@ -302,6 +380,7 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
     inputRef, messagesEndRef,
     handleSend, handleClearHistory, handleVisualDescribe,
     handleTranslate, handleExport, handleCopy,
+    handleRegenerate, handleExportChat,
   } = useChatMessages(sessionId, isImageDoc)
 
   const {
@@ -541,6 +620,22 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
                 <button className="ws-doc-nav-btn" onClick={() => scrollDocBy(1)} title={t('workspace.scrollDown')}><ChevronDown size={13} /></button>
               </>
             )}
+            {/* Extend session button — refreshes last_activity on backend */}
+            {sessionId && (
+              <button
+                className="ws-doc-nav-btn"
+                onClick={() => {
+                  // Touch the session by fetching content (updates last_activity server-side)
+                  fetch(`/api/documents/${sessionId}/content`, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem('kence_token')}` }
+                  }).then(() => addToast('success', t('workspace.sessionExtended', 'Сессия продлена на 1 час')))
+                    .catch(() => {})
+                }}
+                title={t('workspace.extendSession', 'Продлить сессию')}
+              >
+                <RefreshCw size={13} />
+              </button>
+            )}
             {/* Edit mode toggle */}
             {!isImageDoc && !loadingDoc && markdown && (
               <button
@@ -660,9 +755,14 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
           <span className="ws-panel-title">{t('workspace.ai')}</span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
             {messages.length > 1 && (
-              <button className="ws-action-btn" onClick={handleClearHistory} title={t('workspace.clearHistory')}>
-                <Trash2 size={11} />
-              </button>
+              <>
+                <button className="ws-action-btn" onClick={handleExportChat} title={t('workspace.exportChat')}>
+                  <FileDown size={11} />
+                </button>
+                <button className="ws-action-btn" onClick={handleClearHistory} title={t('workspace.clearHistory')}>
+                  <Trash2 size={11} />
+                </button>
+              </>
             )}
             <button className="ws-action-btn" onClick={() => navigate('/compare')} title={t('workspace.compare')}><GitCompare size={11} /></button>
             <button className="ws-action-btn" onClick={() => navigate('/convert')} title={t('workspace.convert')}><RefreshCw size={11} /></button>
@@ -708,7 +808,7 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
             {messages.map((msg, i) =>
               msg.role === 'divider'
                 ? <div key={i} className="ws-history-divider">{t('workspace.prevSession')}</div>
-                : <ChatMessage key={i} msg={msg} i={i} copied={copied} onCopy={handleCopy} />
+                : <ChatMessage key={i} msg={msg} i={i} copied={copied} onCopy={handleCopy} onRegenerate={handleRegenerate} />
             )}
             <div ref={messagesEndRef} />
           </div>

@@ -115,7 +115,7 @@ async def delete_session(session_id: str, user: dict = Depends(get_current_user)
 # ─── История чата ────────────────────────────────────────
 
 @router.get("/chat/history/{session_id}")
-async def get_chat_history(session_id: str, limit: int = 20, user: dict = Depends(get_current_user)):
+async def get_chat_history(session_id: str, limit: int = Query(20, ge=1, le=100), user: dict = Depends(get_current_user)):
     return {"session_id": session_id, "messages": memory_service.get_history(session_id, limit)}
 
 @router.delete("/chat/history/{session_id}")
@@ -297,10 +297,16 @@ async def chat_stream(
     async def generate():
         yield f"data: {json.dumps({'status': 'Ищу релевантные фрагменты...'})}\n\n"
         full_answer: list[str] = []
+        retrieved_docs = []
         try:
+            # Retrieve docs first so we can emit citations at the end
+            retrieved_docs, context = await llm_service.retrieve_docs_and_context(
+                question, session_id, doc_context, mode
+            )
             first = True
             async for chunk in llm_service.chat_astream(
-                question, session_id, doc_context, mode, history
+                question, session_id, mode=mode, history=history,
+                prebuilt_context=context,
             ):
                 if first:
                     yield f"data: {json.dumps({'status': 'Формирую ответ...'})}\n\n"
@@ -311,6 +317,17 @@ async def chat_stream(
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
         finally:
+            # Emit source citations before [DONE]
+            if retrieved_docs:
+                sources = [
+                    {
+                        "text":   doc.page_content[:220],
+                        "source": doc.metadata.get("source", ""),
+                        "page":   doc.metadata.get("page", None),
+                    }
+                    for doc in retrieved_docs
+                ]
+                yield f"data: {json.dumps({'sources': sources})}\n\n"
             yield "data: [DONE]\n\n"
             if full_answer:
                 memory_service.add_message(session_id, "user", question)
@@ -365,7 +382,8 @@ async def translate_document(request: Request, body: TranslateRequest, user: dic
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/translate/export")
-async def translate_export(request: TranslateRequest, target_format: Literal["txt", "md", "docx"], user: dict = Depends(get_current_user)):
+@limiter.limit("5/minute")
+async def translate_export(http_request: Request, request: TranslateRequest, target_format: Literal["txt", "md", "docx"], user: dict = Depends(get_current_user)):
     """Переводит документ и сразу экспортирует в формат для скачивания"""
     session = session_manager.get_session(request.session_id)
     if not session or not session.get("vector_store"):
@@ -404,7 +422,8 @@ async def translate_export(request: TranslateRequest, target_format: Literal["tx
 # ─── Конвертация формата ─────────────────────────────────
 
 @router.post("/documents/convert")
-async def convert_document(session_id: str, target_format: Literal["txt", "md", "docx", "pdf"], user: dict = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def convert_document(request: Request, session_id: str, target_format: Literal["txt", "md", "docx", "pdf"], user: dict = Depends(get_current_user)):
     """Конвертирует документ в txt / md / docx / pdf"""
     session = session_manager.get_session(session_id)
     if not session or not session.get("vector_store"):
@@ -423,11 +442,21 @@ async def convert_document(session_id: str, target_format: Literal["txt", "md", 
 @router.get("/documents/converted/{session_id}/{fmt}")
 async def download_converted(session_id: str, fmt: str, translated: bool = False, user: dict = Depends(get_current_user)):
     """Скачивает сконвертированный или переведённый файл"""
+    # Validate session_id to prevent path traversal
+    try:
+        UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session_id")
+
     ext_map = {"txt": ".txt", "md": ".md", "docx": ".docx", "pdf": ".pdf"}
     if fmt not in ext_map:
         raise HTTPException(status_code=400, detail="Unknown format")
 
     session_dir = Path(settings.UPLOAD_DIR) / session_id
+    # Additional path traversal guard: ensure resolved path is under UPLOAD_DIR
+    upload_root = Path(settings.UPLOAD_DIR).resolve()
+    if not session_dir.resolve().is_relative_to(upload_root):
+        raise HTTPException(status_code=400, detail="Invalid session_id")
     prefix = "translated_*" if translated else "converted_*"
     candidates = list(session_dir.glob(f"{prefix}{ext_map[fmt]}"))
     
@@ -485,7 +514,9 @@ class ExportMarkdownRequest(BaseModel):
 
 
 @router.post("/documents/export-markdown")
+@limiter.limit("10/minute")
 async def export_markdown(
+    http_request: Request,
     body: ExportMarkdownRequest,
     current_user: dict = Depends(get_current_user),
 ):
@@ -520,3 +551,64 @@ async def export_markdown(
 @router.get("/health")
 async def health_check():
     return {"status": "ok", "service": "DocuAI", "parser": "Docling"}
+
+
+@router.get("/health/full")
+async def health_check_full():
+    """Deep health check — verifies all backend services.
+    Returns overall status + per-service breakdown.
+    Used by Docker HEALTHCHECK and monitoring systems.
+    """
+    import asyncio as _asyncio
+    from app.services.llm import llm_service, get_llm_metrics
+    from app.core.database import check_db_health
+
+    async def _check_neo4j():
+        try:
+            from app.services.graph_service import get_driver
+            drv = get_driver()
+            if not drv:
+                return {"status": "down", "error": "driver not initialized"}
+            with drv.session() as sess:
+                sess.run("RETURN 1")
+            return {"status": "ok"}
+        except Exception as e:
+            return {"status": "down", "error": str(e)[:120]}
+
+    async def _check_chroma():
+        try:
+            from app.services.embeddings_service import embeddings_service
+            _ = embeddings_service.embeddings
+            return {"status": "ok"}
+        except Exception as e:
+            return {"status": "degraded", "error": str(e)[:80]}
+
+    ollama_status, db_status, neo4j_status, chroma_status = await _asyncio.gather(
+        llm_service.health_check(),
+        check_db_health(),
+        _check_neo4j(),
+        _check_chroma(),
+        return_exceptions=True,
+    )
+
+    def _safe(r):
+        return r if isinstance(r, dict) else {"status": "error", "error": str(r)}
+
+    services = {
+        "ollama":    _safe(ollama_status),
+        "database":  _safe(db_status),
+        "neo4j":     _safe(neo4j_status),
+        "chroma":    _safe(chroma_status),
+    }
+    llm_metrics = get_llm_metrics()
+
+    all_ok     = all(s.get("status") == "ok"     for s in services.values())
+    any_down   = any(s.get("status") == "down"   for s in services.values())
+    overall    = "ok" if all_ok else ("degraded" if not any_down else "down")
+
+    return {
+        "status":   overall,
+        "services": services,
+        "llm":      llm_metrics,
+        "sessions": {"active": len(session_manager._mem)},
+    }

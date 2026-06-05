@@ -18,6 +18,7 @@ export function streamWithEvents(sessionId, question, handlers = {}) {
     customUrl: handlers.customUrl,
     onStatus: handlers.onStatus,
     onChunk: handlers.onChunk,
+    onSources: handlers.onSources,
     onDone: (fullText) => {
       useEventStore.getState().ingestEvent({
         type: 'CHAT_COMPLETE',

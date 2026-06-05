@@ -6,11 +6,14 @@ logger = logging.getLogger(__name__)
 
 _REGISTRY = {
     "document_analyst": "app.services.agents.document_analyst",
-    "summary": "app.services.agents.summary_agent",
-    "comparison": "app.services.agents.comparison_agent",
+    "data_extractor":   "app.services.agents.data_extractor",
+    "timeline":         "app.services.agents.timeline_agent",
+    "risk_engine":      "app.services.agents.risk_engine",
+    "summary":          "app.services.agents.summary_agent",
+    "comparison":       "app.services.agents.comparison_agent",
     "report_generator": "app.services.agents.report_generator",
-    "research": "app.services.agents.research_agent",
-    "document_editor": "app.services.agents.document_editor",
+    "research":         "app.services.agents.research_agent",
+    "document_editor":  "app.services.agents.document_editor",
 }
 
 

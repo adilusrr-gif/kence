@@ -186,7 +186,20 @@
     "editWithAgent": "Edit with AI agent",
     "downloadDocx": "Download as DOCX",
     "downloadPdf": "Download as PDF",
-    "saving": "Saving…"
+    "saving": "Saving…",
+    "regenerate": "Regenerate answer",
+    "exportChat": "Export chat",
+    "chatExportTitle": "Chat history",
+    "you": "You",
+    "notFoundInDoc": "Not found in document",
+    "sources": "Sources",
+    "sourcesFmt": "Sources ({{count}})",
+    "sessionExpiryWarning": "Session expires in 5 minutes. Click Extend to keep working.",
+    "sessionExtended": "Session extended by 1 hour",
+    "extendSession": "Extend session",
+    "llmQueueFull": "Server is busy — please try again in a few seconds",
+    "llmCircuitOpen": "AI is temporarily unavailable — recovering",
+    "llmTimeout": "Request timed out — please try again"
   },
   "convert": {
     "title": "Convert Format",
@@ -386,7 +399,11 @@
     "result": "Result",
     "comparison": "Comparison summary",
     "docsUsed": "Used: {{docs}}",
-    "error": "Error"
+    "error": "Error",
+    "typeTimeline": "Timeline Engine",
+    "typeRiskEngine": "Risk Assessment",
+    "timelineDesc": "Chronological timeline of all dates, events and milestones",
+    "riskEngineDesc": "AI assessment of financial, legal and operational risks (0-100)"
   },
   "library": {
     "title": "Document Library",

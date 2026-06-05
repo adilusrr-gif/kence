@@ -119,22 +119,56 @@ async def lifespan(app: FastAPI):
     if not settings.NEO4J_PASSWORD:
         print("[SECURITY WARNING] NEO4J_PASSWORD is empty — set it in .env for production")
 
-    # Initialize Neo4j constraints (best-effort — app starts even if Neo4j is down)
+    # ── Ollama health check at startup (warning only — never blocks start) ──────
+    try:
+        from app.services.llm import llm_service
+        ollama_status = await llm_service.health_check()
+        if ollama_status.get("status") == "ok":
+            print(f"[OLLAMA] ✓ {settings.LLM_MODEL} ready")
+        else:
+            print(f"[OLLAMA] ⚠ Not reachable ({ollama_status.get('error','?')}) — "
+                  "responses will fail until Ollama recovers")
+    except Exception as e:
+        print(f"[OLLAMA] ⚠ Health check failed: {e}")
+
+    # ── Neo4j constraints (best-effort) ──────────────────────────────────────
     try:
         from app.services.graph_service import ensure_constraints
         await ensure_constraints()
-        print("[NEO4J] Constraints ready")
+        print("[NEO4J] ✓ Constraints ready")
     except Exception as e:
-        print(f"[NEO4J] Skipped constraints: {e}")
+        print(f"[NEO4J] ⚠ Skipped constraints: {e}")
 
+    # ── Background tasks ──────────────────────────────────────────────────────
     async def cleanup_task():
+        """Periodically expire old sessions. Runs every 5 minutes."""
         while True:
             await asyncio.sleep(300)
-            session_manager.cleanup_expired(settings.SESSION_TIMEOUT)
+            try:
+                session_manager.cleanup_expired(settings.SESSION_TIMEOUT)
+            except Exception as e:
+                logger.warning("[cleanup_task] error: %s", e)
 
     task = asyncio.create_task(cleanup_task())
     yield
+
+    # ── Graceful shutdown ─────────────────────────────────────────────────────
     task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    # Close Neo4j driver
+    try:
+        from app.services.graph_service import get_driver
+        drv = get_driver()
+        if drv:
+            drv.close()
+            print("[NEO4J] Driver closed")
+    except Exception:
+        pass
+
     print("[STOP] Shutting down...")
 
 app = FastAPI(

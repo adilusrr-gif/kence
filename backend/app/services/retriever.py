@@ -104,8 +104,10 @@ class HybridRetriever:
             return semantic_docs[:k]
 
         # ── RRF fusion ─────────────────────────────────────────────────────
+        from app.services.pipeline import stable_chunk_id
+
         def _id(doc: LCDocument) -> str:
-            return doc.page_content[:120]
+            return stable_chunk_id(doc.page_content)
 
         id_to_doc = {_id(d): d for d in semantic_docs + bm25_docs}
         semantic_ids = [_id(d) for d in semantic_docs]

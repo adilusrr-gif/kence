@@ -243,6 +243,22 @@ async def me(current_user: dict = Depends(get_current_user)):
     )
 
 
+@router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("10/minute")
+async def refresh_token(request: Request, current_user: dict = Depends(get_current_user)):
+    """Exchange a still-valid JWT for a fresh one with a new expiry window.
+    Call this before the token expires to avoid forcing the user to re-login."""
+    new_token = create_access_token(
+        {"sub": current_user["username"]},
+        timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    return TokenResponse(
+        access_token=new_token,
+        username=current_user["username"],
+        role=current_user["role"],
+    )
+
+
 @router.get("/users", response_model=list[UserInfo])
 async def users(admin: dict = Depends(require_admin)):
     return list_users()
@@ -267,7 +283,9 @@ async def activate_user(username: str, admin: dict = Depends(require_admin)):
 
 
 @router.post("/change-password")
+@limiter.limit("5/minute")
 async def change_password_endpoint(
+    http_request: Request,
     req: ChangePasswordRequest,
     current_user: dict = Depends(get_current_user),
 ):

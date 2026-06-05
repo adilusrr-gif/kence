@@ -2,9 +2,13 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Any
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+
+limiter = Limiter(key_func=get_remote_address)
 
 from app.api.auth_routes import get_current_user, verify_token, oauth2_scheme
 from app.core.config import get_settings
@@ -29,7 +33,8 @@ async def list_agent_types(current_user: dict = Depends(get_current_user)):
 
 
 @router.post("/tasks")
-async def create_task(req: CreateTaskRequest, current_user: dict = Depends(get_current_user)):
+@limiter.limit("20/minute")
+async def create_task(http_request: Request, req: CreateTaskRequest, current_user: dict = Depends(get_current_user)):
     if req.task_type not in AGENT_TYPES:
         raise HTTPException(status_code=400, detail=f"Неизвестный тип агента: {req.task_type}")
 

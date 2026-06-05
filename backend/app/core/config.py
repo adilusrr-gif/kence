@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     # Vision (multimodal) model — set to "" to disable and fall back to OCR
     VISION_MODEL: str = "llava:7b"
 
+    # Max concurrent LLM calls to Ollama (prevents overload under parallel requests)
+    LLM_MAX_CONCURRENT: int = 2
+    # Max requests waiting in queue before returning 503 (100-user load protection)
+    LLM_QUEUE_MAXSIZE: int = 50
+    # LLM call timeout in seconds (reduced from 300 for faster failure detection)
+    LLM_TIMEOUT_SEC: int = 60
+
     # JWT Auth — MUST be overridden via JWT_SECRET_KEY in .env for production
     JWT_SECRET_KEY: str = "dev-only-insecure-change-in-production"
     JWT_ALGORITHM: str = "HS256"

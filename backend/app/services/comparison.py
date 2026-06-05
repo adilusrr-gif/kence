@@ -87,19 +87,43 @@ class DocumentComparator:
             doc1_similar = [s for s in similar if s[0].metadata.get("source") == "doc1"]
 
             if not doc1_similar or min(doc1_similar, key=lambda x: x[1])[1] > 0.3:
-                differences_doc2.append(chunk.page_content[:200])
+                differences_doc2.append(chunk.page_content[:400])
+
+        # LLM verdict using stratified sample (covers full documents)
+        verdict = ""
+        try:
+            from app.services.pipeline import stratified_sample
+            sample1 = stratified_sample(text1, target_chars=8000, n_parts=5)
+            sample2 = stratified_sample(text2, target_chars=8000, n_parts=5)
+            verdict_prompt = (
+                f"Сравни два документа и дай КРАТКИЙ АНАЛИТИЧЕСКИЙ ВЕРДИКТ (3-5 предложений).\n"
+                f"Укажи: в чём главное сходство, чем принципиально отличаются, какой вывод.\n\n"
+                f"Документ 1 ({Path(doc1_path).name}):\n{sample1}\n\n"
+                f"Документ 2 ({Path(doc2_path).name}):\n{sample2}\n\nВердикт:"
+            )
+            verdict = llm_service.simple_chat(verdict_prompt)
+        except Exception as e:
+            logger.warning("Semantic verdict LLM failed: %s", e)
+
+        # Overall similarity score (average of top similarities)
+        avg_similarity = round(
+            sum(s["similarity_score"] for s in similarities) / len(similarities), 3
+        ) if similarities else 0.0
 
         return {
             "comparison_type": "semantic",
             "doc1_name": Path(doc1_path).name,
             "doc2_name": Path(doc2_path).name,
-            "similarities": similarities[:10],  # Топ-10 схожих частей
-            "unique_to_doc1": differences_doc1[:10],
-            "unique_to_doc2": differences_doc2[:10],
+            "similarities": similarities[:20],
+            "unique_to_doc1": differences_doc1[:20],
+            "unique_to_doc2": differences_doc2[:20],
+            "verdict": verdict,
+            "overall_similarity": avg_similarity,
             "summary": {
                 "similar_sections": len(similarities),
                 "unique_doc1_sections": len(differences_doc1),
-                "unique_doc2_sections": len(differences_doc2)
+                "unique_doc2_sections": len(differences_doc2),
+                "overall_similarity_pct": round(avg_similarity * 100, 1),
             }
         }
 
@@ -116,8 +140,9 @@ class DocumentComparator:
         extract_prompt = get_prompt("comparison_technical_prompt")
 
         # Извлекаем спецификации из обоих документов
-        spec1_raw = llm_service.simple_chat(extract_prompt.format(text=text1[:16000]))
-        spec2_raw = llm_service.simple_chat(extract_prompt.format(text=text2[:16000]))
+        from app.services.pipeline import stratified_sample
+        spec1_raw = llm_service.simple_chat(extract_prompt.format(text=stratified_sample(text1, 20000, 8)))
+        spec2_raw = llm_service.simple_chat(extract_prompt.format(text=stratified_sample(text2, 20000, 8)))
 
         def extract_json(text):
             match = re.search(r'\{.*\}', text, re.DOTALL)
@@ -281,6 +306,75 @@ class DocumentComparator:
             "doc2_chars": len(text2),
             "diff_count": diff_count,
             "diff_lines": diff_lines,
+        }
+
+
+    def compare_thematic(self, doc1_path: str, doc2_path: str) -> Dict:
+        """Тематическое сравнение: извлекает главные темы, аргументы и позиции каждого документа,
+        затем сравнивает их по смыслу. Uses stratified_sample for full-doc coverage."""
+        from app.services.pipeline import stratified_sample
+        text1 = self.extract_document(doc1_path)
+        text2 = self.extract_document(doc2_path)
+        name1, name2 = Path(doc1_path).name, Path(doc2_path).name
+
+        def extract_themes(text: str, doc_name: str) -> dict:
+            prompt = (
+                f"Проанализируй документ и верни JSON:\n"
+                f'{{"main_theme": "Главная тема", '
+                f'"key_arguments": ["Аргумент 1", "Аргумент 2"], '
+                f'"stance": "Позиция/тезис документа (1-2 предложения)", '
+                f'"tone": "нейтральный|аналитический|убедительный|информационный|критический", '
+                f'"key_concepts": ["Ключевое понятие 1", "Ключевое понятие 2"]}}\n\n'
+                f"Документ ({doc_name}):\n{stratified_sample(text, 12000, 6) if len(text) > 12000 else text}\n\nJSON:"
+            )
+            raw = llm_service.simple_chat(prompt)
+            m = re.search(r'\{.*\}', raw, re.DOTALL)
+            if m:
+                try:
+                    return json.loads(m.group())
+                except Exception:
+                    pass
+            return {"main_theme": "Не определено", "key_arguments": [], "stance": "", "tone": "", "key_concepts": []}
+
+        themes1 = extract_themes(text1, name1)
+        themes2 = extract_themes(text2, name2)
+
+        # Find overlapping and diverging concepts
+        concepts1 = set(c.lower() for c in themes1.get("key_concepts", []))
+        concepts2 = set(c.lower() for c in themes2.get("key_concepts", []))
+        shared_concepts = list(concepts1 & concepts2)
+        unique_concepts1 = list(concepts1 - concepts2)
+        unique_concepts2 = list(concepts2 - concepts1)
+
+        # LLM thematic synthesis
+        synthesis = ""
+        try:
+            synth_prompt = (
+                f"Сравни тематику двух документов и сделай вывод (4-6 предложений).\n"
+                f"Что объединяет? В чём расходятся взгляды/подходы? Какой общий контекст?\n\n"
+                f"Документ 1 ({name1}): тема — {themes1.get('main_theme')}, позиция — {themes1.get('stance')}\n"
+                f"Документ 2 ({name2}): тема — {themes2.get('main_theme')}, позиция — {themes2.get('stance')}\n\n"
+                f"Тематический анализ:"
+            )
+            synthesis = llm_service.simple_chat(synth_prompt)
+        except Exception as e:
+            logger.warning("Thematic synthesis LLM failed: %s", e)
+
+        return {
+            "comparison_type": "thematic",
+            "doc1_name": name1,
+            "doc2_name": name2,
+            "doc1_themes": themes1,
+            "doc2_themes": themes2,
+            "shared_concepts": shared_concepts,
+            "unique_to_doc1": unique_concepts1,
+            "unique_to_doc2": unique_concepts2,
+            "synthesis": synthesis,
+            "summary": {
+                "shared_concepts_count": len(shared_concepts),
+                "unique_doc1_count": len(unique_concepts1),
+                "unique_doc2_count": len(unique_concepts2),
+            }
         }
 
 

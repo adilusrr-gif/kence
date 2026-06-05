@@ -20,7 +20,7 @@ import KnowledgeGraphPage from './pages/KnowledgeGraphPage'
 import AgentLauncherPage from './pages/AgentLauncherPage'
 import AgentTaskMonitorPage from './pages/AgentTaskMonitorPage'
 import AgentTaskHistoryPage from './pages/AgentTaskHistoryPage'
-import { getStoredUser, clearAuth } from './lib/api'
+import { getStoredUser, clearAuth, apiRefreshToken, saveAuth } from './lib/api'
 import { AppShellLayout } from '@/app/layouts/app-shell'
 import ShellHydrator from '@/app/shell/ShellHydrator'
 import { LeftRail } from '@/widgets/left-rail'
@@ -120,6 +120,29 @@ export default function App() {
   // Fetch orgs after login
   useEffect(() => {
     if (currentUser) fetchMyOrgs()
+  }, [currentUser])
+
+  // Auto-refresh JWT: decode exp from token, schedule refresh 10 min before expiry
+  useEffect(() => {
+    if (!currentUser) return
+    const token = localStorage.getItem('kence_token')
+    if (!token) return
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      const expiresAt = payload.exp * 1000  // ms
+      const refreshAt = expiresAt - 10 * 60 * 1000  // 10 min before
+      const delay = refreshAt - Date.now()
+      if (delay <= 0) return  // already near/past expiry, let 401 handle it
+      const timer = setTimeout(async () => {
+        try {
+          const data = await apiRefreshToken()
+          saveAuth(data.access_token, data.username, data.role)
+        } catch {
+          // Refresh failed silently — next API call will trigger 401 → login redirect
+        }
+      }, delay)
+      return () => clearTimeout(timer)
+    } catch { /* invalid token format, ignore */ }
   }, [currentUser])
 
   // Sync shadow stores

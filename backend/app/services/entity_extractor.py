@@ -119,34 +119,77 @@ async def _extract_chunk(text: str, llm_service, language: str = "ru") -> dict:
         return {"entities": [], "relationships": []}
 
 
-async def extract_entities_from_text(text: str, llm_service, language: str = "ru") -> dict:
-    chunks = _chunk_text(text)
-    all_entities: dict[str, dict] = {}
+async def extract_entities_from_text(
+    text: str,
+    llm_service,
+    language: str = "ru",
+    max_concurrent: int = 3,
+) -> dict:
+    """Extract entities from ALL chunks — no hard cap.
+
+    Returns entities with confidence scores and source chunk references.
+    Deduplicates by normalized label; tracks mention_count per entity.
+    """
+    from app.services.pipeline import split_text, process_chunks_parallel
+
+    chunks = split_text(text, size=5000, overlap=300)
+    logger.info("[entity_extractor] processing %d chunks (was capped at 4)", len(chunks))
+
+    # Track mentions per entity for confidence scoring
+    entity_mentions: dict[str, list] = {}   # key -> list[dict]
     all_rels: list[dict] = []
 
-    for chunk in chunks[:4]:  # cap at 4 LLM calls per document
-        result = await _extract_chunk(chunk, llm_service, language)
-        for ent in result.get("entities", []):
+    async def extract_one(chunk, idx, total):
+        logger.debug("[entity_extractor] chunk %d/%d", idx + 1, total)
+        return (idx, await _extract_chunk(chunk, llm_service, language))
+
+    results = await process_chunks_parallel(chunks, extract_one, max_concurrent=max_concurrent)
+
+    for result in results:
+        if result is None:
+            continue
+        chunk_idx, data = result
+        for ent in data.get("entities", []):
             label = ent.get("label", "").strip()
             if not label:
                 continue
             key = label.lower()
-            if key not in all_entities:
-                all_entities[key] = ent
-        for rel in result.get("relationships", []):
+            if key not in entity_mentions:
+                entity_mentions[key] = []
+            entity_mentions[key].append({**ent, "source_chunk": chunk_idx})
+        for rel in data.get("relationships", []):
             if rel.get("from") and rel.get("to"):
                 all_rels.append(rel)
+
+    # Build final entity list with confidence + mention tracking
+    total_chunks = len(chunks)
+    final_entities: list[dict] = []
+    for key, mentions in entity_mentions.items():
+        # Use the first mention as canonical; add metadata
+        canonical = {**mentions[0]}
+        mention_count = len(mentions)
+        # Confidence: fraction of chunks where entity appears, capped at 1.0
+        confidence = min(1.0, round(mention_count / max(1, total_chunks / 10), 3))
+        source_chunks = sorted({m["source_chunk"] for m in mentions})
+        canonical["mention_count"] = mention_count
+        canonical["confidence"] = confidence
+        canonical["source_chunks"] = source_chunks
+        final_entities.append(canonical)
 
     # Deduplicate relationships
     seen_rels: set[tuple] = set()
     unique_rels: list[dict] = []
     for r in all_rels:
-        key = (r["from"].strip().lower(), r["to"].strip().lower(), r.get("type", "RELATED_TO"))
-        if key not in seen_rels:
-            seen_rels.add(key)
+        key_r = (r["from"].strip().lower(), r["to"].strip().lower(), r.get("type", "RELATED_TO"))
+        if key_r not in seen_rels:
+            seen_rels.add(key_r)
             unique_rels.append(r)
 
-    return {"entities": list(all_entities.values()), "relationships": unique_rels}
+    logger.info(
+        "[entity_extractor] done: %d entities, %d relationships from %d chunks",
+        len(final_entities), len(unique_rels), total_chunks,
+    )
+    return {"entities": final_entities, "relationships": unique_rels}
 
 
 async def run_extraction_job(job_id: int, session_id: str, org_id: int, markdown_text: str, llm_service, language: str = "ru") -> None:

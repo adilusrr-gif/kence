@@ -7,6 +7,17 @@ import {
 } from '../lib/api'
 import { streamWithEvents } from '../lib/sseAdapter'
 
+const NOT_FOUND_PHRASES = [
+  'не содержит', 'нет информации', 'не упоминается', 'не найдено',
+  'не могу найти', 'отсутствует в документе', 'в документе нет',
+  'not found', 'cannot find', 'not mentioned', 'not in the document',
+]
+
+export function detectNotFound(text) {
+  const lower = (text || '').toLowerCase()
+  return NOT_FOUND_PHRASES.some(p => lower.includes(p))
+}
+
 export function useChatMessages(sessionId, isImageDoc) {
   const { t } = useTranslation()
 
@@ -43,10 +54,19 @@ export function useChatMessages(sessionId, isImageDoc) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSend = useCallback(async () => {
-    const question = input.trim()
+  // Shared stream callbacks builder
+  const makeStreamHandlers = useCallback(() => ({
+    onStatus:  (status)  => setMessages(prev => { const m=[...prev]; m[m.length-1]={...m[m.length-1],status}; return m }),
+    onChunk:   (_, full) => setMessages(prev => { const m=[...prev]; m[m.length-1]={...m[m.length-1],content:full,status:null}; return m }),
+    onDone:    (full)    => setMessages(prev => { const m=[...prev]; m[m.length-1]={role:'assistant',content:full,streaming:false,ts:Date.now(),notFound:detectNotFound(full)}; return m }),
+    onError:   (err)     => setMessages(prev => { const m=[...prev]; m[m.length-1]={role:'assistant',content:t('common.errorMsg',{msg:err.message||'—'}),streaming:false,isError:true}; return m }),
+    onSources: (sources) => setMessages(prev => { const m=[...prev]; if(m[m.length-1]?.role==='assistant') m[m.length-1]={...m[m.length-1],sources}; return m }),
+  }), [t])
+
+  const handleSend = useCallback(async (overrideQuestion = null) => {
+    const question = overrideQuestion ?? input.trim()
     if (!question || loading) return
-    setInput('')
+    if (!overrideQuestion) setInput('')
     setMessages(prev => [...prev, { role: 'user', content: question, ts: Date.now() }])
     setLoading(true)
     setMessages(prev => [...prev, { role: 'assistant', content: '', status: 'typing', streaming: true }])
@@ -58,13 +78,43 @@ export function useChatMessages(sessionId, isImageDoc) {
     await streamWithEvents(sessionId, question, {
       mode: chatMode === 'visual' ? 'precise' : chatMode,
       customUrl: streamUrl,
-      onStatus: (status) => setMessages(prev => { const m=[...prev]; m[m.length-1]={...m[m.length-1],status}; return m }),
-      onChunk:  (_, full) => setMessages(prev => { const m=[...prev]; m[m.length-1]={...m[m.length-1],content:full,status:null}; return m }),
-      onDone:   (full)    => setMessages(prev => { const m=[...prev]; m[m.length-1]={role:'assistant',content:full,streaming:false,ts:Date.now()}; return m }),
-      onError:  (err)     => setMessages(prev => { const m=[...prev]; m[m.length-1]={role:'assistant',content:t('common.errorMsg',{msg:err.message||'—'}),streaming:false,isError:true}; return m }),
+      ...makeStreamHandlers(),
     })
     setLoading(false)
-  }, [input, loading, chatMode, isImageDoc, sessionId, t])
+  }, [input, loading, chatMode, isImageDoc, sessionId, makeStreamHandlers])
+
+  const handleRegenerate = useCallback(async (botMsgIndex) => {
+    if (loading) return
+    const prevUser = messages.slice(0, botMsgIndex).reverse().find(m => m.role === 'user')
+    if (!prevUser) return
+    // Trim off the old assistant message and re-stream
+    setMessages(prev => prev.slice(0, botMsgIndex))
+    setLoading(true)
+    setMessages(prev => [...prev, { role: 'assistant', content: '', status: 'typing', streaming: true }])
+    await streamWithEvents(sessionId, prevUser.content, {
+      mode: chatMode === 'visual' ? 'precise' : chatMode,
+      ...makeStreamHandlers(),
+    })
+    setLoading(false)
+  }, [messages, loading, chatMode, sessionId, makeStreamHandlers])
+
+  const handleExportChat = useCallback(() => {
+    const lines = messages
+      .filter(m => m.role === 'user' || m.role === 'assistant')
+      .filter(m => !m.historical && !m.streaming)
+      .map(m => `**${m.role === 'user' ? t('workspace.you', 'Вы') : 'AI'}:** ${m.content}`)
+    if (!lines.length) return
+    const docName = ''
+    const md = `# ${t('workspace.chatExportTitle', 'Чат')}\n\n${lines.join('\n\n---\n\n')}`
+    const blob = new Blob([md], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = Object.assign(document.createElement('a'), {
+      href: url,
+      download: `chat_${Date.now()}.md`,
+    })
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [messages, t])
 
   const handleClearHistory = useCallback(async () => {
     if (!sessionId) return
@@ -134,5 +184,6 @@ export function useChatMessages(sessionId, isImageDoc) {
     inputRef, messagesEndRef,
     handleSend, handleClearHistory, handleVisualDescribe,
     handleTranslate, handleExport, handleCopy,
+    handleRegenerate, handleExportChat,
   }
 }
