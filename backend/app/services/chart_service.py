@@ -19,7 +19,12 @@ def generate_chart_bytes(
     data_hint: str,
     theme: dict,
     llm_service=None,
+    direct_labels=None,
+    direct_values=None,
 ) -> bytes:
+    if direct_labels is not None and direct_values is not None:
+        # Use pre-parsed data directly — no LLM call needed
+        return _render(chart_type, title, direct_labels, direct_values, "", "", theme)
     labels, values, xlabel, ylabel = _get_data(chart_type, title, data_hint, llm_service)
     return _render(chart_type, title, labels, values, xlabel, ylabel, theme)
 
@@ -91,6 +96,60 @@ def _render(chart_type, title, labels, values, xlabel, ylabel, theme) -> bytes:
     ax.set_title(title, color=text_color, fontsize=12, fontweight='bold', pad=10)
     ax.grid(axis='y', alpha=0.15, color=text_color, linestyle='--')
     plt.tight_layout(pad=0.5)
+
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor=bg)
+    plt.close(fig)
+    buf.seek(0)
+    return buf.read()
+
+
+def generate_infographic_bytes(title: str, points: list, theme: dict) -> bytes:
+    bg = theme.get("bg", "#1A2744")
+    accent = theme.get("accent", "#3B82F6")
+    text_color = theme.get("text", "#FFFFFF")
+
+    fig = plt.figure(figsize=(10, 5))
+    fig.patch.set_facecolor(bg)
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, 5)
+    ax.axis('off')
+    ax.set_facecolor(bg)
+
+    # Title
+    ax.text(5, 4.65, title, ha='center', va='top', fontsize=15, fontweight='bold',
+            color=text_color, wrap=True,
+            bbox=dict(boxstyle='round,pad=0.3', facecolor=bg, edgecolor='none'))
+
+    if not points:
+        points = [title]
+
+    # Left column: colored cards for each point
+    card_h = min(0.55, 3.6 / max(len(points), 1))
+    for i, pt in enumerate(points[:6]):
+        y_top = 4.1 - i * (card_h + 0.08)
+        card_color = _vary_color(accent, i)
+        rect = mpatches.FancyBboxPatch(
+            (0.2, y_top - card_h), 5.5, card_h,
+            boxstyle="round,pad=0.04", linewidth=0,
+            facecolor=card_color, alpha=0.85, zorder=2,
+        )
+        ax.add_patch(rect)
+        ax.text(0.45, y_top - card_h / 2, f"{i + 1}.", ha='left', va='center',
+                fontsize=10, fontweight='bold', color=bg, zorder=3)
+        label = pt[:60] + ('…' if len(pt) > 60 else '')
+        ax.text(0.85, y_top - card_h / 2, label, ha='left', va='center',
+                fontsize=8.5, color=bg, zorder=3)
+
+    # Right accent: biggest point highlighted
+    hero = points[0][:80]
+    ax.text(8.1, 2.5, hero, ha='center', va='center', fontsize=13,
+            fontweight='bold', color=accent,
+            multialignment='center',
+            bbox=dict(boxstyle='round,pad=0.5', facecolor=bg,
+                      edgecolor=accent, linewidth=2),
+            wrap=True, zorder=3)
 
     buf = io.BytesIO()
     fig.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor=bg)

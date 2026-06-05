@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { MessageSquare } from 'lucide-react'
 import DOMPurify from 'dompurify'
 
-const DocumentViewer = forwardRef(function DocumentViewer({ markdown = '', html = '', onSelection }, outerRef) {
+const DocumentViewer = forwardRef(function DocumentViewer({ markdown = '', html = '', onSelection, customComponents = {} }, outerRef) {
   const [MD, setMD] = useState(null)
   const [remarkGfm, setRemarkGfm] = useState(null)
   const [pill, setPill] = useState(null)
@@ -125,7 +125,7 @@ const DocumentViewer = forwardRef(function DocumentViewer({ markdown = '', html 
             margin: '0 auto',
           }}
         >
-          <MD remarkPlugins={[remarkGfm]}>{markdown}</MD>
+          <MD remarkPlugins={[remarkGfm]} components={customComponents}>{markdown}</MD>
         </div>
       )}
 

@@ -5,6 +5,8 @@ from pydantic import BaseModel, field_validator
 from datetime import timedelta
 from typing import Optional
 import re
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from app.core.security import create_access_token, decode_token
 from app.services.user_service import authenticate, create_user, get_user, list_users, set_user_active, change_password, delete_user, set_user_role
@@ -16,6 +18,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ── Dependencies ─────────────────────────────────────────────────────────────
@@ -143,8 +146,14 @@ class RegisterRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
-        if len(v) < 6:
-            raise ValueError("Пароль должен содержать не менее 6 символов")
+        if len(v) < 10:
+            raise ValueError("Пароль должен содержать не менее 10 символов")
+        if not re.search(r'[A-Z]', v):
+            raise ValueError("Пароль должен содержать хотя бы одну заглавную букву")
+        if not re.search(r'[a-z]', v):
+            raise ValueError("Пароль должен содержать хотя бы одну строчную букву")
+        if not re.search(r'\d', v):
+            raise ValueError("Пароль должен содержать хотя бы одну цифру")
         return v
 
 
@@ -179,7 +188,8 @@ class ChangeRoleRequest(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/login", response_model=TokenResponse)
-async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+@limiter.limit("5/minute")
+async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate(form_data.username, form_data.password)
     if not user:
         raise HTTPException(
@@ -197,7 +207,8 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 
 @router.post("/register", response_model=TokenResponse)
-async def register(req: RegisterRequest):
+@limiter.limit("3/minute")
+async def register(request: Request, req: RegisterRequest):
     # Only admins can create admin/manager roles
     if req.role in ("admin", "manager"):
         # Verify admin_token belongs to an admin

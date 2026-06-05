@@ -28,6 +28,45 @@ body {
   transition:
     background-color var(--duration-base) var(--ease-standard),
     color var(--duration-base) var(--ease-standard);
+  /* Thin elegant scrollbar everywhere */
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* ── Ambient background blobs ──────────────────── */
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  pointer-events: none;
+  z-index: 0;
+  border-radius: 50%;
+  will-change: transform;
+}
+
+body::before {
+  width: 640px;
+  height: 640px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent-primary) 6%, transparent) 0%, transparent 65%);
+  top: -180px;
+  left: 22%;
+  animation: kence-ambient-a 22s ease-in-out infinite;
+}
+
+body::after {
+  width: 720px;
+  height: 720px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-violet-500) 5%, transparent) 0%, transparent 65%);
+  bottom: -220px;
+  right: 8%;
+  animation: kence-ambient-b 28s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  body::after {
+    animation: none !important;
+  }
 }
 
 ::selection {

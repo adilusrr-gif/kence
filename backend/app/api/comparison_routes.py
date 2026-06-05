@@ -16,6 +16,15 @@ router = APIRouter()
 settings = get_settings()
 limiter = Limiter(key_func=get_remote_address)
 
+
+def _require_comparison_docs(session_id: str) -> dict:
+    """Validate session has comparison docs and return them."""
+    session = session_manager.get_session(session_id)
+    if not session or "comparison_docs" not in session:
+        raise HTTPException(status_code=400, detail="Upload two documents first")
+    return session["comparison_docs"]
+
+
 # ─── Сравнение документов ─────────────────────────────────
 
 @router.post("/compare/upload")
@@ -59,11 +68,7 @@ async def upload_comparison_documents(
 @limiter.limit("5/minute")
 async def compare_semantic(request: Request, session_id: str, user: dict = Depends(get_current_user)):
     """Сравнение по смыслу — общие темы, различия, схожесть"""
-    session = session_manager.get_session(session_id)
-    if not session or "comparison_docs" not in session:
-        raise HTTPException(status_code=400, detail="Upload two documents first")
-    docs = session["comparison_docs"]
-
+    docs = _require_comparison_docs(session_id)
     try:
         result = comparator.compare_semantic(docs["doc1"], docs["doc2"])
         analytics_service.log_event("compare", username=user.get("sub"), session_id=session_id, mode="semantic")
@@ -75,11 +80,7 @@ async def compare_semantic(request: Request, session_id: str, user: dict = Depen
 @limiter.limit("5/minute")
 async def compare_technical(request: Request, session_id: str, user: dict = Depends(get_current_user)):
     """Сравнение технических спецификаций — параметры, значения, совпадения"""
-    session = session_manager.get_session(session_id)
-    if not session or "comparison_docs" not in session:
-        raise HTTPException(status_code=400, detail="Upload two documents first")
-    docs = session["comparison_docs"]
-
+    docs = _require_comparison_docs(session_id)
     try:
         result = comparator.compare_technical_specs(docs["doc1"], docs["doc2"])
         analytics_service.log_event("compare", username=user.get("sub"), session_id=session_id, mode="technical")
@@ -90,10 +91,7 @@ async def compare_technical(request: Request, session_id: str, user: dict = Depe
 @router.post("/compare/exact")
 async def compare_exact(session_id: str, user: dict = Depends(get_current_user)):
     """Точное посимвольное сравнение — каждый символ должен совпадать"""
-    session = session_manager.get_session(session_id)
-    if not session or "comparison_docs" not in session:
-        raise HTTPException(status_code=400, detail="Upload two documents first")
-    docs = session["comparison_docs"]
+    docs = _require_comparison_docs(session_id)
     try:
         result = comparator.compare_exact(docs["doc1"], docs["doc2"])
         return result

@@ -3,29 +3,33 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Sun, Moon, LogOut, User, Shield, Cpu, FileText, Layers,
   LayoutDashboard, Upload, MessageSquare, GitCompare, Presentation, RefreshCw,
-  Search, Bell, CheckCircle, Loader2 as LoaderIcon, AlertCircle, Info,
+  Search, Bell, CheckCircle, Loader2 as LoaderIcon, AlertCircle, Info, Building2,
 } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useShellStore } from '@/shared/stores/shellStore'
 import { useEventStore } from '@/shared/stores/eventStore'
+import useOrgStore from '@/shared/stores/orgStore'
+import { FlagIcon } from '@/shared/ui/flag-icon/FlagIcon'
 import CommandPalette from '@/widgets/command-palette/CommandPalette'
 
-function notifRelTime(ts) {
+function notifRelTime(ts, t) {
   const diff = Date.now() - ts
   const m = Math.floor(diff / 60000)
   const h = Math.floor(diff / 3600000)
-  if (h >= 1) return `${h}ч назад`
+  if (h >= 1) return `${h}${t('dashboard.time.hours_one', { count: h }).replace(/^\d+/, '').trim() === '' ? 'ч назад' : ''}`
   if (m >= 1) return `${m}мин назад`
-  return 'только что'
+  return t('dashboard.time.justNow')
 }
 
 const EVENT_META = {
-  DOCUMENT_READY:      { Icon: CheckCircle, color: '#22c55e' },
-  DOCUMENT_UPLOADING:  { Icon: LoaderIcon,  color: '#60a5fa' },
-  DOCUMENT_ERROR:      { Icon: AlertCircle, color: '#ef4444' },
+  DOCUMENT_READY:      { Icon: CheckCircle, colorVar: 'var(--color-event-ok)' },
+  DOCUMENT_UPLOADING:  { Icon: LoaderIcon,  colorVar: 'var(--color-event-info)' },
+  DOCUMENT_ERROR:      { Icon: AlertCircle, colorVar: 'var(--color-event-err)' },
 }
 
 function NotificationBell() {
+  const { t } = useTranslation()
   const recentEvents = useEventStore((s) => s.recentEvents)
   const clearEvents  = useEventStore((s) => s.clearEvents)
   const [open, setOpen] = useState(false)
@@ -44,7 +48,7 @@ function NotificationBell() {
       <button
         type="button"
         className="top-bar__icon-btn"
-        aria-label="Notifications"
+        aria-label={t('topbar.notifications', 'Уведомления')}
         onClick={() => setOpen((v) => !v)}
       >
         <Bell size={16} />
@@ -61,21 +65,21 @@ function NotificationBell() {
             transition={{ duration: 0.15, ease: 'easeOut' }}
           >
             {recentEvents.length === 0
-              ? <div className="notification-empty">Нет уведомлений</div>
+              ? <div className="notification-empty">{t('topbar.noNotifications')}</div>
               : recentEvents.slice(0, 5).map((ev, i) => {
-                  const meta = EVENT_META[ev.type] || { Icon: Info, color: '#94a3b8' }
+                  const meta = EVENT_META[ev.type] || { Icon: Info, colorVar: 'var(--text-tertiary)' }
                   return (
                     <div key={i} className="notification-item">
-                      <meta.Icon size={13} style={{ color: meta.color, flexShrink: 0, marginTop: 1 }} />
+                      <meta.Icon size={13} style={{ color: meta.colorVar, flexShrink: 0, marginTop: 1 }} />
                       <span className="notification-item__text">{ev.message}</span>
-                      <span className="notification-item__time">{notifRelTime(ev.timestamp)}</span>
+                      <span className="notification-item__time">{notifRelTime(ev.timestamp, t)}</span>
                     </div>
                   )
                 })
             }
             {recentEvents.length > 0 && (
               <button className="notification-clear" onClick={() => { clearEvents(); setOpen(false) }}>
-                Очистить
+                {t('topbar.clear')}
               </button>
             )}
           </motion.div>
@@ -86,20 +90,47 @@ function NotificationBell() {
 }
 
 const ROUTE_META = {
-  '/':             { label: 'Dashboard',    Icon: LayoutDashboard },
-  '/upload':       { label: 'Upload',       Icon: Upload },
-  '/workspace':    { label: 'Workspace',    Icon: MessageSquare },
-  '/compare':      { label: 'Compare',      Icon: GitCompare },
-  '/presentation': { label: 'Presentation', Icon: Presentation },
-  '/convert':      { label: 'Convert',      Icon: RefreshCw },
-  '/profile':      { label: 'Profile',      Icon: User },
-  '/admin':        { label: 'Admin',        Icon: Shield },
-  '/ai-settings':  { label: 'AI Settings',  Icon: Cpu },
+  '/':             { labelKey: 'nav.dashboard',    Icon: LayoutDashboard },
+  '/upload':       { labelKey: 'nav.upload',       Icon: Upload },
+  '/workspace':    { labelKey: 'nav.workspace',    Icon: MessageSquare },
+  '/compare':      { labelKey: 'nav.compare',      Icon: GitCompare },
+  '/presentation': { labelKey: 'nav.presentation', Icon: Presentation },
+  '/convert':      { labelKey: 'nav.convert',      Icon: RefreshCw },
+  '/profile':      { labelKey: 'nav.profile',      Icon: User },
+  '/admin':        { labelKey: 'nav.admin',        Icon: Shield },
+  '/ai-settings':  { labelKey: 'nav.aiSettings',   Icon: Cpu },
+}
+
+const LANGS = ['ru', 'kz', 'en']
+
+function LangSwitcher() {
+  const language = useShellStore((s) => s.language)
+  const setLanguage = useShellStore((s) => s.setLanguage)
+
+  return (
+    <div className="lang-switcher">
+      {LANGS.map((lang) => (
+        <button
+          key={lang}
+          type="button"
+          className={`lang-btn${language === lang ? ' lang-btn--active' : ''}`}
+          onClick={() => setLanguage(lang)}
+          aria-pressed={language === lang}
+          title={lang.toUpperCase()}
+        >
+          <FlagIcon lang={lang} size={14} />
+          <span>{lang.toUpperCase()}</span>
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function UserMenu({ user, onLogout, onNavigate }) {
+  const { t } = useTranslation()
   const [open, setOpen] = useState(false)
   const menuRef = useRef(null)
+  const { currentOrgId, currentOrgName, orgs, switchOrg } = useOrgStore()
 
   useEffect(() => {
     if (!open) return
@@ -112,13 +143,14 @@ function UserMenu({ user, onLogout, onNavigate }) {
 
   const initials = user?.username ? user.username.slice(0, 2).toUpperCase() : '?'
   const isAdmin = user?.role === 'admin'
-  const roleColor = isAdmin ? 'var(--color-warning, #F59E0B)' : 'var(--accent-primary, #60A5FA)'
+  const roleColor = isAdmin ? 'var(--status-warning)' : 'var(--accent-primary)'
 
   const menuItems = [
-    { icon: User,   label: 'Profile',      action: () => { onNavigate('/profile'); setOpen(false) } },
+    { icon: User,      labelKey: 'userMenu.profile',    action: () => { onNavigate('/profile'); setOpen(false) } },
     ...(isAdmin ? [
-      { icon: Cpu,    label: 'AI Settings', action: () => { onNavigate('/ai-settings'); setOpen(false) } },
-      { icon: Shield, label: 'Admin Panel', action: () => { onNavigate('/admin'); setOpen(false) } },
+      { icon: Cpu,       labelKey: 'userMenu.aiSettings',  action: () => { onNavigate('/ai-settings'); setOpen(false) } },
+      { icon: Building2, labelKey: 'userMenu.orgSettings', action: () => { onNavigate('/org/settings'); setOpen(false) } },
+      { icon: Shield,    labelKey: 'userMenu.adminPanel',  action: () => { onNavigate('/admin'); setOpen(false) } },
     ] : []),
   ]
 
@@ -147,23 +179,52 @@ function UserMenu({ user, onLogout, onNavigate }) {
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
             transition={{ duration: 0.15, ease: 'easeOut' }}
           >
+            {/* User header */}
             <div className="top-bar__dropdown-header">
               <span className="top-bar__dropdown-name">{user?.username || 'User'}</span>
               <span className="top-bar__dropdown-role" style={{ color: roleColor }}>
                 {user?.role || 'user'}
               </span>
             </div>
+
+            {/* Org section */}
+            {currentOrgId && (
+              <>
+                <div className="top-bar__dropdown-divider" role="separator" />
+                <div className="top-bar__dropdown-org-label">{t('userMenu.organization', 'Организация')}</div>
+                {orgs.length > 1 ? orgs.map((org) => (
+                  <button
+                    key={org.id}
+                    type="button"
+                    role="menuitem"
+                    className={`top-bar__dropdown-item top-bar__dropdown-item--org${org.id === currentOrgId ? ' top-bar__dropdown-item--org-active' : ''}`}
+                    onClick={() => { switchOrg(org); setOpen(false) }}
+                  >
+                    <span className="top-bar__org-icon">{(org.display_name || org.name || '?')[0].toUpperCase()}</span>
+                    <span>{org.display_name || org.name}</span>
+                    {org.id === currentOrgId && <span className="top-bar__org-check">✓</span>}
+                  </button>
+                )) : (
+                  <div className="top-bar__dropdown-item top-bar__dropdown-item--org top-bar__dropdown-item--org-active" style={{ pointerEvents: 'none' }}>
+                    <span className="top-bar__org-icon">{(currentOrgName || '?')[0].toUpperCase()}</span>
+                    <span>{currentOrgName}</span>
+                  </div>
+                )}
+              </>
+            )}
+
             <div className="top-bar__dropdown-divider" role="separator" />
+
             {menuItems.map((item) => (
               <button
-                key={item.label}
+                key={item.labelKey}
                 type="button"
                 role="menuitem"
                 className="top-bar__dropdown-item"
                 onClick={item.action}
               >
                 <item.icon size={14} />
-                <span>{item.label}</span>
+                <span>{t(item.labelKey)}</span>
               </button>
             ))}
             <div className="top-bar__dropdown-divider" role="separator" />
@@ -174,7 +235,7 @@ function UserMenu({ user, onLogout, onNavigate }) {
               onClick={() => { onLogout(); setOpen(false) }}
             >
               <LogOut size={14} />
-              <span>Logout</span>
+              <span>{t('userMenu.logout')}</span>
             </button>
           </motion.div>
         )}
@@ -184,6 +245,7 @@ function UserMenu({ user, onLogout, onNavigate }) {
 }
 
 export default function TopCommandBar({ user, onLogout, onNavigate, documentName }) {
+  const { t } = useTranslation()
   const { pathname } = useLocation()
   const theme = useShellStore((s) => s.theme)
   const toggleTheme = useShellStore((s) => s.toggleTheme)
@@ -191,10 +253,10 @@ export default function TopCommandBar({ user, onLogout, onNavigate, documentName
   const rightPanelOpen = useShellStore((s) => s.rightPanelShell.open)
   const [paletteOpen, setPaletteOpen] = useState(false)
 
-  const meta = ROUTE_META[pathname] || { label: 'KENCE.ai', Icon: FileText }
+  const meta = ROUTE_META[pathname] || { labelKey: null, Icon: FileText }
   const PageIcon = meta.Icon
+  const pageLabel = meta.labelKey ? t(meta.labelKey) : 'KENCE.ai'
 
-  // Global Ctrl+K shortcut
   useEffect(() => {
     const handler = (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
@@ -223,7 +285,7 @@ export default function TopCommandBar({ user, onLogout, onNavigate, documentName
         <span className="top-bar__page-icon" aria-hidden="true">
           <PageIcon size={16} />
         </span>
-        <span className="top-bar__page-title">{meta.label}</span>
+        <span className="top-bar__page-title">{pageLabel}</span>
 
         <AnimatePresence mode="wait">
           {documentName && (
@@ -253,19 +315,20 @@ export default function TopCommandBar({ user, onLogout, onNavigate, documentName
           onClick={() => setPaletteOpen(true)}
         >
           <Search size={13} />
-          <span className="top-bar__palette-label">Поиск команд…</span>
+          <span className="top-bar__palette-label">{t('topbar.search')}</span>
           <kbd className="top-bar__palette-kbd">Ctrl K</kbd>
         </button>
       </div>
 
       {/* Right: status cluster */}
       <div className="top-bar__status-cluster">
+        <LangSwitcher />
+
         <button
           type="button"
           className={`top-bar__icon-btn${rightPanelOpen ? ' top-bar__icon-btn--active' : ''}`}
-          aria-label="Toggle intelligence panel"
+          aria-label={t('topbar.intelligencePanel')}
           aria-pressed={rightPanelOpen}
-          title="Intelligence panel"
           onClick={() => setRightPanelOpen(!rightPanelOpen)}
         >
           <Layers size={16} />
@@ -276,18 +339,14 @@ export default function TopCommandBar({ user, onLogout, onNavigate, documentName
         <button
           type="button"
           className="top-bar__icon-btn"
-          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          title="Toggle theme"
+          aria-label={theme === 'dark' ? t('topbar.lightMode') : t('topbar.darkMode')}
+          title={theme === 'dark' ? t('topbar.lightMode') : t('topbar.darkMode')}
           onClick={toggleTheme}
         >
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>
 
-        <UserMenu
-          user={user}
-          onLogout={onLogout}
-          onNavigate={onNavigate}
-        />
+        <UserMenu user={user} onLogout={onLogout} onNavigate={onNavigate} />
       </div>
     </header>
   )

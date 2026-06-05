@@ -1,8 +1,8 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 from uuid import UUID
 import shutil
 import json
@@ -26,6 +26,35 @@ from app.api.auth_routes import get_current_user
 
 router = APIRouter()
 settings = get_settings()
+
+
+def _require_chat_session(session_id: str, username: str = "") -> tuple[dict, str, object]:
+    """Validate session has a document and return (session, doc_name, doc_context)."""
+    session = session_manager.get_session(session_id)
+    if not session or not session.get("vector_store"):
+        raise HTTPException(status_code=400, detail="No document uploaded")
+    doc_name = session.get("document", "")
+    doc_context = get_document_context(username, doc_name) if doc_name and username else None
+    return session, doc_name, doc_context
+
+
+def _require_image_session(session_id: str) -> tuple[str, Path]:
+    """Validate session has an image document and return (doc_name, image_path)."""
+    from app.services.vision_service import vision_service as vs
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=400, detail="No document uploaded")
+    doc_name = session.get("document", "")
+    ext = Path(doc_name).suffix.lower() if doc_name else ""
+    if ext not in _IMAGE_EXTS:
+        raise HTTPException(status_code=400, detail="Document is not an image")
+    if not vs.is_available():
+        raise HTTPException(status_code=503, detail=f"Vision model '{settings.VISION_MODEL}' not available. Run: ollama pull {settings.VISION_MODEL}")
+    image_path = Path(f"{settings.UPLOAD_DIR}/{session_id}/{doc_name}")
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image file not found")
+    return doc_name, image_path
+
 
 class ChatRequest(BaseModel):
     session_id: str
@@ -138,13 +167,12 @@ async def upload_document(request: Request, session_id: str, file: UploadFile = 
         session_manager.save_session(session_id)
         analytics_service.log_event("upload", username=user.get("sub"), session_id=session_id, file_format=ext.lstrip(".").upper())
 
-        IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".tiff", ".bmp", ".webp", ".heic"}
         return {
             "status": "processed",
             "filename": file.filename,
             "session_id": session_id,
             "format": ext,
-            "is_image": ext in IMAGE_EXTS,
+            "is_image": ext in _IMAGE_EXTS,
             "preview": markdown_text[:800],
             "char_count": len(markdown_text),
         }
@@ -154,8 +182,19 @@ async def upload_document(request: Request, session_id: str, file: UploadFile = 
 # ─── Отдача файла изображения ───────────────────────────
 
 @router.get("/documents/{session_id}/image")
-async def get_document_image(session_id: str, user: dict = Depends(get_current_user)):
-    """Возвращает исходный файл изображения для превью в UI."""
+async def get_document_image(
+    session_id: str,
+    token: Optional[str] = Query(None),
+    bearer_user: Optional[dict] = Depends(get_current_user),
+):
+    """Returns image file for preview. Accepts Bearer header OR ?token= query param
+    so that <img src="...?token=..."> works without JS fetch."""
+    from app.api.auth_routes import verify_token
+    if bearer_user is None:
+        if not token:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        verify_token(token)
+
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -180,20 +219,7 @@ async def get_document_image(session_id: str, user: dict = Depends(get_current_u
 async def visual_describe(session_id: str, user: dict = Depends(get_current_user)):
     """Полное визуальное описание изображения-документа через VLM."""
     from app.services.vision_service import vision_service
-    session = session_manager.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    doc_name = session.get("document", "")
-    if not doc_name:
-        raise HTTPException(status_code=400, detail="No document uploaded")
-    ext = Path(doc_name).suffix.lower()
-    if ext not in _IMAGE_EXTS:
-        raise HTTPException(status_code=400, detail="Document is not an image")
-    if not vision_service.is_available():
-        raise HTTPException(status_code=503, detail=f"Vision model '{settings.VISION_MODEL}' not available. Run: ollama pull {settings.VISION_MODEL}")
-    image_path = Path(f"{settings.UPLOAD_DIR}/{session_id}/{doc_name}")
-    if not image_path.exists():
-        raise HTTPException(status_code=404, detail="Image file not found")
+    doc_name, image_path = _require_image_session(session_id)
     try:
         description = await asyncio.to_thread(vision_service.describe, str(image_path))
         return {"description": description, "session_id": session_id, "filename": doc_name}
@@ -210,18 +236,7 @@ async def visual_chat_stream(
 ):
     """SSE-стриминг ответа VLM на вопрос по изображению."""
     from app.services.vision_service import vision_service
-    session = session_manager.get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=400, detail="No document uploaded")
-    doc_name = session.get("document", "")
-    ext = Path(doc_name).suffix.lower() if doc_name else ""
-    if ext not in _IMAGE_EXTS:
-        raise HTTPException(status_code=400, detail="Document is not an image; use /chat/stream instead")
-    if not vision_service.is_available():
-        raise HTTPException(status_code=503, detail=f"Vision model '{settings.VISION_MODEL}' not available. Run: ollama pull {settings.VISION_MODEL}")
-    image_path = Path(f"{settings.UPLOAD_DIR}/{session_id}/{doc_name}")
-    if not image_path.exists():
-        raise HTTPException(status_code=404, detail="Image file not found")
+    _, image_path = _require_image_session(session_id)
 
     async def generate():
         yield f"data: {json.dumps({'status': 'Анализирую изображение…'})}\n\n"
@@ -254,12 +269,7 @@ async def visual_chat_stream(
 @router.post("/chat", response_model=ChatResponse)
 @limiter.limit("20/minute")
 async def chat(request: Request, body: ChatRequest, user: dict = Depends(get_current_user)):
-    session = session_manager.get_session(body.session_id)
-    if not session or not session.get("vector_store"):
-        raise HTTPException(status_code=400, detail="No document uploaded")
-
-    doc_name = session.get("document", "")
-    doc_context = get_document_context(user["username"], doc_name) if doc_name else None
+    _, _, doc_context = _require_chat_session(body.session_id, user.get("username", ""))
     history = memory_service.get_history(body.session_id, limit=10)
 
     try:
@@ -281,13 +291,7 @@ async def chat_stream(
     mode: str = "precise",
     user: dict = Depends(get_current_user),
 ):
-    session = session_manager.get_session(session_id)
-    if not session or not session.get("vector_store"):
-        raise HTTPException(status_code=400, detail="No document uploaded")
-
-    doc_name = session.get("document", "")
-    doc_context = get_document_context(user["username"], doc_name) if doc_name else None
-
+    _, _, doc_context = _require_chat_session(session_id, user.get("username", ""))
     history = memory_service.get_history(session_id, limit=10)
 
     async def generate():
@@ -452,6 +456,64 @@ async def vision_status(user: dict = Depends(get_current_user)):
         "available": vision_service.is_available(),
         "pull_command": f"ollama pull {settings.VISION_MODEL}" if not vision_service.is_available() else None,
     }
+
+# ─── Document Edit Mode ────────────────────────────────
+
+class SaveMarkdownRequest(BaseModel):
+    markdown: str
+
+
+@router.put("/documents/content/{session_id}")
+async def save_document_content(
+    session_id: str,
+    body: SaveMarkdownRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Auto-save edited markdown back to the session (edit mode)."""
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    session["markdown_text"] = body.markdown
+    session_manager.save_session(session_id)
+    return {"ok": True}
+
+
+class ExportMarkdownRequest(BaseModel):
+    session_id: str
+    markdown: str
+    format: Literal["docx", "pdf"] = "docx"
+
+
+@router.post("/documents/export-markdown")
+async def export_markdown(
+    body: ExportMarkdownRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Convert edited markdown (with tables + [CHART] directives) to DOCX or PDF."""
+    session_dir = Path(settings.UPLOAD_DIR) / body.session_id
+    session_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = ".docx" if body.format == "docx" else ".pdf"
+    output_path = session_dir / f"edited_document{ext}"
+
+    if body.format == "docx":
+        from app.services.converter import _markdown_to_docx
+        _markdown_to_docx(body.markdown, output_path, llm_service=llm_service)
+    else:
+        from app.services.converter import _text_to_pdf
+        _text_to_pdf(body.markdown, output_path)
+
+    media = (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        if body.format == "docx"
+        else "application/pdf"
+    )
+    return FileResponse(
+        path=str(output_path),
+        filename=f"edited_document{ext}",
+        media_type=media,
+    )
+
 
 # ─── Health Check ───────────────────────────────────────
 

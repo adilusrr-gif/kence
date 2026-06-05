@@ -74,8 +74,10 @@ async def upsert_relationship(
         async with driver.session() as session:
             await session.run(
                 f"""
-                MATCH (a:Entity {{org_id: $org_id, label: $from_label}})
-                MATCH (b:Entity {{org_id: $org_id, label: $to_label}})
+                MERGE (a:Entity {{org_id: $org_id, label: $from_label}})
+                  ON CREATE SET a.entity_type = 'Concept'
+                MERGE (b:Entity {{org_id: $org_id, label: $to_label}})
+                  ON CREATE SET b.entity_type = 'Concept'
                 MERGE (a)-[r:{safe_rel}]->(b)
                 SET r += $props
                 """,

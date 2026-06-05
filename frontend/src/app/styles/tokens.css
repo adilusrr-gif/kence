@@ -165,10 +165,79 @@
   --bottom-rail-height:    32px;
   --right-panel-width:    280px;
 
+  /* File-format badge colors */
+  --color-fmt-pdf:      #EF4444;
+  --color-fmt-pdf-bg:   rgba(239, 68, 68, 0.12);
+  --color-fmt-docx:     #3B82F6;
+  --color-fmt-docx-bg:  rgba(59, 130, 246, 0.12);
+  --color-fmt-pptx:     #F59E0B;
+  --color-fmt-pptx-bg:  rgba(245, 158, 11, 0.12);
+  --color-fmt-xlsx:     #22C55E;
+  --color-fmt-xlsx-bg:  rgba(34, 197, 94, 0.12);
+  --color-fmt-other:    #94a3b8;
+  --color-fmt-other-bg: rgba(148, 163, 184, 0.12);
+
+  /* Event / notification colors */
+  --color-event-ok:   var(--status-success);
+  --color-event-info: var(--status-info);
+  --color-event-err:  var(--status-danger);
+
   /* Shorthand aliases used by enterprise pages and widgets */
   --bg-surface: var(--bg-surface-1);
   --bg-hover:   var(--bg-surface-2);
   --bg-input:   var(--bg-surface-1);
   --accent:     var(--accent-primary);
   --border:     var(--border-default);
+
+  /* Missing aliases referenced by shell.css and page components */
+  --bg-raised:    var(--bg-surface-2);
+  --bg-base:      var(--bg-app);
+  --bg-main:      var(--bg-canvas);
+  --input-bg:     var(--bg-surface-1);
+  --text-base:    var(--text-primary);
+  --text-muted:   var(--text-secondary);
+  --text-faint:   var(--text-tertiary);
+  --border-soft:  var(--border-subtle);
+  --accent-hover: var(--accent-primary-hover);
+
+  /* Shell surface tokens — dark defaults, overridden per theme */
+  --surface-overlay:    rgba(15, 23, 42, 0.85);
+  --surface-panel-soft: rgba(15, 23, 42, 0.75);
+  --surface-panel:      rgba(15, 23, 42, 0.95);
+  --surface-float:      rgba(15, 23, 42, 0.97);
+  --surface-scrim:      rgba(2, 6, 23, 0.70);
+  --surface-scrim-hi:   rgba(2, 6, 23, 0.90);
+  --surface-scrim-max:  rgba(2, 6, 23, 0.92);
+
+  /* Shell tint tokens — white-alpha in dark, dark-alpha in light */
+  --tint-xs:      rgba(255, 255, 255, 0.03);
+  --tint-faint:   rgba(255, 255, 255, 0.04);
+  --tint-soft:    rgba(255, 255, 255, 0.05);
+  --border-rail:  rgba(255, 255, 255, 0.06);
+  --tint-med:     rgba(255, 255, 255, 0.07);
+  --tint-raised:  rgba(255, 255, 255, 0.08);
+  --border-glass: rgba(255, 255, 255, 0.09);
+  --tint-base:    rgba(255, 255, 255, 0.10);
+  --tint-strong:  rgba(255, 255, 255, 0.12);
+  --tint-bolder:  rgba(255, 255, 255, 0.14);
+  --tint-bold:    rgba(255, 255, 255, 0.15);
+
+  /* ─── Gradient tokens ─────────────────────────────────────────────── */
+  --gradient-accent:          linear-gradient(135deg, var(--color-cyan-400) 0%, var(--color-blue-400) 100%);
+  --gradient-accent-warm:     linear-gradient(135deg, var(--color-cyan-400) 0%, var(--color-violet-400) 100%);
+  --gradient-accent-vertical: linear-gradient(180deg, var(--color-cyan-400) 0%, var(--color-blue-400) 100%);
+  --gradient-surface-subtle:  linear-gradient(160deg, var(--bg-surface-1) 0%, var(--bg-canvas) 100%);
+  --gradient-hero-bg:         radial-gradient(ellipse 80% 60% at 50% 0%, color-mix(in srgb, var(--accent-primary) 8%, transparent), transparent 70%);
+  --gradient-card-shine:      linear-gradient(135deg, var(--tint-soft) 0%, transparent 60%);
+
+  /* ─── Bento grid tokens ────────────────────────────────────────────── */
+  --bento-gap:    12px;
+  --bento-radius: var(--radius-2xl);
+
+  /* ─── Display / hero typography tokens ────────────────────────────── */
+  --text-display:         2.25rem;
+  --text-headline:        1.875rem;
+  --font-weight-display:  800;
+  --leading-display:      1.1;
+  --tracking-display:     -0.035em;
 }

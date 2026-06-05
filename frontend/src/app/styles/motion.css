@@ -66,11 +66,59 @@
   animation: kence-skeleton-shimmer 1.8s linear infinite;
 }
 
+/* ── Ambient background drift ───────────────────── */
+@keyframes kence-ambient-a {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(40px, 60px) scale(1.06); }
+  66%  { transform: translate(-20px, 30px) scale(0.96); }
+}
+
+@keyframes kence-ambient-b {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%  { transform: translate(-50px, -40px) scale(0.94); }
+  66%  { transform: translate(30px, -60px) scale(1.04); }
+}
+
+/* ── Logo glow pulse ────────────────────────────── */
+@keyframes kence-logo-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0); }
+  50%       { box-shadow: 0 0 14px 4px rgba(34, 211, 238, 0.32); }
+}
+
+/* ── Button press ripple ────────────────────────── */
+@keyframes kence-ripple {
+  0%   { transform: scale(0); opacity: 0.45; }
+  100% { transform: scale(3.5); opacity: 0; }
+}
+
+/* ── Top bar glow sweep ─────────────────────────── */
+@keyframes kence-bar-glow {
+  0%, 100% { opacity: 0.1; }
+  50%       { opacity: 0.55; }
+}
+
+/* ── Notification badge ping ────────────────────── */
+@keyframes kence-badge-ping {
+  0%, 100% { transform: scale(1);   opacity: 1; }
+  50%       { transform: scale(1.4); opacity: 0.75; }
+}
+
+/* ── Float (used for empty states / icons) ──────── */
+@keyframes kence-float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
+}
+
+.motion-float {
+  animation: kence-float 3s var(--ease-emphasized) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .motion-fade-in,
   .motion-fade-up,
   .motion-status-pulse,
-  .motion-skeleton-shimmer {
+  .motion-skeleton-shimmer,
+  .motion-float {
     animation: none !important;
     transition-duration: 0ms !important;
   }

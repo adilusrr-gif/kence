@@ -21,3 +21,45 @@
   font-size: var(--text-xs);
   line-height: var(--leading-normal);
 }
+
+/* ─── Gradient text ────────────────────────────────────────────────── */
+.text-gradient-accent {
+  background: var(--gradient-accent);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+.text-gradient-warm {
+  background: var(--gradient-accent-warm);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  color: transparent;
+}
+
+/* ─── Bento surface ─────────────────────────────────────────────────── */
+.surface-bento {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border-radius: var(--bento-radius);
+  box-shadow: var(--shadow-md);
+}
+
+/* ─── Display / hero heading ────────────────────────────────────────── */
+.heading-display {
+  font-size: var(--text-display);
+  font-weight: var(--font-weight-display);
+  line-height: var(--leading-display);
+  letter-spacing: var(--tracking-display);
+}
+
+.heading-headline {
+  font-size: var(--text-headline);
+  font-weight: 700;
+  line-height: var(--leading-snug);
+  letter-spacing: -0.02em;
+}

@@ -1,47 +1,130 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Upload, MessageSquare, GitCompare, Presentation, Plus, FileText, Users, Database, Activity, Trash2 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+import {
+  Upload, MessageSquare, GitCompare, Presentation, Plus, FileText,
+  Trash2, RefreshCw, Bot, Activity, TrendingUp, Search, FolderOpen, ArrowRight,
+} from 'lucide-react'
+import { BarChart, Bar, ResponsiveContainer, Tooltip as RTooltip } from 'recharts'
 import { Button } from '@/shared/ui/button'
-import { MetricCard } from '@/shared/ui/metric-card'
 import { Stack } from '@/shared/ui/stack'
-import { Inline } from '@/shared/ui/inline'
-import { getStoredUser, apiDeleteSession } from '../lib/api'
+import { useToast } from '@/shared/ui/toast'
+import { apiDeleteSession, apiAnalyticsOverview, apiAnalyticsTimeline } from '../lib/api'
 
-function formatRelTime(ts) {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatRelTime(ts, t) {
   const diff = Date.now() - ts
-  const h = Math.floor(diff / 3600000)
   const d = Math.floor(diff / 86400000)
-  if (d >= 2) return `${d}д назад`
-  if (d === 1) return 'вчера'
-  if (h >= 1) return `${h}ч назад`
-  return 'только что'
+  const h = Math.floor(diff / 3600000)
+  if (d >= 2) return t('dashboard.time.days_other', { count: d })
+  if (d === 1) return t('dashboard.time.yesterday')
+  if (h >= 1) return t('dashboard.time.hours_other', { count: h })
+  return t('dashboard.time.justNow')
 }
 
 const FMT_COLORS = {
-  PDF:  { bg: 'rgba(239,68,68,0.15)',   color: '#EF4444' },
-  DOCX: { bg: 'rgba(59,130,246,0.15)',  color: '#3B82F6' },
-  PPTX: { bg: 'rgba(245,158,11,0.15)',  color: '#F59E0B' },
-  XLSX: { bg: 'rgba(34,197,94,0.15)',   color: '#22C55E' },
+  PDF:  { bg: 'var(--color-fmt-pdf-bg)',   color: 'var(--color-fmt-pdf)' },
+  DOCX: { bg: 'var(--color-fmt-docx-bg)',  color: 'var(--color-fmt-docx)' },
+  PPTX: { bg: 'var(--color-fmt-pptx-bg)',  color: 'var(--color-fmt-pptx)' },
+  XLSX: { bg: 'var(--color-fmt-xlsx-bg)',  color: 'var(--color-fmt-xlsx)' },
 }
 
-function SessionCard({ entry, onContinue, onDelete }) {
-  const ext = entry.name?.includes('.') ? entry.name.split('.').pop().toUpperCase() : null
-  const fmtStyle = ext && FMT_COLORS[ext] ? FMT_COLORS[ext] : { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8' }
+function shortDay(dateStr) {
+  return new Date(dateStr).toLocaleDateString(undefined, { weekday: 'short' })
+}
 
+function useCountUp(target, duration = 700) {
+  const [count, setCount] = useState(0)
+  useEffect(() => {
+    if (!target) return
+    let frame = 0
+    const steps = Math.ceil(duration / 16)
+    const id = setInterval(() => {
+      frame++
+      setCount(Math.round((frame / steps) * target))
+      if (frame >= steps) clearInterval(id)
+    }, 16)
+    return () => clearInterval(id)
+  }, [target, duration])
+  return count
+}
+
+// ── Animation variants ────────────────────────────────────────────────────────
+
+const CONTAINER_VARIANTS = {
+  hidden: {},
+  visible: { transition: { staggerChildren: 0.055, delayChildren: 0.06 } },
+}
+
+const ITEM_VARIANTS = {
+  hidden:  { opacity: 0, y: 12, scale: 0.94 },
+  visible: { opacity: 1, y: 0,  scale: 1,
+    transition: { type: 'spring', stiffness: 400, damping: 28 } },
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function MiniStat({ icon: Icon, label, value, color }) {
+  const displayed = useCountUp(value ?? 0)
+  return (
+    <div className="dashboard-mini-stat">
+      <div className="dashboard-mini-stat__icon" style={{ color, background: `${color}1a` }}>
+        <Icon size={15} />
+      </div>
+      <div className="dashboard-mini-stat__body">
+        <span className="dashboard-mini-stat__value">{displayed}</span>
+        <span className="dashboard-mini-stat__label">{label}</span>
+      </div>
+    </div>
+  )
+}
+
+function FeatureTile({ feature, onClick }) {
+  const { icon: Icon, label, desc, accent } = feature
+  return (
+    <motion.button
+      type="button"
+      className={`dashboard-feature-tile${accent ? ' dashboard-feature-tile--accent' : ''}`}
+      onClick={onClick}
+      variants={ITEM_VARIANTS}
+      whileHover={{ y: -3, transition: { duration: 0.14 } }}
+      whileTap={{ scale: 0.96 }}
+    >
+      <div className="dashboard-feature-tile__icon"><Icon size={20} /></div>
+      <span className="dashboard-feature-tile__label">{label}</span>
+      <span className="dashboard-feature-tile__desc">{desc}</span>
+    </motion.button>
+  )
+}
+
+const SparkTip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="dashboard-spark-tip">
+      <span>{label}</span>
+      <strong>{payload[0].value}</strong>
+    </div>
+  )
+}
+
+function SessionCard({ entry, onContinue, onDelete, index, t }) {
+  const ext = entry.name?.includes('.') ? entry.name.split('.').pop().toUpperCase() : null
+  const fmtStyle = ext && FMT_COLORS[ext] ? FMT_COLORS[ext] : { bg: 'var(--color-fmt-other-bg)', color: 'var(--color-fmt-other)' }
   return (
     <motion.div
       className="dashboard-session-card"
-      whileHover={{ y: -1 }}
-      transition={{ duration: 0.15 }}
+      variants={ITEM_VARIANTS}
+      whileHover={{ x: 3, transition: { duration: 0.12 } }}
       onClick={() => onContinue(entry)}
       role="button"
       tabIndex={0}
-      aria-label={`Открыть сессию: ${entry.name}`}
+      aria-label={t('dashboard.open', { name: entry.name })}
       onKeyDown={(e) => e.key === 'Enter' && onContinue(entry)}
     >
       <span className="dashboard-session-card__icon" aria-hidden="true">
-        <FileText size={16} />
+        <FileText size={15} />
       </span>
       {ext && (
         <span className="session-card__fmt" style={{ background: fmtStyle.bg, color: fmtStyle.color }}>
@@ -50,148 +133,236 @@ function SessionCard({ entry, onContinue, onDelete }) {
       )}
       <div className="dashboard-session-card__info">
         <span className="dashboard-session-card__name" title={entry.name}>{entry.name}</span>
-        <span className="dashboard-session-card__time">{formatRelTime(entry.at)}</span>
+        <span className="dashboard-session-card__time">{formatRelTime(entry.at, t)}</span>
       </div>
+      <ArrowRight size={13} className="dashboard-session-card__chevron" aria-hidden="true" />
       <button
         type="button"
         className="dashboard-session-card__delete"
-        aria-label="Удалить сессию"
+        aria-label={t('dashboard.delete')}
         onClick={(e) => { e.stopPropagation(); onDelete(entry.id) }}
       >
-        <Trash2 size={14} />
+        <Trash2 size={13} />
       </button>
     </motion.div>
   )
 }
 
+// ── Main ──────────────────────────────────────────────────────────────────────
+
 export default function DashboardPage({ sessionHistory = [], currentUser, onNewSession, onRestoreSession }) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
-  const [stats, setStats] = useState(null)
+  const toast = useToast()
   const [serverSessions, setServerSessions] = useState([])
   const [deletedIds, setDeletedIds] = useState(new Set())
-  const isAdmin = currentUser?.role === 'admin'
+  const [overview, setOverview] = useState(null)
+  const [timeline, setTimeline] = useState([])
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+  const debounceRef = useRef(null)
+
+  const FEATURES = [
+    { icon: Plus,         label: t('dashboard.features.new'),          desc: t('dashboard.features.newDesc'),          action: 'new',           accent: true },
+    { icon: Upload,       label: t('dashboard.features.upload'),        desc: t('dashboard.features.uploadDesc'),        path: '/upload'                       },
+    { icon: GitCompare,   label: t('dashboard.features.compare'),       desc: t('dashboard.features.compareDesc'),       path: '/compare'                      },
+    { icon: Presentation, label: t('dashboard.features.presentation'),  desc: t('dashboard.features.presentationDesc'),  path: '/presentation'                 },
+    { icon: RefreshCw,    label: t('dashboard.features.convert'),       desc: t('dashboard.features.convertDesc'),       path: '/convert'                      },
+    { icon: Bot,          label: t('dashboard.features.agents'),        desc: t('dashboard.features.agentsDesc'),        path: '/agents'                       },
+  ]
 
   useEffect(() => {
     const token = localStorage.getItem('kence_token')
     if (!token) return
+
     fetch('/api/sessions', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.ok ? r.json() : [])
-      .then((data) => Array.isArray(data) && setServerSessions(data))
-      .catch(() => {})
+      .then(r => r.ok ? r.json() : [])
+      .then(data => Array.isArray(data) && setServerSessions(data))
+      .catch(() => toast.error(t('common.loadError')))
+
+    Promise.allSettled([apiAnalyticsOverview(), apiAnalyticsTimeline(7)])
+      .then(([ovResult, tlResult]) => {
+        if (ovResult.status === 'fulfilled') setOverview(ovResult.value)
+        if (tlResult.status === 'fulfilled')
+          setTimeline((tlResult.value?.data || []).filter(d => d?.date).map(d => ({ day: shortDay(d.date), count: d.count })))
+      })
   }, [])
 
-  useEffect(() => {
-    if (!isAdmin) return
-    const token = localStorage.getItem('kence_token')
-    fetch('/api/auth/stats', { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => data && setStats(data))
-      .catch(() => {})
-  }, [isAdmin])
-
-  const handleDeleteSession = async (id) => {
-    setDeletedIds((prev) => new Set([...prev, id]))
+  const handleDelete = async (id) => {
+    setDeletedIds(prev => new Set([...prev, id]))
     await apiDeleteSession(id).catch(() => {})
   }
 
-  // Merge server sessions with local history, deduplicate by session_id
-  const mergedHistory = React.useMemo(() => {
-    const localIds = new Set(sessionHistory.map((e) => e.id))
+  const mergedHistory = useMemo(() => {
+    const localIds = new Set(sessionHistory.map(e => e.id))
     const fromServer = serverSessions
-      .filter((s) => !localIds.has(s.session_id))
-      .map((s) => ({
+      .filter(s => !localIds.has(s.session_id))
+      .map(s => ({
         id: s.session_id,
-        name: s.document_name || 'Untitled',
+        name: s.document_name || t('common.untitled'),
         at: s.last_activity ? new Date(s.last_activity).getTime() : Date.now(),
       }))
     return [...sessionHistory, ...fromServer]
-      .filter((e) => !deletedIds.has(e.id))
+      .filter(e => !deletedIds.has(e.id))
       .sort((a, b) => b.at - a.at)
-      .slice(0, 8)
-  }, [sessionHistory, serverSessions, deletedIds])
+      .slice(0, 12)
+  }, [sessionHistory, serverSessions, deletedIds, t])
 
-  const today = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' })
+  useEffect(() => {
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => setDebouncedSearch(search), 200)
+    return () => clearTimeout(debounceRef.current)
+  }, [search])
 
-  const quickActions = [
-    { icon: Plus,         label: 'Новая сессия', action: onNewSession,                   variant: 'primary' },
-    { icon: Upload,       label: 'Загрузить',    action: () => navigate('/upload'),       variant: 'secondary' },
-    { icon: GitCompare,   label: 'Сравнение',    action: () => navigate('/compare'),      variant: 'secondary' },
-    { icon: Presentation, label: 'Презентация',  action: () => navigate('/presentation'), variant: 'secondary' },
-  ]
+  const filteredHistory = useMemo(() =>
+    debouncedSearch ? mergedHistory.filter(e => e.name.toLowerCase().includes(debouncedSearch.toLowerCase())) : mergedHistory,
+    [mergedHistory, debouncedSearch]
+  )
+
+  const handleFeature = (feature) => {
+    if (feature.action === 'new') onNewSession?.()
+    else if (feature.path) navigate(feature.path)
+  }
+
+  const today = new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
+  const byType = overview?.by_type || {}
 
   return (
     <div className="dashboard-page">
-      {/* Welcome header */}
-      <div className="dashboard-page__header">
+
+      {/* Header */}
+      <motion.div
+        className="dashboard-page__header"
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.28 }}
+      >
         <h1 className="dashboard-page__greeting">
-          Добро пожаловать, <span className="dashboard-page__username">{currentUser?.username || 'User'}</span>
+          {t('dashboard.greeting')},{' '}
+          <span className="dashboard-page__username">{currentUser?.username || 'User'}</span>
         </h1>
         <p className="dashboard-page__date">{today}</p>
-      </div>
+      </motion.div>
 
-      {/* Quick actions */}
-      <Stack gap="md">
-        <h2 className="dashboard-page__section-title">Быстрые действия</h2>
-        <Inline gap="sm" wrap>
-          {quickActions.map(({ icon: Icon, label, action, variant }) => (
-            <Button
-              key={label}
-              variant={variant}
-              onClick={action}
-              leadingIcon={<Icon size={15} />}
-            >
-              {label}
-            </Button>
+      {/* Bento grid: stats + sparkline */}
+      <motion.div
+        className="dashboard-bento"
+        variants={CONTAINER_VARIANTS}
+        initial="hidden"
+        animate="visible"
+      >
+        {overview && (
+          <>
+            <motion.div className="dashboard-bento__stat" variants={ITEM_VARIANTS}>
+              <MiniStat icon={Activity}      label={t('dashboard.stats.totalEvents')} value={overview.total_events} color="var(--accent-primary)" />
+            </motion.div>
+            <motion.div className="dashboard-bento__stat" variants={ITEM_VARIANTS}>
+              <MiniStat icon={TrendingUp}    label={t('dashboard.stats.week')}        value={overview.week_events}  color="#6366f1" />
+            </motion.div>
+            <motion.div className="dashboard-bento__stat" variants={ITEM_VARIANTS}>
+              <MiniStat icon={Upload}        label={t('dashboard.stats.uploads')}     value={byType.upload || 0}    color="var(--color-fmt-pptx)" />
+            </motion.div>
+            <motion.div className="dashboard-bento__stat" variants={ITEM_VARIANTS}>
+              <MiniStat icon={MessageSquare} label={t('dashboard.stats.chats')}       value={byType.chat   || 0}    color="var(--color-fmt-xlsx)" />
+            </motion.div>
+          </>
+        )}
+
+        {timeline.length > 0 && (
+          <motion.div className="dashboard-bento__spark" variants={ITEM_VARIANTS}>
+            <div className="dashboard-sparkline">
+              <div className="dashboard-sparkline__header">
+                <span className="dashboard-page__section-title">{t('dashboard.activity')}</span>
+                <button type="button" className="dashboard-sparkline__link" onClick={() => navigate('/analytics')}>
+                  {t('dashboard.more')} <ArrowRight size={11} />
+                </button>
+              </div>
+              <ResponsiveContainer width="100%" height={72}>
+                <BarChart data={timeline} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
+                  <Bar dataKey="count" fill="var(--accent-primary)" radius={[3, 3, 0, 0]} maxBarSize={32} />
+                  <RTooltip content={<SparkTip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+        )}
+      </motion.div>
+
+      {/* Feature grid */}
+      <Stack gap="sm">
+        <h2 className="dashboard-page__section-title">{t('dashboard.tools')}</h2>
+        <motion.div
+          className="dashboard-features"
+          variants={CONTAINER_VARIANTS}
+          initial="hidden"
+          animate="visible"
+        >
+          {FEATURES.map((f) => (
+            <FeatureTile key={f.label} feature={f} onClick={() => handleFeature(f)} />
           ))}
-        </Inline>
+        </motion.div>
       </Stack>
 
       {/* Recent sessions */}
-      {mergedHistory.length > 0 && (
-        <Stack gap="md">
-          <h2 className="dashboard-page__section-title">Недавние сессии</h2>
-          <div className="dashboard-page__sessions">
+      <Stack gap="sm">
+        <div className="dashboard-sessions-header">
+          <h2 className="dashboard-page__section-title">{t('dashboard.recentSessions')}</h2>
+          {mergedHistory.length > 3 && (
+            <div className="dashboard-search">
+              <Search size={12} className="dashboard-search__icon" />
+              <input
+                type="text"
+                className="dashboard-search__input"
+                placeholder={t('dashboard.search')}
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </div>
+          )}
+        </div>
+
+        {mergedHistory.length === 0 ? (
+          <motion.div
+            className="dashboard-empty"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4 }}
+          >
+            <FolderOpen size={30} strokeWidth={1.4} />
+            <span>{t('dashboard.noSessions')}</span>
+            <Button variant="secondary" leadingIcon={<Upload size={14} />} onClick={() => navigate('/upload')}>
+              {t('dashboard.uploadFirst')}
+            </Button>
+          </motion.div>
+        ) : (
+          <motion.div
+            className="dashboard-page__sessions"
+            variants={CONTAINER_VARIANTS}
+            initial="hidden"
+            animate="visible"
+          >
             <AnimatePresence>
-              {mergedHistory.map((entry) => (
-                <motion.div key={entry.id} exit={{ opacity: 0, x: 20 }} transition={{ duration: 0.2 }}>
+              {filteredHistory.map((entry) => (
+                <motion.div
+                  key={entry.id}
+                  exit={{ opacity: 0, x: 20, transition: { duration: 0.18 } }}
+                >
                   <SessionCard
                     entry={entry}
-                    onContinue={(e) => {
-                      if (onRestoreSession) onRestoreSession(e)
-                      else navigate('/workspace')
-                    }}
-                    onDelete={handleDeleteSession}
+                    t={t}
+                    onContinue={e => { if (onRestoreSession) onRestoreSession(e); else navigate('/workspace') }}
+                    onDelete={handleDelete}
                   />
                 </motion.div>
               ))}
             </AnimatePresence>
-          </div>
-        </Stack>
-      )}
+            {filteredHistory.length === 0 && search && (
+              <p className="dashboard-empty-search">{t('dashboard.noResults', { query: search })}</p>
+            )}
+          </motion.div>
+        )}
+      </Stack>
 
-      {/* Stats (admin only) */}
-      {isAdmin && stats && (
-        <Stack gap="md">
-          <h2 className="dashboard-page__section-title">Статистика системы</h2>
-          <div className="dashboard-page__stats">
-            <MetricCard
-              label="Users"
-              value={String(stats.total_users ?? '—')}
-              icon={<Users size={18} />}
-            />
-            <MetricCard
-              label="Sessions"
-              value={String(stats.total_sessions ?? '—')}
-              icon={<Activity size={18} />}
-            />
-            <MetricCard
-              label="Disk Used"
-              value={stats.disk_usage ?? '—'}
-              icon={<Database size={18} />}
-            />
-          </div>
-        </Stack>
-      )}
     </div>
   )
 }

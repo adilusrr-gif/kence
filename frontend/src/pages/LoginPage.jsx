@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { AlertCircle, Eye, EyeOff, Lock, User } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { apiLogin, saveAuth } from '../lib/api'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
@@ -29,6 +30,7 @@ function LoginField({ label, children }) {
 }
 
 export default function LoginPage({ onLogin }) {
+  const { t } = useTranslation()
   const navigate = useNavigate()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -38,7 +40,14 @@ export default function LoginPage({ onLogin }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!username.trim() || !password) return
+    if (username.trim().length < 3) {
+      setError(t('login.errorUsernameShort'))
+      return
+    }
+    if (password.length < 6) {
+      setError(t('login.errorPasswordShort'))
+      return
+    }
 
     setLoading(true)
     setError('')
@@ -73,37 +82,36 @@ export default function LoginPage({ onLogin }) {
         >
           <Stack gap="lg">
             <Inline gap="md" align="center" wrap>
-              <div className="login-logo__icon">
-                K
-              </div>
+              <div className="login-logo__icon">K</div>
               <Stack gap="xs" className="min-w-0">
                 <Inline gap="sm" align="center" wrap>
                   <h1 className="login-logo__name">KENCE.ai</h1>
                   <StatusPill status="active" label="Protected access" />
                 </Inline>
-                <p className="login-logo__sub">
-                  Государственная система анализа документов
-                </p>
+                <p className="login-logo__sub">{t('login.subtitle')}</p>
               </Stack>
             </Inline>
 
-            <form onSubmit={handleSubmit} className="login-form" noValidate>
+            <form onSubmit={handleSubmit} className="login-form">
               <Stack gap="lg">
-                <LoginField label="Логин">
+                <LoginField label={t('login.username')}>
                   <Input
                     size="lg"
                     leadingIcon={<User size={16} />}
                     type="text"
+                    name="username"
                     value={username}
-                    onChange={e => setUsername(e.target.value)}
-                    placeholder="имя пользователя"
+                    onChange={e => { setUsername(e.target.value); setError('') }}
+                    placeholder={t('login.usernamePlaceholder')}
                     autoComplete="username"
                     disabled={loading}
+                    required
+                    minLength={3}
                     autoFocus
                   />
                 </LoginField>
 
-                <LoginField label="Пароль">
+                <LoginField label={t('login.password')}>
                   <Input
                     size="lg"
                     leadingIcon={<Lock size={16} />}
@@ -112,7 +120,7 @@ export default function LoginPage({ onLogin }) {
                         type="button"
                         onClick={() => setShowPass(s => !s)}
                         tabIndex={-1}
-                        aria-label={showPass ? 'Скрыть пароль' : 'Показать пароль'}
+                        aria-label={showPass ? t('login.hidePassword') : t('login.showPassword')}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -124,9 +132,12 @@ export default function LoginPage({ onLogin }) {
                       </button>
                     }
                     type={showPass ? 'text' : 'password'}
+                    name="password"
                     value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    onChange={e => { setPassword(e.target.value); setError('') }}
+                    placeholder={t('login.passwordPlaceholder')}
+                    required
+                    minLength={6}
                     autoComplete="current-password"
                     disabled={loading}
                   />
@@ -144,19 +155,13 @@ export default function LoginPage({ onLogin }) {
                         tone="default"
                         style={{
                           padding: 'var(--space-3) var(--space-4)',
-                          backgroundColor: 'rgba(248, 113, 113, 0.1)',
-                          borderColor: 'rgba(248, 113, 113, 0.28)',
+                          backgroundColor: 'color-mix(in srgb, var(--status-danger) 10%, transparent)',
+                          borderColor: 'color-mix(in srgb, var(--status-danger) 28%, transparent)',
                         }}
                       >
                         <Inline gap="sm" align="center">
                           <AlertCircle size={16} style={{ color: 'var(--status-danger)' }} />
-                          <span
-                            style={{
-                              color: 'var(--status-danger)',
-                              fontSize: 'var(--text-sm)',
-                              lineHeight: 'var(--leading-normal)',
-                            }}
-                          >
+                          <span style={{ color: 'var(--status-danger)', fontSize: 'var(--text-sm)', lineHeight: 'var(--leading-normal)' }}>
                             {error}
                           </span>
                         </Inline>
@@ -171,14 +176,12 @@ export default function LoginPage({ onLogin }) {
                   block
                   disabled={loading || !username.trim() || !password}
                 >
-                  {loading ? <span className="login-spinner" /> : 'Войти в систему'}
+                  {loading ? <span className="login-spinner" /> : t('login.submit')}
                 </Button>
               </Stack>
             </form>
 
-            <p className="login-hint">
-              Для получения доступа обратитесь к администратору системы
-            </p>
+            <p className="login-hint">{t('login.hint')}</p>
           </Stack>
         </Card>
       </motion.div>

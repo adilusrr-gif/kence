@@ -1,6 +1,11 @@
 from docling.document_converter import DocumentConverter
 from docling.datamodel.base_models import InputFormat
 try:
+    from docling.datamodel.pipeline_options import PipelineOptions, PdfPipelineOptions
+    _HAS_PIPELINE_OPTIONS = True
+except ImportError:
+    _HAS_PIPELINE_OPTIONS = False
+try:
     from docling_core.types.doc import ImageRefMode
 except ImportError:
     ImageRefMode = None
@@ -35,9 +40,40 @@ _EXT_PROFILE = {
 }
 
 
+def _make_converter(do_ocr: bool = True) -> DocumentConverter:
+    """Create Docling converter, optionally with OCR disabled for environments
+    where OCR model downloads are blocked."""
+    if not do_ocr and _HAS_PIPELINE_OPTIONS:
+        try:
+            pipeline_options = PdfPipelineOptions(do_ocr=False, do_table_structure=True)
+            from docling.document_converter import PdfFormatOption
+            return DocumentConverter(
+                format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
+            )
+        except Exception:
+            pass
+    return DocumentConverter()
+
+
+def _pdf_text_fallback(file_path: str) -> str:
+    """Extract text from PDF using pure-Python fallback (no OCR needed)."""
+    try:
+        import pdfminer.high_level as pdfminer
+        return pdfminer.extract_text(file_path) or ""
+    except Exception:
+        pass
+    try:
+        import fitz  # PyMuPDF
+        doc = fitz.open(file_path)
+        return "\n".join(page.get_text() for page in doc)
+    except Exception:
+        pass
+    return ""
+
+
 class DocumentProcessor:
     def __init__(self):
-        self.converter = DocumentConverter()
+        self.converter = _make_converter(do_ocr=False)
         self.embeddings = embeddings_service.embeddings
 
     _PLAIN_EXTS = {".txt", ".md", ".csv", ".tex"}
@@ -77,12 +113,24 @@ class DocumentProcessor:
                         html_text = result.document.export_to_html()
                 except Exception:
                     html_text = ""
-            except Exception:
+            except Exception as docling_err:
                 if ext in self._IMAGE_EXTS:
                     from app.services.vision_service import vision_service
                     markdown_text = vision_service.describe_with_ocr_fallback(str(path))
                     doc_title = path.stem
                     pages = 1
+                elif ext == ".pdf":
+                    # Fallback: plain text extraction without OCR
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        "Docling failed for %s (%s), using text-only fallback", path.name, docling_err
+                    )
+                    markdown_text = _pdf_text_fallback(str(path))
+                    if not markdown_text.strip():
+                        markdown_text = f"[Документ: {path.stem}]\n\nТекст не удалось извлечь автоматически."
+                    doc_title = path.stem
+                    pages = 0
+                    html_text = ""
                 else:
                     raise
 

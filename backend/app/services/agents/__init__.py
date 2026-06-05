@@ -26,4 +26,9 @@ AGENT_TYPES = {
         "description": "Анализ нескольких документов из библиотеки организации",
         "input_schema": {"org_id": "integer", "question": "string"},
     },
+    "document_editor": {
+        "label": "Редактор документа",
+        "description": "Редактирует текст и таблицы, строит графики, экспортирует в DOCX",
+        "input_schema": {"session_id": "string", "instructions": "string"},
+    },
 }

@@ -7,7 +7,12 @@ wrapped in try/except inside _init_db, so it silently skips on SQLite.
 """
 import os
 import io
+import pathlib
 import pytest
+
+# ── Always start with a fresh DB so stale schemas don't break the suite ───────
+_TEST_DB = pathlib.Path(__file__).parent.parent / "test_docai.db"
+_TEST_DB.unlink(missing_ok=True)
 
 # ── SQLite override — must come before any app import ─────────────────────────
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_docai.db")
@@ -16,6 +21,7 @@ os.environ.setdefault("OLLAMA_BASE_URL", "http://localhost:11434")
 os.environ.setdefault("LLM_MODEL", "llama3.2")
 os.environ.setdefault("UPLOAD_DIR", "/tmp/docai_test_uploads")
 os.environ.setdefault("CHROMA_PATH", "/tmp/docai_test_chroma")
+os.environ.setdefault("ADMIN_INITIAL_PASSWORD", "kence2026!")
 
 from unittest.mock import MagicMock, patch, AsyncMock
 

@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState } from 'react'
 import {
   AlertCircle, CheckCircle, ChevronLeft, ChevronRight,
   Download, Loader2, Presentation, RefreshCw, Plus, Trash2, Check,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 import { apiPresentationPlan, apiUpdatePresentationPlan, apiBuildPresentation, apiDownloadPresentation } from '../lib/api'
 import { useToast } from '@/shared/ui/toast'
 import Skeleton from '@/shared/ui/skeleton/Skeleton'
@@ -12,6 +13,7 @@ import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { Inline } from '@/shared/ui/inline'
 import { Stack } from '@/shared/ui/stack'
+import { usePresentationBuild } from '../hooks/usePresentationBuild'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -21,19 +23,14 @@ const SLIDE_COLORS = [
   ['#1A5F7A', '#163050'], ['#0d3a4a', '#061a22'],
 ]
 
-const SLIDE_TYPES = {
-  title:   'Титульный',
-  content: 'Контент (список)',
-  chart:   'График / Диаграмма',
-  quote:   'Цитата',
-  summary: 'Выводы',
-}
-
 const THEMES = {
   corporate: { label: 'Corporate', bg: '#1A2744', accent: '#3B82F6', text: '#FFFFFF' },
   light:     { label: 'Light',     bg: '#FFFFFF', accent: '#2563EB', text: '#111827' },
   dark:      { label: 'Dark',      bg: '#0F172A', accent: '#60A5FA', text: '#F1F5F9' },
   green:     { label: 'Green',     bg: '#064E3B', accent: '#10B981', text: '#FFFFFF' },
+  minimal:   { label: 'Minimal',   bg: '#F8FAFC', accent: '#6366F1', text: '#0F172A' },
+  ocean:     { label: 'Ocean',     bg: '#0C2340', accent: '#38BDF8', text: '#E0F2FE' },
+  sunset:    { label: 'Sunset',    bg: '#1C0A00', accent: '#F97316', text: '#FFF7ED' },
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -61,6 +58,7 @@ function SlideThumb({ slide, index, active, onClick }) {
 }
 
 function SlideDetail({ slide, index, total, onPrev, onNext }) {
+  const { t } = useTranslation()
   const [bg1, bg2] = SLIDE_COLORS[index % SLIDE_COLORS.length]
   return (
     <motion.div
@@ -69,7 +67,7 @@ function SlideDetail({ slide, index, total, onPrev, onNext }) {
       exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.22 }}
     >
       <div className="slide-detail__card" style={{ background: `linear-gradient(145deg, ${bg1}, ${bg2})` }}>
-        <div className="slide-detail__num">Слайд {index + 1} / {total}</div>
+        <div className="slide-detail__num">{t('presentation.slideOf', { current: index + 1, total })}</div>
         <h3 className="slide-detail__title">{slide.title}</h3>
         <ul className="slide-detail__points">
           {(slide.points || []).map((point, i) => (
@@ -124,11 +122,10 @@ function ThemeCard({ id, theme, selected, onClick }) {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function PresentationPage({ sessionId }) {
+  const { t } = useTranslation()
   const [step,             setStep]             = useState(0)
   const [plan,             setPlan]             = useState(null)
   const [loading,          setLoading]          = useState(false)
-  const [building,         setBuilding]         = useState(false)
-  const [buildStatus,      setBuildStatus]      = useState('')
   const [error,            setError]            = useState('')
   const [theme,            setTheme]            = useState('corporate')
   const [selectedIds,      setSelectedIds]      = useState([])
@@ -138,10 +135,33 @@ export default function PresentationPage({ sessionId }) {
   const [numSlides,        setNumSlides]        = useState(6)
   const toast = useToast()
 
+  const { building, buildStatus, handleBuild } = usePresentationBuild({
+    sessionId,
+    theme,
+    selectedIds,
+    onSuccess: () => { setBuilt(true); setStep(3) },
+    onError: setError,
+  })
+
+  const SLIDE_TYPES = {
+    title:   t('presentation.slideTypes.title'),
+    content: t('presentation.slideTypes.content'),
+    chart:   t('presentation.slideTypes.chart'),
+    quote:   t('presentation.slideTypes.quote'),
+    summary: t('presentation.slideTypes.summary'),
+  }
+
+  const STEP_LABELS = [
+    t('presentation.steps.settings'),
+    t('presentation.steps.plan'),
+    t('presentation.steps.theme'),
+    t('presentation.steps.result'),
+  ]
+
   // ── Step 0 → Step 1: Generate plan ────────────────────────────────────────
 
   const handleGeneratePlan = async () => {
-    if (!sessionId) { setError('Нет активной сессии — загрузите документ'); return }
+    if (!sessionId) { setError(t('presentation.errors.noSession')); return }
     setLoading(true)
     setError('')
     try {
@@ -150,7 +170,7 @@ export default function PresentationPage({ sessionId }) {
       setSelectedIds((data.slides || []).map(s => s.id))
       setStep(1)
     } catch (err) {
-      const msg = err.message || 'Ошибка генерации плана'
+      const msg = err.message || t('presentation.errors.planFailed')
       setError(msg)
       toast.error(msg)
     } finally {
@@ -175,7 +195,7 @@ export default function PresentationPage({ sessionId }) {
     const id = crypto.randomUUID()
     setPlan(prev => ({
       ...prev,
-      slides: [...prev.slides, { id, type: 'content', title: 'Новый слайд', points: [] }],
+      slides: [...prev.slides, { id, type: 'content', title: t('presentation.step1.titlePlaceholder'), points: [] }],
     }))
     setSelectedIds(prev => [...prev, id])
   }
@@ -202,76 +222,6 @@ export default function PresentationPage({ sessionId }) {
     )
   }
 
-  const handleBuild = useCallback(async () => {
-    if (selectedIds.length === 0) { setError('Выберите хотя бы один слайд'); return }
-    setBuilding(true)
-    setError('')
-    setBuildStatus('Подготовка…')
-
-    const token = localStorage.getItem('kence_token')
-    const idsParam = selectedIds.join(',')
-    const url = `/api/presentations/build/stream?${new URLSearchParams({
-      session_id: sessionId,
-      theme,
-      slide_ids: idsParam,
-    })}`
-
-    let res
-    try {
-      res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
-    } catch (e) {
-      setBuilding(false); setBuildStatus('')
-      const msg = 'Ошибка соединения: ' + e.message
-      setError(msg); toast.error(msg)
-      return
-    }
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: res.statusText }))
-      setBuilding(false); setBuildStatus('')
-      const msg = err.detail || 'Ошибка генерации PPTX'
-      setError(msg); toast.error(msg)
-      return
-    }
-
-    const reader = res.body.getReader()
-    const decoder = new TextDecoder()
-    let buf = ''
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buf += decoder.decode(value, { stream: true })
-        const lines = buf.split('\n')
-        buf = lines.pop()
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue
-          const raw = line.slice(6).trim()
-          if (raw === '[DONE]') { setBuilding(false); setBuildStatus(''); return }
-          try {
-            const payload = JSON.parse(raw)
-            if (payload.error) {
-              throw new Error(payload.error)
-            } else if (payload.done) {
-              setBuilt(true); setStep(3); setBuilding(false); setBuildStatus('')
-              return
-            } else if (payload.status) {
-              setBuildStatus(payload.status)
-            }
-          } catch (parseErr) {
-            if (parseErr.message !== 'Unexpected end') throw parseErr
-          }
-        }
-      }
-    } catch (e) {
-      const msg = e.message || 'Ошибка генерации PPTX'
-      setError(msg); toast.error(msg)
-    } finally {
-      setBuilding(false); setBuildStatus('')
-    }
-  }, [selectedIds, sessionId, theme, toast])
-
   // ── Step 3: Download ───────────────────────────────────────────────────────
 
   const handleDownload = async () => {
@@ -282,7 +232,7 @@ export default function PresentationPage({ sessionId }) {
       document.body.appendChild(a); a.click(); a.remove()
       window.URL.revokeObjectURL(url)
     } catch (err) {
-      setError(err.message || 'Ошибка скачивания')
+      setError(err.message || t('presentation.errors.downloadFailed'))
     }
   }
 
@@ -316,7 +266,7 @@ export default function PresentationPage({ sessionId }) {
               fontSize: 13, fontWeight: step === s ? 700 : 400,
               color: step >= s ? 'var(--text-primary)' : 'var(--text-muted)',
             }}>
-              {s === 0 ? 'Настройки' : s === 1 ? 'План' : s === 2 ? 'Тема' : 'Результат'}
+              {STEP_LABELS[s]}
             </span>
             {s < 3 && <div style={{ width: 32, height: 1, background: 'var(--border-subtle)' }} />}
           </Inline>
@@ -339,19 +289,19 @@ export default function PresentationPage({ sessionId }) {
           <motion.div key="step0" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <Stack gap="lg">
               <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                Шаг 1 — Параметры презентации
+                {t('presentation.step0.heading')}
               </span>
 
               <Card style={{ padding: 'var(--space-5)' }}>
                 <Stack gap="md">
                   <Stack gap="xs">
                     <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                      Пожелания (необязательно)
+                      {t('presentation.step0.instructionsLabel')}
                     </label>
                     <textarea
                       value={userInstructions}
                       onChange={e => setUserInstructions(e.target.value)}
-                      placeholder="Например: сделай акцент на финансовых показателях, аудитория — инвесторы, добавь слайд с рисками…"
+                      placeholder={t('presentation.step0.instructionsPlaceholder')}
                       rows={4}
                       style={{
                         width: '100%',
@@ -371,7 +321,7 @@ export default function PresentationPage({ sessionId }) {
 
                   <Stack gap="xs">
                     <label style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                      Количество слайдов (без титульного и выводов): <strong style={{ color: 'var(--accent-primary)' }}>{numSlides}</strong>
+                      {t('presentation.step0.slidesLabel', { count: numSlides })}
                     </label>
                     <input
                       type="range"
@@ -382,9 +332,9 @@ export default function PresentationPage({ sessionId }) {
                       style={{ width: '100%', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
                     />
                     <Inline justify="space-between">
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>2 (минимум)</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Итого слайдов: {numSlides + 2}</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>12 (максимум)</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('presentation.step0.slidesMin')}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('presentation.step0.slidesTotal', { count: numSlides + 2 })}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('presentation.step0.slidesMax')}</span>
                     </Inline>
                   </Stack>
                 </Stack>
@@ -398,12 +348,12 @@ export default function PresentationPage({ sessionId }) {
                 leadingIcon={<Presentation size={14} />}
                 style={{ alignSelf: 'flex-end' }}
               >
-                {loading ? 'Генерирую план…' : 'Сгенерировать план →'}
+                {loading ? t('presentation.step0.generatingBtn') : t('presentation.step0.generateBtn')}
               </Button>
 
               {!sessionId && (
                 <p style={{ fontSize: 12, color: 'var(--status-danger)', textAlign: 'center' }}>
-                  Сначала загрузите документ
+                  {t('presentation.step0.noSession')}
                 </p>
               )}
             </Stack>
@@ -416,18 +366,18 @@ export default function PresentationPage({ sessionId }) {
             <Stack gap="md">
               <Inline justify="space-between" align="center" wrap>
                 <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Шаг 2 — Редактор плана
+                  {t('presentation.step1.heading')}
                 </span>
                 <Inline gap="sm" wrap>
                   <Button variant="secondary" size="sm" onClick={() => setStep(0)}
-                    leadingIcon={<ChevronLeft size={13} />}>Назад</Button>
+                    leadingIcon={<ChevronLeft size={13} />}>{t('presentation.step1.back')}</Button>
                   <Button variant="secondary" size="sm" onClick={handleGeneratePlan} disabled={loading}
                     leadingIcon={<RefreshCw size={13} className={loading ? 'animate-spin' : ''} />}>
-                    Перегенерировать
+                    {t('presentation.step1.regenerate')}
                   </Button>
                   <Button size="sm" onClick={handleNextFromPlan} disabled={loading || !plan}
                     leadingIcon={<ChevronRight size={13} />}>
-                    Далее →
+                    {t('presentation.step1.next')}
                   </Button>
                 </Inline>
               </Inline>
@@ -452,7 +402,7 @@ export default function PresentationPage({ sessionId }) {
                             ))}
                           </select>
                           <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
-                            Слайд {idx + 1}
+                            {t('presentation.step1.slideNum', { n: idx + 1 })}
                           </span>
                           <button
                             onClick={() => removeSlide(idx)}
@@ -465,7 +415,7 @@ export default function PresentationPage({ sessionId }) {
                         <input
                           value={slide.title}
                           onChange={e => updateSlide(idx, 'title', e.target.value)}
-                          placeholder="Заголовок слайда"
+                          placeholder={t('presentation.step1.titlePlaceholder')}
                           style={{
                             background: 'var(--bg-surface-2)', color: 'var(--text-primary)',
                             border: '1px solid var(--border-subtle)', borderRadius: 8,
@@ -477,7 +427,7 @@ export default function PresentationPage({ sessionId }) {
                           <textarea
                             value={(slide.points || []).join('\n')}
                             onChange={e => updatePoints(idx, e.target.value)}
-                            placeholder="Пункты (каждый с новой строки)"
+                            placeholder={t('presentation.step1.pointsPlaceholder')}
                             rows={3}
                             style={{
                               background: 'var(--bg-surface-2)', color: 'var(--text-primary)',
@@ -492,7 +442,7 @@ export default function PresentationPage({ sessionId }) {
                           <input
                             value={slide.data_hint || ''}
                             onChange={e => updateSlide(idx, 'data_hint', e.target.value)}
-                            placeholder="Подсказка для данных графика (необязательно)"
+                            placeholder={t('presentation.step1.dataHintPlaceholder')}
                             style={{
                               background: 'var(--bg-surface-2)', color: 'var(--text-muted)',
                               border: '1px solid var(--border-subtle)', borderRadius: 8,
@@ -506,7 +456,7 @@ export default function PresentationPage({ sessionId }) {
 
                   <Button variant="secondary" size="sm" onClick={addSlide}
                     leadingIcon={<Plus size={13} />} style={{ alignSelf: 'flex-start' }}>
-                    Добавить слайд
+                    {t('presentation.step1.addSlide')}
                   </Button>
                 </Stack>
               )}
@@ -520,21 +470,21 @@ export default function PresentationPage({ sessionId }) {
             <Stack gap="lg">
               <Inline justify="space-between" align="center" wrap>
                 <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Шаг 3 — Тема и слайды
+                  {t('presentation.step2.heading')}
                 </span>
                 <Inline gap="sm" wrap>
                   <Button variant="secondary" size="sm" onClick={() => setStep(1)}
-                    leadingIcon={<ChevronLeft size={13} />}>Назад</Button>
+                    leadingIcon={<ChevronLeft size={13} />}>{t('presentation.step2.back')}</Button>
                   <Button size="sm" onClick={handleBuild} loading={building} disabled={building || selectedIds.length === 0}
-                    leadingIcon={<Presentation size={13} />}>Собрать PPTX →</Button>
+                    leadingIcon={<Presentation size={13} />}>{t('presentation.step2.buildBtn')}</Button>
                 </Inline>
               </Inline>
 
               <Stack gap="sm">
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>Тема</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>{t('presentation.step2.themeLabel')}</span>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
-                  {Object.entries(THEMES).map(([id, t]) => (
-                    <ThemeCard key={id} id={id} theme={t} selected={theme === id} onClick={() => setTheme(id)} />
+                  {Object.entries(THEMES).map(([id, th]) => (
+                    <ThemeCard key={id} id={id} theme={th} selected={theme === id} onClick={() => setTheme(id)} />
                   ))}
                 </div>
               </Stack>
@@ -542,16 +492,16 @@ export default function PresentationPage({ sessionId }) {
               <Stack gap="sm">
                 <Inline justify="space-between" align="center">
                   <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                    Выберите слайды ({selectedIds.length} / {plan?.slides.length || 0})
+                    {t('presentation.step2.slidesLabel', { selected: selectedIds.length, total: plan?.slides.length || 0 })}
                   </span>
                   <Inline gap="sm">
                     <button onClick={() => setSelectedIds((plan?.slides || []).map(s => s.id))}
                       style={{ fontSize: 11, color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                      Все
+                      {t('presentation.step2.selectAll')}
                     </button>
                     <button onClick={() => setSelectedIds([])}
                       style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                      Сбросить
+                      {t('presentation.step2.deselectAll')}
                     </button>
                   </Inline>
                 </Inline>
@@ -587,7 +537,7 @@ export default function PresentationPage({ sessionId }) {
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                     <Loader2 size={15} style={{ animation: 'spin 1s linear infinite', color: 'var(--accent-primary)', flexShrink: 0 }} />
                     <span style={{ fontSize: '0.83rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                      {buildStatus || 'Собираю PPTX…'}
+                      {buildStatus || t('presentation.step2.buildingBtn')}
                     </span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -609,20 +559,20 @@ export default function PresentationPage({ sessionId }) {
                 <Inline gap="sm" align="center">
                   <CheckCircle size={16} style={{ color: 'var(--status-success)' }} />
                   <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    Презентация готова — {builtSlides.length} слайдов
+                    {t('presentation.step3.heading', { count: builtSlides.length })}
                   </span>
                 </Inline>
                 <Inline gap="sm" wrap>
                   <Button variant="secondary" size="sm" onClick={resetWizard}
-                    leadingIcon={<RefreshCw size={13} />}>Пересоздать</Button>
+                    leadingIcon={<RefreshCw size={13} />}>{t('presentation.step3.recreate')}</Button>
                   <Button size="sm" onClick={handleDownload}
-                    leadingIcon={<Download size={14} />}>Скачать PPTX</Button>
+                    leadingIcon={<Download size={14} />}>{t('presentation.step3.download')}</Button>
                 </Inline>
               </Inline>
 
               <div className="pres-workspace">
                 <div className="pres-thumbs">
-                  <p className="pres-thumbs__header">Слайды</p>
+                  <p className="pres-thumbs__header">{t('presentation.step3.slidesHeader')}</p>
                   {builtSlides.map((slide, index) => (
                     <SlideThumb key={slide.id} slide={slide} index={index}
                       active={index === activeIdx} onClick={() => setActiveIdx(index)} />

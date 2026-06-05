@@ -4,23 +4,36 @@ export default defineConfig({
   testDir: './e2e',
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  retries: 0,
   workers: 1,
   timeout: 60_000,
-  reporter: 'html',
+  reporter: 'line',
   use: {
     baseURL: 'http://localhost:5173',
-    trace: 'on-first-retry',
+    trace: 'off',
     screenshot: 'only-on-failure',
+    launchOptions: {
+      executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+      headless: true,
+    },
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+          headless: true,
+        },
+      },
+    },
   ],
   webServer: {
     command: 'npm run dev',
     url: 'http://localhost:5173',
     cwd: './frontend',
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
+    reuseExistingServer: true,
+    timeout: 30_000,
   },
 })

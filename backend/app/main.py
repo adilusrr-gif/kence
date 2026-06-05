@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+from fastapi import HTTPException as FastAPIHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -7,7 +8,12 @@ from slowapi.errors import RateLimitExceeded
 from contextlib import asynccontextmanager
 import asyncio
 import json
+import logging
+import secrets
+import string
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 try:
     from pillow_heif import register_heif_opener
@@ -82,9 +88,22 @@ def _migrate_users_from_json():
 
 
 def _ensure_default_admin():
-    if not get_user("admin"):
-        create_user("admin", "kence2026!", role="admin")
-        print("[OK] Default admin created: admin / kence2026!")
+    if get_user("admin"):
+        return
+    password = settings.ADMIN_INITIAL_PASSWORD
+    if not password:
+        alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+        password = "".join(secrets.choice(alphabet) for _ in range(20))
+        print("=" * 60)
+        print("[SECURITY] Default admin created with generated password:")
+        print(f"           username: admin")
+        print(f"           password: {password}")
+        print("  >>> Save this password now — it will NOT be shown again <<<")
+        print("  Set ADMIN_INITIAL_PASSWORD in .env to control this value.")
+        print("=" * 60)
+    else:
+        print("[OK] Default admin created from ADMIN_INITIAL_PASSWORD")
+    create_user("admin", password, role="admin")
 
 
 @asynccontextmanager
@@ -96,7 +115,9 @@ async def lifespan(app: FastAPI):
     print(f"[AUTH] JWT / {settings.JWT_ALGORITHM} / {settings.ACCESS_TOKEN_EXPIRE_MINUTES}min")
     print(f"[DB] {settings.DATABASE_URL.split('@')[-1]}")
     if "change-in-production" in settings.JWT_SECRET_KEY or "dev-only" in settings.JWT_SECRET_KEY:
-        print("[SECURITY WARNING] JWT_SECRET_KEY is using the default value — set a strong secret in .env!")
+        print("[SECURITY WARNING] JWT_SECRET_KEY is the default dev value — set a strong secret in .env!")
+    if not settings.NEO4J_PASSWORD:
+        print("[SECURITY WARNING] NEO4J_PASSWORD is empty — set it in .env for production")
 
     # Initialize Neo4j constraints (best-effort — app starts even if Neo4j is down)
     try:
@@ -137,8 +158,8 @@ app.add_middleware(
         "http://localhost:5177", "http://127.0.0.1:5177",
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-API-Key"],
 )
 
 app.include_router(auth_router,         prefix="/api")
@@ -155,6 +176,34 @@ app.include_router(branding_router,     prefix="/api")
 app.include_router(executive_router,    prefix="/api")
 app.include_router(graph_router,        prefix="/api")
 app.include_router(agent_router,        prefix="/api")
+
+@app.exception_handler(FastAPIHTTPException)
+async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
+    """Strip internal details from 5xx responses; pass 4xx through as-is."""
+    if exc.status_code >= 500:
+        logger.error(
+            "HTTP %d for %s %s: %s",
+            exc.status_code, request.method, request.url.path, exc.detail,
+        )
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": "Internal server error"},
+        )
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+        headers=getattr(exc, "headers", None) or {},
+    )
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.error(
+        "Unhandled exception for %s %s",
+        request.method, request.url.path, exc_info=exc,
+    )
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
 
 @app.get("/")
 async def root():

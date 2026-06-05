@@ -6,8 +6,11 @@ export const API_URL  = 'http://localhost:8000'
 /** Log in via the UI and return the JWT token. */
 export async function login(page: Page, username = 'admin', password = 'kence2026!') {
   await page.goto('/login')
-  await page.getByPlaceholder(/логин|username/i).fill(username)
-  await page.getByPlaceholder(/пароль|password/i).fill(password)
+  // Use name/type selectors — more reliable than placeholder text
+  const usernameInput = page.locator('input[name="username"], input[autocomplete="username"], input[type="text"]').first()
+  const passwordInput = page.locator('input[type="password"]').first()
+  await usernameInput.fill(username)
+  await passwordInput.fill(password)
   await page.getByRole('button', { name: /войти|login|вход/i }).click()
   await page.waitForURL(/^\/((?!login).)*$/, { timeout: 15_000 })
 }

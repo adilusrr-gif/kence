@@ -1,7 +1,11 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Upload, FileText, Loader2, CheckCircle, FileSpreadsheet, FileImage, FileCode } from 'lucide-react'
+import {
+  Upload, FileText, Loader2, CheckCircle, FileSpreadsheet, FileImage, FileCode,
+  Cog, Search, Sparkles, MessageSquare, BarChart2,
+} from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
@@ -27,14 +31,8 @@ const ALLOWED = [
   '.txt', '.md', '.csv', '.tex',
 ]
 
-const STAGES = [
-  { label: 'Загрузка', icon: '⬆' },
-  { label: 'Парсинг', icon: '⚙' },
-  { label: 'Извлечение', icon: '🔍' },
-  { label: 'Векторизация', icon: '✦' },
-]
-
 export default function UploadPage({ sessionId, setSessionId, setDocumentName }) {
+  const { t } = useTranslation()
   const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [uploaded, setUploaded] = useState(false)
@@ -43,15 +41,26 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
   const [stageIdx, setStageIdx] = useState(-1)
   const [preview, setPreview] = useState(null)
   const [charCount, setCharCount] = useState(0)
-  const fileInputRef = useRef(null)
+  const fileInputRef  = useRef(null)
+  const navTimerRef   = useRef(null)
   const navigate = useNavigate()
   const toast = useToast()
+
+  // Cleanup navigation timer on unmount to prevent state update on unmounted component
+  useEffect(() => () => { if (navTimerRef.current) clearTimeout(navTimerRef.current) }, [])
   const ingestEvent = useEventStore((s) => s.ingestEvent)
+
+  const STAGES = [
+    { label: t('upload.stages.upload'),    Icon: Upload   },
+    { label: t('upload.stages.parse'),     Icon: Cog      },
+    { label: t('upload.stages.extract'),   Icon: Search   },
+    { label: t('upload.stages.vectorize'), Icon: Sparkles },
+  ]
 
   const validate = f => {
     const ext = `.${f.name.split('.').pop().toLowerCase()}`
     if (!ALLOWED.includes(ext)) {
-      setError('Формат не поддерживается')
+      setError(t('upload.unsupportedFormat'))
       return false
     }
     return true
@@ -93,10 +102,10 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
       setCharCount(data.char_count || 0)
       setUploaded(true)
       ingestEvent({ type: 'DOCUMENT_READY', message: `Document ready: ${file.name}` })
-      toast.success(`Документ загружен: ${file.name}`)
-      setTimeout(() => navigate('/workspace'), 1500)
+      toast.success(t('upload.success', { name: file.name }))
+      navTimerRef.current = setTimeout(() => navigate('/workspace'), 1500)
     } catch (err) {
-      const msg = err.message || 'Ошибка загрузки'
+      const msg = err.message || t('upload.error')
       setError(msg)
       toast.error(msg)
       ingestEvent({ type: 'DOCUMENT_ERROR', message: msg })
@@ -121,16 +130,13 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
         >
           <Badge variant="accent" size="md" className="us-badge" style={{ alignSelf: 'flex-start' }}>
             <span className="us-badge__dot" />
-            AI · Document Assistant
+            {t('upload.badge')}
           </Badge>
 
           <motion.div
             className={`us-drop ${dragging ? 'us-drop--drag' : ''} ${file ? 'us-drop--has' : ''}`}
             onClick={() => !uploading && !uploaded && fileInputRef.current?.click()}
-            onDragOver={e => {
-              e.preventDefault()
-              setDragging(true)
-            }}
+            onDragOver={e => { e.preventDefault(); setDragging(true) }}
             onDragLeave={() => setDragging(false)}
             onDrop={handleDrop}
             animate={{ scale: dragging ? 1.02 : 1 }}
@@ -171,8 +177,8 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                   >
                     <Upload className="us-drop__icon" />
                   </motion.div>
-                  <p className="us-drop__hint">Нажмите или перетащите файл</p>
-                  <p className="us-drop__sub">PDF · DOCX · XLSX · PNG · TXT и другие</p>
+                  <p className="us-drop__hint">{t('upload.dropHint')}</p>
+                  <p className="us-drop__sub">{t('upload.formats')}</p>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -217,7 +223,9 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                       label={s.label}
                       icon={
                         <span className="us-stage__icon">
-                          {i < stageIdx ? '✓' : i === stageIdx ? <Loader2 size={11} className="animate-spin" /> : s.icon}
+                          {i < stageIdx ? '✓' : i === stageIdx
+                            ? <Loader2 size={11} className="animate-spin" />
+                            : <s.Icon size={11} />}
                         </span>
                       }
                     />
@@ -238,16 +246,9 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
               block
               className="us-btn"
               leadingIcon={!uploading && uploaded ? <CheckCircle className="w-4 h-4" /> : null}
-              style={{
-                minHeight: '3.25rem',
-                borderRadius: '1rem',
-              }}
+              style={{ minHeight: '3.25rem', borderRadius: '1rem' }}
             >
-              {uploading
-                ? 'Обработка…'
-                : uploaded
-                  ? 'Готово'
-                  : 'Загрузить и обработать'}
+              {uploading ? t('upload.processing') : uploaded ? t('upload.done') : t('upload.uploadBtn')}
             </Button>
           </motion.div>
 
@@ -266,22 +267,13 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                   >
                     <Card tone="accent" style={{ padding: 'var(--space-3)' }}>
                       <Inline justify="space-between" wrap gap="sm" style={{ marginBottom: 6, fontSize: 11, opacity: 0.7 }}>
-                        <span>📄 Предпросмотр извлечённого текста</span>
-                        <span>{charCount.toLocaleString()} символов</span>
+                        <Inline gap="xs" align="center">
+                          <FileText size={12} />
+                          <span>{t('upload.previewTitle')}</span>
+                        </Inline>
+                        <span>{charCount.toLocaleString()} {t('upload.chars')}</span>
                       </Inline>
-                      <pre
-                        style={{
-                          fontFamily: 'monospace',
-                          fontSize: 11,
-                          lineHeight: 1.5,
-                          whiteSpace: 'pre-wrap',
-                          wordBreak: 'break-word',
-                          maxHeight: 120,
-                          overflowY: 'auto',
-                          margin: 0,
-                          opacity: 0.85,
-                        }}
-                      >
+                      <pre style={{ fontFamily: 'monospace', fontSize: 11, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 120, overflowY: 'auto', margin: 0, opacity: 0.85 }}>
                         {preview}
                       </pre>
                     </Card>
@@ -292,12 +284,13 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                   <Inline gap="sm" wrap>
                     <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} style={{ flex: 1 }}>
                       <Button
-                        onClick={() => navigate('/chat')}
+                        onClick={() => navigate('/workspace')}
                         variant="secondary"
                         block
                         className="us-action us-action--sec"
+                        leadingIcon={<MessageSquare size={14} />}
                       >
-                        💬 Чат
+                        {t('upload.goToChat')}
                       </Button>
                     </motion.div>
                     <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} style={{ flex: 1 }}>
@@ -305,8 +298,9 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                         onClick={() => navigate('/presentation')}
                         block
                         className="us-action us-action--pri"
+                        leadingIcon={<BarChart2 size={14} />}
                       >
-                        📊 Презентация
+                        {t('upload.goToPresentation')}
                       </Button>
                     </motion.div>
                   </Inline>

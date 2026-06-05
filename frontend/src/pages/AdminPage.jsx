@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useTranslation } from 'react-i18next'
 import {
   Users, UserPlus, Shield, Activity, Server, Trash2, Edit2,
   Check, X, RefreshCw, ChevronDown, Search, AlertTriangle,
@@ -12,12 +13,12 @@ import {
   apiAdminDeleteUser, apiAdminChangeRole, apiAdminStats,
 } from '../lib/api'
 
-const ROLE_LABELS = { admin: 'Администратор', manager: 'Менеджер', user: 'Пользователь' }
-const ROLE_COLORS = { admin: '#ef4444', manager: '#f59e0b', user: '#3b82f6' }
-const TABS = [
-  { key: 'users',  label: 'Пользователи', Icon: Users },
-  { key: 'stats',  label: 'Система',       Icon: Activity },
-]
+const ROLE_COLORS = { admin: 'var(--color-red-500)', manager: 'var(--color-amber-500)', user: 'var(--color-blue-500)' }
+const ROLE_BG = {
+  admin: 'color-mix(in srgb, var(--color-red-500) 15%, transparent)',
+  manager: 'color-mix(in srgb, var(--color-amber-500) 15%, transparent)',
+  user: 'color-mix(in srgb, var(--color-blue-500) 15%, transparent)',
+}
 
 function Toast({ toast }) {
   return (
@@ -30,8 +31,10 @@ function Toast({ toast }) {
           style={{
             position: 'fixed', top: 20, right: 24, zIndex: 9999,
             padding: '0.7rem 1.25rem', borderRadius: 10, fontSize: 13, fontWeight: 600,
-            background: toast.ok ? '#d1fae5' : '#fee2e2',
-            color: toast.ok ? '#065f46' : '#991b1b',
+            background: toast.ok
+              ? 'color-mix(in srgb, var(--status-success) 20%, var(--bg-surface))'
+              : 'color-mix(in srgb, var(--status-danger) 20%, var(--bg-surface))',
+            color: toast.ok ? 'var(--status-success)' : 'var(--status-danger)',
             boxShadow: '0 4px 20px rgba(0,0,0,0.14)',
             display: 'flex', alignItems: 'center', gap: 8,
           }}
@@ -62,12 +65,19 @@ function StatCard({ icon: Icon, label, value, color = 'var(--accent-primary)', s
 }
 
 function UsersTab({ currentUser, showToast }) {
+  const { t } = useTranslation()
+  const ROLE_LABELS = {
+    admin: t('admin.roles.admin'),
+    manager: t('admin.roles.manager'),
+    user: t('admin.roles.user'),
+  }
+
   const [users, setUsers]           = useState([])
   const [loading, setLoading]       = useState(true)
   const [actionId, setActionId]     = useState(null)
   const [search, setSearch]         = useState('')
   const [deleteConfirm, setDeleteConfirm] = useState(null)
-  const [editRole, setEditRole]     = useState(null) // { username, role }
+  const [editRole, setEditRole]     = useState(null)
   const [form, setForm]             = useState({ username: '', password: '', role: 'user' })
   const [formLoading, setFormLoading] = useState(false)
   const [formError, setFormError]   = useState('')
@@ -87,7 +97,10 @@ function UsersTab({ currentUser, showToast }) {
     try {
       if (user.is_active) await apiAdminDeactivateUser(user.username)
       else await apiAdminActivateUser(user.username)
-      showToast(user.is_active ? `${user.username} заблокирован` : `${user.username} активирован`)
+      showToast(user.is_active
+        ? t('admin.users.toastBlocked', { name: user.username })
+        : t('admin.users.toastActivated', { name: user.username })
+      )
       await load()
     } catch (e) { showToast(e.message, false) }
     finally { setActionId(null) }
@@ -97,7 +110,7 @@ function UsersTab({ currentUser, showToast }) {
     setActionId(username)
     try {
       await apiAdminDeleteUser(username)
-      showToast(`Пользователь ${username} удалён`)
+      showToast(t('admin.users.toastDeleted', { name: username }))
       setDeleteConfirm(null)
       await load()
     } catch (e) { showToast(e.message, false) }
@@ -109,7 +122,10 @@ function UsersTab({ currentUser, showToast }) {
     setActionId(editRole.username)
     try {
       await apiAdminChangeRole(editRole.username, editRole.role)
-      showToast(`Роль ${editRole.username} изменена на ${ROLE_LABELS[editRole.role] || editRole.role}`)
+      showToast(t('admin.users.toastRoleChanged', {
+        name: editRole.username,
+        role: ROLE_LABELS[editRole.role] || editRole.role,
+      }))
       setEditRole(null)
       await load()
     } catch (e) { showToast(e.message, false) }
@@ -119,13 +135,13 @@ function UsersTab({ currentUser, showToast }) {
   const handleAdd = async (e) => {
     e.preventDefault()
     setFormError('')
-    if (!form.username.trim()) { setFormError('Введите логин'); return }
-    if (form.password.length < 6) { setFormError('Пароль: мин. 6 символов'); return }
-    if (!/^[a-zA-Z0-9_.-]+$/.test(form.username)) { setFormError('Логин: только буквы, цифры, _, ., -'); return }
+    if (!form.username.trim()) { setFormError(t('admin.users.errNoLogin')); return }
+    if (form.password.length < 6) { setFormError(t('admin.users.errShortPassword')); return }
+    if (!/^[a-zA-Z0-9_.-]+$/.test(form.username)) { setFormError(t('admin.users.errInvalidLogin')); return }
     setFormLoading(true)
     try {
       await apiAdminCreateUser(form.username.trim(), form.password, form.role)
-      showToast(`Пользователь «${form.username}» создан`)
+      showToast(t('admin.users.toastCreated', { name: form.username }))
       setForm({ username: '', password: '', role: 'user' })
       setShowForm(false)
       await load()
@@ -142,9 +158,9 @@ function UsersTab({ currentUser, showToast }) {
 
       {/* Stats bar */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
-        <StatCard icon={Users} label="Всего" value={users.length} color="#6366f1" />
-        <StatCard icon={Check} label="Активных" value={users.filter(u => u.is_active).length} color="#059669" />
-        <StatCard icon={X}     label="Заблокировано" value={users.filter(u => !u.is_active).length} color="#dc2626" />
+        <StatCard icon={Users} label={t('admin.users.total')}   value={users.length}                            color="var(--accent-secondary)" />
+        <StatCard icon={Check} label={t('admin.users.active')}  value={users.filter(u => u.is_active).length}  color="var(--status-success)" />
+        <StatCard icon={X}     label={t('admin.users.blocked')} value={users.filter(u => !u.is_active).length} color="var(--status-danger)" />
       </div>
 
       {/* Toolbar */}
@@ -153,15 +169,15 @@ function UsersTab({ currentUser, showToast }) {
           <Search size={13} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Поиск по логину…"
+            placeholder={t('admin.users.searchPlaceholder')}
             style={{ ...inp, paddingLeft: 30, width: '100%', boxSizing: 'border-box' }}
           />
         </div>
         <button onClick={() => load()} style={{ ...btn('ghost'), gap: 6 }}>
-          <RefreshCw size={13} /> Обновить
+          <RefreshCw size={13} /> {t('admin.users.refresh')}
         </button>
         <button onClick={() => setShowForm(v => !v)} style={{ ...btn('primary'), gap: 6 }}>
-          <UserPlus size={13} /> Добавить
+          <UserPlus size={13} /> {t('admin.users.add')}
         </button>
       </div>
 
@@ -177,29 +193,29 @@ function UsersTab({ currentUser, showToast }) {
               borderRadius: 14, padding: '1.25rem 1.5rem', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end',
             }}>
               <div style={{ flex: '1 1 150px' }}>
-                <label style={lbl}>Логин</label>
+                <label style={lbl}>{t('admin.users.loginLabel')}</label>
                 <input name="username" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
                   placeholder="username" style={inp} />
               </div>
               <div style={{ flex: '1 1 150px' }}>
-                <label style={lbl}>Пароль</label>
+                <label style={lbl}>{t('admin.users.passwordLabel')}</label>
                 <input type="password" name="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  placeholder="мин. 6 символов" style={inp} />
+                  placeholder={t('admin.users.passwordPlaceholder')} style={inp} />
               </div>
               <div style={{ flex: '1 1 130px' }}>
-                <label style={lbl}>Роль</label>
+                <label style={lbl}>{t('admin.users.roleLabel')}</label>
                 <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
                   style={{ ...inp, cursor: 'pointer' }}>
-                  <option value="user">Пользователь</option>
-                  <option value="manager">Менеджер</option>
-                  <option value="admin">Администратор</option>
+                  <option value="user">{t('admin.roles.user')}</option>
+                  <option value="manager">{t('admin.roles.manager')}</option>
+                  <option value="admin">{t('admin.roles.admin')}</option>
                 </select>
               </div>
               <button type="submit" disabled={formLoading} style={btn('primary')}>
-                {formLoading ? '…' : 'Создать'}
+                {formLoading ? '…' : t('admin.users.createBtn')}
               </button>
-              <button type="button" onClick={() => setShowForm(false)} style={btn('ghost')}>Отмена</button>
-              {formError && <div style={{ width: '100%', fontSize: 12, color: '#dc2626' }}>{formError}</div>}
+              <button type="button" onClick={() => setShowForm(false)} style={btn('ghost')}>{t('admin.users.cancelBtn')}</button>
+              {formError && <div style={{ width: '100%', fontSize: 12, color: 'var(--status-danger)' }}>{formError}</div>}
             </form>
           </motion.div>
         )}
@@ -208,14 +224,19 @@ function UsersTab({ currentUser, showToast }) {
       {/* Users table */}
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, overflow: 'hidden' }}>
         {loading ? (
-          <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>Загрузка…</div>
+          <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.5 }}>{t('admin.users.loading')}</div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.4 }}>Пользователи не найдены</div>
+          <div style={{ padding: '2rem', textAlign: 'center', opacity: 0.4 }}>{t('admin.users.notFound')}</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg-raised)' }}>
-                {['Пользователь', 'Роль', 'Статус', 'Действия'].map(h => (
+                {[
+                  t('admin.users.colUser'),
+                  t('admin.users.colRole'),
+                  t('admin.users.colStatus'),
+                  t('admin.users.colActions'),
+                ].map(h => (
                   <th key={h} style={{ padding: '0.65rem 1rem', textAlign: 'left', fontWeight: 600, opacity: 0.7, fontSize: 12 }}>{h}</th>
                 ))}
               </tr>
@@ -226,7 +247,7 @@ function UsersTab({ currentUser, showToast }) {
                   <td style={{ padding: '0.7rem 1rem', fontWeight: 600 }}>
                     {user.username}
                     {user.username === currentUser?.username && (
-                      <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.45, fontWeight: 400 }}>(вы)</span>
+                      <span style={{ marginLeft: 6, fontSize: 10, opacity: 0.45, fontWeight: 400 }}>{t('admin.users.youBadge')}</span>
                     )}
                   </td>
 
@@ -239,16 +260,16 @@ function UsersTab({ currentUser, showToast }) {
                           onChange={e => setEditRole(r => ({ ...r, role: e.target.value }))}
                           style={{ ...inp, padding: '2px 6px', fontSize: 12, width: 'auto' }}
                         >
-                          <option value="user">Пользователь</option>
-                          <option value="manager">Менеджер</option>
-                          <option value="admin">Администратор</option>
+                          <option value="user">{t('admin.roles.user')}</option>
+                          <option value="manager">{t('admin.roles.manager')}</option>
+                          <option value="admin">{t('admin.roles.admin')}</option>
                         </select>
                         <button onClick={handleRoleChange} disabled={actionId === user.username}
-                          style={{ padding: '2px 8px', borderRadius: 6, border: 'none', background: '#d1fae5', color: '#065f46', cursor: 'pointer', fontSize: 12 }}>
+                          style={{ padding: '2px 8px', borderRadius: 6, border: 'none', background: 'color-mix(in srgb, var(--status-success) 20%, transparent)', color: 'var(--status-success)', cursor: 'pointer', fontSize: 12 }}>
                           {actionId === user.username ? '…' : <Check size={11} />}
                         </button>
                         <button onClick={() => setEditRole(null)}
-                          style={{ padding: '2px 6px', borderRadius: 6, border: 'none', background: '#fee2e2', color: '#991b1b', cursor: 'pointer' }}>
+                          style={{ padding: '2px 6px', borderRadius: 6, border: 'none', background: 'color-mix(in srgb, var(--status-danger) 20%, transparent)', color: 'var(--status-danger)', cursor: 'pointer' }}>
                           <X size={11} />
                         </button>
                       </div>
@@ -256,8 +277,8 @@ function UsersTab({ currentUser, showToast }) {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{
                           padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                          background: (ROLE_COLORS[user.role] || '#64748b') + '18',
-                          color: ROLE_COLORS[user.role] || '#64748b',
+                          background: ROLE_BG[user.role] || 'color-mix(in srgb, var(--color-neutral-500) 15%, transparent)',
+                          color: ROLE_COLORS[user.role] || 'var(--color-neutral-500)',
                         }}>{ROLE_LABELS[user.role] || user.role}</span>
                         {user.username !== currentUser?.username && (
                           <button onClick={() => setEditRole({ username: user.username, role: user.role })}
@@ -272,10 +293,12 @@ function UsersTab({ currentUser, showToast }) {
                   <td style={{ padding: '0.7rem 1rem' }}>
                     <span style={{
                       padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                      background: user.is_active ? '#d1fae518' : '#fee2e218',
-                      color: user.is_active ? '#059669' : '#dc2626',
+                      background: user.is_active
+                        ? 'color-mix(in srgb, var(--status-success) 15%, transparent)'
+                        : 'color-mix(in srgb, var(--status-danger) 15%, transparent)',
+                      color: user.is_active ? 'var(--status-success)' : 'var(--status-danger)',
                     }}>
-                      {user.is_active ? 'Активен' : 'Заблокирован'}
+                      {user.is_active ? t('admin.users.statusActive') : t('admin.users.statusBlocked')}
                     </span>
                   </td>
 
@@ -288,29 +311,31 @@ function UsersTab({ currentUser, showToast }) {
                           style={{
                             padding: '3px 10px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 600,
                             cursor: 'pointer',
-                            background: user.is_active ? '#fee2e2' : '#d1fae5',
-                            color: user.is_active ? '#dc2626' : '#059669',
+                            background: user.is_active
+                              ? 'color-mix(in srgb, var(--status-danger) 15%, transparent)'
+                              : 'color-mix(in srgb, var(--status-success) 15%, transparent)',
+                            color: user.is_active ? 'var(--status-danger)' : 'var(--status-success)',
                             opacity: actionId === user.username ? 0.6 : 1,
                           }}
                         >
-                          {actionId === user.username ? '…' : user.is_active ? 'Заблокировать' : 'Активировать'}
+                          {actionId === user.username ? '…' : user.is_active ? t('admin.users.actionBlock') : t('admin.users.actionActivate')}
                         </button>
                         {deleteConfirm === user.username ? (
                           <div style={{ display: 'flex', gap: 4 }}>
                             <button onClick={() => handleDelete(user.username)} disabled={actionId === user.username}
-                              style={{ padding: '3px 8px', borderRadius: 6, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
-                              {actionId === user.username ? '…' : 'Удалить'}
+                              style={{ padding: '3px 8px', borderRadius: 6, border: 'none', background: 'var(--color-red-600)', color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>
+                              {actionId === user.username ? '…' : t('admin.users.actionDelete')}
                             </button>
                             <button onClick={() => setDeleteConfirm(null)}
                               style={{ padding: '3px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', fontSize: 12, cursor: 'pointer' }}>
-                              Отмена
+                              {t('admin.users.cancelAction')}
                             </button>
                           </div>
                         ) : (
                           <button onClick={() => setDeleteConfirm(user.username)}
-                            style={{ padding: '3px 8px', borderRadius: 6, border: 'none', background: 'transparent', color: '#dc262660', cursor: 'pointer', transition: 'color 0.15s' }}
-                            onMouseEnter={e => e.target.style.color = '#dc2626'}
-                            onMouseLeave={e => e.target.style.color = '#dc262660'}
+                            style={{ padding: '3px 8px', borderRadius: 6, border: 'none', background: 'transparent', color: 'color-mix(in srgb, var(--status-danger) 45%, transparent)', cursor: 'pointer', transition: 'color 0.15s' }}
+                            onMouseEnter={e => e.target.style.color = 'var(--status-danger)'}
+                            onMouseLeave={e => e.target.style.color = 'color-mix(in srgb, var(--status-danger) 45%, transparent)'}
                           >
                             <Trash2 size={13} />
                           </button>
@@ -331,6 +356,7 @@ function UsersTab({ currentUser, showToast }) {
 }
 
 function StatsTab({ showToast }) {
+  const { t } = useTranslation()
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
 
@@ -343,27 +369,27 @@ function StatsTab({ showToast }) {
 
   useEffect(() => { load() }, [load])
 
-  if (loading) return <div style={{ padding: '3rem', textAlign: 'center', opacity: 0.5 }}>Загрузка…</div>
+  if (loading) return <div style={{ padding: '3rem', textAlign: 'center', opacity: 0.5 }}>{t('admin.stats.loading')}</div>
   if (!stats) return null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
-        <StatCard icon={Users}    label="Пользователей"     value={stats.users_total}       color="#6366f1" />
-        <StatCard icon={Activity} label="Активных сессий"   value={stats.active_sessions}   color="#3b82f6" sub="в памяти сервера" />
-        <StatCard icon={Cpu}      label="LLM модель"        value={stats.llm_model}         color="#f59e0b" />
-        <StatCard icon={Database} label="Embedding модель"  value={stats.embedding_model}   color="#8b5cf6" />
-        <StatCard icon={HardDrive} label="Свободно на диске" value={stats.disk_free_gb !== null ? `${stats.disk_free_gb} GB` : 'N/A'} color="#059669" />
-        <StatCard icon={Clock}    label="Таймаут сессии"    value={`${stats.session_timeout_min} мин`} color="#64748b" />
+        <StatCard icon={Users}    label={t('admin.stats.totalUsers')}     value={stats.users_total}       color="var(--accent-secondary)" />
+        <StatCard icon={Activity} label={t('admin.stats.activeSessions')} value={stats.active_sessions}  color="var(--accent-primary)" sub={t('admin.stats.sessionsSub')} />
+        <StatCard icon={Cpu}      label={t('admin.stats.llmModel')}       value={stats.llm_model}        color="var(--status-warning)" />
+        <StatCard icon={Database} label={t('admin.stats.embeddingModel')} value={stats.embedding_model}  color="var(--color-violet-500)" />
+        <StatCard icon={HardDrive} label={t('admin.stats.diskFree')}      value={stats.disk_free_gb !== null ? `${stats.disk_free_gb} GB` : 'N/A'} color="var(--status-success)" />
+        <StatCard icon={Clock}    label={t('admin.stats.sessionTimeout')} value={t('admin.stats.sessionTimeoutValue', { min: stats.session_timeout_min })} color="var(--color-neutral-500)" />
       </div>
 
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '1.25rem 1.5rem' }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>Параметры системы</div>
+        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12 }}>{t('admin.stats.systemParams')}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {[
-            ['Chunk size', stats.chunk_size + ' символов'],
-            ['Пользователей активных', stats.users_active],
-            ['Пользователей заблокировано', stats.users_blocked],
+            ['Chunk size', t('admin.stats.chunkSizeValue', { size: stats.chunk_size })],
+            [t('admin.stats.usersActive'),  stats.users_active],
+            [t('admin.stats.usersBlocked'), stats.users_blocked],
           ].map(([k, v]) => (
             <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border-soft)' }}>
               <span style={{ opacity: 0.6 }}>{k}</span>
@@ -374,14 +400,21 @@ function StatsTab({ showToast }) {
       </div>
 
       <button onClick={load} style={{ ...btn('ghost'), alignSelf: 'flex-start', gap: 6 }}>
-        <RefreshCw size={13} /> Обновить
+        <RefreshCw size={13} /> {t('admin.stats.refresh')}
       </button>
     </div>
   )
 }
 
 export default function AdminPage({ currentUser }) {
+  const { t } = useTranslation()
+
   if (currentUser?.role !== 'admin') return <Navigate to="/" replace />
+
+  const TABS = [
+    { key: 'users', label: t('admin.tabs.users'), Icon: Users },
+    { key: 'stats', label: t('admin.tabs.stats'), Icon: Activity },
+  ]
 
   const [tab, setTab] = useState('users')
   const [toast, setToast] = useState(null)
@@ -396,11 +429,11 @@ export default function AdminPage({ currentUser }) {
       <Toast toast={toast} />
 
       <div style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Shield size={20} style={{ color: 'var(--accent-primary)' }} />
-          Панель администратора
+        <h1 className="text-gradient-accent" style={{ margin: 0, fontSize: '1.4rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Shield size={20} />
+          {t('admin.title')}
         </h1>
-        <p style={{ margin: '4px 0 0', fontSize: 13, opacity: 0.5 }}>Управление пользователями и мониторинг системы</p>
+        <p style={{ margin: '4px 0 0', fontSize: 13, opacity: 0.5 }}>{t('admin.subtitle')}</p>
       </div>
 
       {/* Tabs */}
@@ -439,6 +472,6 @@ const btn = (variant = 'ghost') => ({
   fontSize: 13, fontWeight: 600, cursor: 'pointer',
   transition: 'all 0.15s', fontFamily: 'inherit',
   ...(variant === 'ghost' && { border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-base)' }),
-  ...(variant === 'primary' && { background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', border: 'none' }),
-  ...(variant === 'danger' && { background: '#fee2e2', color: '#dc2626', border: 'none' }),
+  ...(variant === 'primary' && { background: 'linear-gradient(135deg, var(--color-violet-600), var(--color-violet-500))', color: '#fff', border: 'none' }),
+  ...(variant === 'danger' && { background: 'color-mix(in srgb, var(--status-danger) 15%, transparent)', color: 'var(--status-danger)', border: 'none' }),
 })

@@ -1,11 +1,13 @@
 import asyncio
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.api.auth_routes import get_current_user, verify_token, oauth2_scheme
+from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.models import AgentTask
 from app.services.agents import AGENT_TYPES
@@ -111,29 +113,32 @@ async def stream_task(
 
     async def event_generator():
         last_step_index = 0
-        while True:
-            await asyncio.sleep(0.5)
-            with SessionLocal() as db:
-                task = db.query(AgentTask).filter_by(id=task_id, username=current_user["username"]).first()
-                if not task:
-                    yield "data: {\"error\": \"Task not found\"}\n\n"
-                    return
+        try:
+            while True:
+                await asyncio.sleep(0.5)
+                with SessionLocal() as db:
+                    task = db.query(AgentTask).filter_by(id=task_id, username=current_user["username"]).first()
+                    if not task:
+                        yield "data: {\"error\": \"Task not found\"}\n\n"
+                        return
 
-                steps = task.steps or []
-                for step in steps[last_step_index:]:
-                    yield f"data: {json.dumps(step, ensure_ascii=False)}\n\n"
-                    last_step_index += 1
+                    steps = task.steps or []
+                    for step in steps[last_step_index:]:
+                        yield f"data: {json.dumps(step, ensure_ascii=False)}\n\n"
+                        last_step_index += 1
 
-                if task.status in ("done", "failed", "cancelled"):
-                    final = {
-                        "step": "done",
-                        "status": task.status,
-                        "result": task.output_data,
-                        "error": task.error,
-                    }
-                    yield f"data: {json.dumps(final, ensure_ascii=False)}\n\n"
-                    yield "data: [DONE]\n\n"
-                    return
+                    if task.status in ("done", "failed", "cancelled"):
+                        final = {
+                            "step": "done",
+                            "status": task.status,
+                            "result": task.output_data,
+                            "error": task.error,
+                        }
+                        yield f"data: {json.dumps(final, ensure_ascii=False)}\n\n"
+                        yield "data: [DONE]\n\n"
+                        return
+        except asyncio.CancelledError:
+            return
 
     return StreamingResponse(
         event_generator(),
@@ -144,6 +149,43 @@ async def stream_task(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.get("/tasks/{task_id}/download")
+async def download_task_result(
+    task_id: int,
+    token: Optional[str] = Query(None),
+    bearer: Optional[str] = Depends(oauth2_scheme),
+):
+    """Download the edited document produced by the document_editor agent."""
+    from fastapi.responses import FileResponse
+    raw = bearer or token
+    if not raw:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    current_user = verify_token(raw)
+    with SessionLocal() as db:
+        task = db.query(AgentTask).filter_by(id=task_id, username=current_user["username"]).first()
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        output = task.output_data or {}
+        raw_path = output.get("download_path")
+        if not raw_path:
+            raise HTTPException(status_code=404, detail="No downloadable file for this task")
+
+        # Path traversal guard: resolved path must be inside UPLOAD_DIR
+        settings = get_settings()
+        safe_base = Path(settings.UPLOAD_DIR).resolve()
+        actual_path = Path(raw_path).resolve()
+        if not str(actual_path).startswith(str(safe_base)):
+            raise HTTPException(status_code=403, detail="Invalid file path")
+        if not actual_path.exists():
+            raise HTTPException(status_code=404, detail="File not found on disk")
+
+        return FileResponse(
+            path=str(actual_path),
+            filename="edited_document.docx",
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
 
 
 def _task_to_dict(task: AgentTask, include_steps: bool = False) -> dict:

@@ -30,6 +30,7 @@ import RightIntelligencePanel from '@/widgets/right-intelligence-panel/RightInte
 import { BottomActivityRail } from '@/widgets/bottom-activity-rail'
 import { LegacyPageCanvasHost } from '@/widgets/main-canvas-host'
 import { ToastContainer } from '@/shared/ui/toast'
+import { ErrorBoundary } from '@/shared/ui/error-boundary/ErrorBoundary'
 import {
   syncAuthShadow,
   syncShellShadow,
@@ -47,10 +48,10 @@ function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, se
           <motion.div
             key={location.pathname}
             className={['/', '/upload', '/workspace'].includes(location.pathname) ? 'page-full' : 'page-container'}
-            initial={{ opacity: 0, y: 14 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.26, ease: 'easeInOut' }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           >
             <Routes location={location}>
               <Route path="/"             element={<DashboardPage sessionHistory={sessionHistory} currentUser={currentUser} onNewSession={onNewSession} onRestoreSession={onRestoreSession} />} />
@@ -186,14 +187,17 @@ export default function App() {
 
   if (!currentUser) {
     return (
-      <Routes>
-        <Route path="/login" element={<LoginPage onLogin={setCurrentUser} />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <ErrorBoundary>
+        <Routes>
+          <Route path="/login" element={<LoginPage onLogin={setCurrentUser} />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </ErrorBoundary>
     )
   }
 
   return (
+    <ErrorBoundary>
     <ShellHydrator>
       <ToastContainer />
       <AppShellLayout
@@ -233,5 +237,6 @@ export default function App() {
         bottomActivity={<BottomActivityRail />}
       />
     </ShellHydrator>
+    </ErrorBoundary>
   )
 }

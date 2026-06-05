@@ -10,6 +10,7 @@ _REGISTRY = {
     "comparison": "app.services.agents.comparison_agent",
     "report_generator": "app.services.agents.report_generator",
     "research": "app.services.agents.research_agent",
+    "document_editor": "app.services.agents.document_editor",
 }
 
 

@@ -10,6 +10,7 @@ import {
   AlignLeft,
   Loader2,
 } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { apiConvert, apiDownloadConverted } from '../lib/api'
 import { Badge } from '@/shared/ui/badge'
 import { Button } from '@/shared/ui/button'
@@ -20,44 +21,46 @@ import { SectionHeader } from '@/shared/ui/section-header'
 import { Stack } from '@/shared/ui/stack'
 import { StatusPill } from '@/shared/ui/status-pill'
 
-const FORMATS = [
-  {
-    id: 'txt',
-    label: 'Plain Text',
-    ext: '.txt',
-    icon: AlignLeft,
-    description: 'Чистый текст без форматирования',
-    tone: 'neutral',
-    accentColor: 'var(--text-secondary)',
-  },
-  {
-    id: 'md',
-    label: 'Markdown',
-    ext: '.md',
-    icon: FileType,
-    description: 'Markdown с заголовками и списками',
-    tone: 'info',
-    accentColor: 'var(--status-info)',
-  },
-  {
-    id: 'docx',
-    label: 'Word DOCX',
-    ext: '.docx',
-    icon: FileText,
-    description: 'Документ Microsoft Word',
-    tone: 'accent',
-    accentColor: 'var(--accent-secondary)',
-  },
-  {
-    id: 'pdf',
-    label: 'PDF Document',
-    ext: '.pdf',
-    icon: FileDown,
-    description: 'Универсальный формат PDF',
-    tone: 'danger',
-    accentColor: 'var(--status-danger)',
-  },
-]
+function buildFormats(t) {
+  return [
+    {
+      id: 'txt',
+      label: 'Plain Text',
+      ext: '.txt',
+      icon: AlignLeft,
+      description: t('convert.formats.txt'),
+      tone: 'neutral',
+      accentColor: 'var(--text-secondary)',
+    },
+    {
+      id: 'md',
+      label: 'Markdown',
+      ext: '.md',
+      icon: FileType,
+      description: t('convert.formats.md'),
+      tone: 'info',
+      accentColor: 'var(--status-info)',
+    },
+    {
+      id: 'docx',
+      label: 'Word DOCX',
+      ext: '.docx',
+      icon: FileText,
+      description: t('convert.formats.docx'),
+      tone: 'accent',
+      accentColor: 'var(--accent-secondary)',
+    },
+    {
+      id: 'pdf',
+      label: 'PDF Document',
+      ext: '.pdf',
+      icon: FileDown,
+      description: t('convert.formats.pdf'),
+      tone: 'danger',
+      accentColor: 'var(--status-danger)',
+    },
+  ]
+}
 
 function FormatOption({ format, active, onSelect }) {
   const Icon = format.icon
@@ -132,12 +135,14 @@ function FormatOption({ format, active, onSelect }) {
 }
 
 function ConvertPage({ sessionId }) {
+  const { t } = useTranslation()
   const [selectedFormat, setSelectedFormat] = useState(null)
   const [loading, setLoading] = useState(false)
   const [done, setDone] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
+  const FORMATS = buildFormats(t)
   const selectedMeta = FORMATS.find(format => format.id === selectedFormat) || null
 
   const handleConvert = async () => {
@@ -162,7 +167,7 @@ function ConvertPage({ sessionId }) {
       window.URL.revokeObjectURL(url)
       setDone(true)
     } catch (err) {
-      setError(err.message || 'Ошибка конвертации')
+      setError(err.message || t('convert.errorMsg'))
     } finally {
       setLoading(false)
     }
@@ -174,11 +179,11 @@ function ConvertPage({ sessionId }) {
         <EmptyState
           size="lg"
           icon={<FileText size={32} />}
-          title="Сначала загрузите документ"
-          description="Конвертация доступна после загрузки и обработки файла."
+          title={t('convert.noSessionTitle')}
+          description={t('convert.noSessionDesc')}
           actions={
             <Button onClick={() => navigate('/upload')} leadingIcon={<FileText size={16} />}>
-              Загрузить документ
+              {t('convert.noSessionBtn')}
             </Button>
           }
         />
@@ -189,8 +194,8 @@ function ConvertPage({ sessionId }) {
   return (
     <Stack gap="xl" className="mx-auto max-w-2xl">
       <SectionHeader
-        title="Конвертация формата"
-        subtitle="Сохраните документ в удобном формате без изменения текущего сценария работы."
+        title={t('convert.title')}
+        subtitle={t('convert.subtitle')}
         actions={
           <Button
             variant="ghost"
@@ -198,7 +203,7 @@ function ConvertPage({ sessionId }) {
             leadingIcon={<ArrowLeft size={16} />}
             onClick={() => navigate('/')}
           >
-            Назад
+            {t('convert.back')}
           </Button>
         }
       />
@@ -214,20 +219,20 @@ function ConvertPage({ sessionId }) {
           <Inline justify="space-between" align="center" wrap>
             <SectionHeader
               dense
-              title="Выберите формат"
-              subtitle="Низкорисковое UI-обновление: только отображение выбора формата."
+              title={t('convert.selectFormat')}
+              subtitle={t('convert.selectSubtitle')}
             />
             <StatusPill
               status={loading ? 'streaming' : done ? 'success' : 'idle'}
               pulse={loading}
               label={
                 loading
-                  ? 'Конвертация...'
+                  ? t('convert.statusConverting')
                   : done
-                    ? 'Скачано'
+                    ? t('convert.statusDone')
                     : selectedMeta
-                      ? `Выбран ${selectedMeta.ext}`
-                      : 'Формат не выбран'
+                      ? t('convert.statusSelected', { ext: selectedMeta.ext })
+                      : t('convert.statusNone')
               }
             />
           </Inline>
@@ -252,8 +257,8 @@ function ConvertPage({ sessionId }) {
               tone="default"
               style={{
                 padding: 'var(--space-4)',
-                backgroundColor: 'rgba(248, 113, 113, 0.1)',
-                borderColor: 'rgba(248, 113, 113, 0.28)',
+                backgroundColor: 'color-mix(in srgb, var(--status-danger) 10%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--status-danger) 28%, transparent)',
               }}
             >
               <Inline gap="sm" align="center">
@@ -276,8 +281,8 @@ function ConvertPage({ sessionId }) {
               tone="default"
               style={{
                 padding: 'var(--space-4)',
-                backgroundColor: 'rgba(74, 222, 128, 0.1)',
-                borderColor: 'rgba(74, 222, 128, 0.28)',
+                backgroundColor: 'color-mix(in srgb, var(--status-success) 10%, transparent)',
+                borderColor: 'color-mix(in srgb, var(--status-success) 28%, transparent)',
               }}
             >
               <Inline gap="sm" align="center">
@@ -289,7 +294,7 @@ function ConvertPage({ sessionId }) {
                     lineHeight: 'var(--leading-normal)',
                   }}
                 >
-                  Файл успешно скачан.
+                  {t('convert.successMsg')}
                 </span>
               </Inline>
             </Card>
@@ -303,7 +308,7 @@ function ConvertPage({ sessionId }) {
             loading={loading}
             leadingIcon={!loading ? <FileDown size={18} /> : null}
           >
-            {loading ? 'Конвертируем...' : 'Конвертировать и скачать'}
+            {loading ? t('convert.convertingBtn') : t('convert.convertBtn')}
           </Button>
         </Stack>
       </Card>

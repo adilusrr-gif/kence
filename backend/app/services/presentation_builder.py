@@ -32,9 +32,15 @@ def _add_text_box(slide, text: str, left, top, width, height,
     return txBox
 
 
+def _add_speaker_notes(slide, points: list, title_text: str):
+    notes_slide = slide.notes_slide
+    tf = notes_slide.notes_text_frame
+    tf.text = "\n".join(points) if points else title_text
+
+
 def build_presentation(plan: dict, theme_name: str, selected_ids: list, session_id: str,
                         llm_service=None, progress_cb=None) -> str:
-    from app.services.chart_service import generate_chart_bytes
+    from app.services.chart_service import generate_chart_bytes, generate_infographic_bytes
 
     theme = THEMES.get(theme_name, THEMES["corporate"])
     bg_color = theme["bg"]
@@ -45,13 +51,11 @@ def build_presentation(plan: dict, theme_name: str, selected_ids: list, session_
     prs.slide_width  = Inches(13.33)
     prs.slide_height = Inches(7.5)
 
-    W = prs.slide_width
-    H = prs.slide_height
-
     blank_layout = prs.slide_layouts[6]
 
     slides_to_build = [s for s in plan.get("slides", []) if s.get("id") in selected_ids]
     total = len(slides_to_build)
+    doc_title = plan.get("title", "")[:50]
 
     for idx, slide_data in enumerate(slides_to_build, 1):
         if progress_cb:
@@ -95,6 +99,22 @@ def build_presentation(plan: dict, theme_name: str, selected_ids: list, session_
                               Inches(1.5), Inches(3), Inches(10), Inches(1),
                               font_size=16, color=accent_color, align=PP_ALIGN.CENTER)
 
+        elif stype == "image":
+            _add_text_box(slide, title_text,
+                          Inches(0.5), Inches(0.2), Inches(12), Inches(0.8),
+                          font_size=24, bold=True, color=text_color)
+            try:
+                img_bytes = generate_infographic_bytes(title_text, points, theme)
+                slide.shapes.add_picture(io.BytesIO(img_bytes),
+                                         Inches(0.4), Inches(1.2), Inches(12.5), Inches(5.8))
+            except Exception:
+                y = Inches(1.6)
+                for pt in points[:8]:
+                    _add_text_box(slide, f"• {pt}",
+                                  Inches(0.8), y, Inches(11.5), Inches(0.6),
+                                  font_size=16, color=text_color)
+                    y += Inches(0.65)
+
         elif stype == "quote":
             _add_text_box(slide, "❝",
                           Inches(1), Inches(1.2), Inches(1), Inches(1),
@@ -124,6 +144,19 @@ def build_presentation(plan: dict, theme_name: str, selected_ids: list, session_
                               Inches(0.8), y, Inches(11.5), Inches(0.6),
                               font_size=16, color=text_color)
                 y += step
+
+        # Speaker notes for every slide
+        _add_speaker_notes(slide, points, title_text)
+
+        # Footer: slide number (bottom-right) + doc title (bottom-left), skip on title slide
+        if stype != "title":
+            _add_text_box(slide, f"{idx}/{total}",
+                          Inches(12.0), Inches(7.1), Inches(1.2), Inches(0.35),
+                          font_size=11, color=accent_color, align=PP_ALIGN.RIGHT)
+            if doc_title:
+                _add_text_box(slide, doc_title,
+                              Inches(0.4), Inches(7.1), Inches(8), Inches(0.35),
+                              font_size=10, color=text_color)
 
     if progress_cb:
         progress_cb({"status": "Сохраняю файл…"})

@@ -17,6 +17,9 @@ THEMES = {
     "light":     {"bg": "#FFFFFF", "accent": "#2563EB", "text": "#111827"},
     "dark":      {"bg": "#0F172A", "accent": "#60A5FA", "text": "#F1F5F9"},
     "green":     {"bg": "#064E3B", "accent": "#10B981", "text": "#FFFFFF"},
+    "minimal":   {"bg": "#F8FAFC", "accent": "#6366F1", "text": "#0F172A"},
+    "ocean":     {"bg": "#0C2340", "accent": "#38BDF8", "text": "#E0F2FE"},
+    "sunset":    {"bg": "#1C0A00", "accent": "#F97316", "text": "#FFF7ED"},
 }
 
 _PLAN_PROMPT = """Ты генератор структуры презентаций. На основе текста документа создай план презентации в формате JSON.
@@ -63,7 +66,7 @@ def generate_plan(session_id: str, llm_service, user_instructions: str = "", num
         raise ValueError("No document in session")
 
     content_slides = max(2, min(num_slides, 12))
-    snippet = text[:8000]
+    snippet = text[:4000] + "\n...\n" + text[-4000:] if len(text) > 8000 else text
     instructions = user_instructions.strip() or "нет особых пожеланий"
     prompt = _PLAN_PROMPT.format(text=snippet, user_instructions=instructions, content_slides=content_slides)
 

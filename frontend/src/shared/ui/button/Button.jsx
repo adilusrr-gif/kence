@@ -69,6 +69,7 @@ export function Button({
       type={type}
       disabled={isDisabled}
       className={cn(
+        'kence-btn',
         'inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-medium transition-all',
         focusRing,
         block && 'w-full',

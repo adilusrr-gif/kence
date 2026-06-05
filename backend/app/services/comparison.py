@@ -2,13 +2,18 @@ from docling.document_converter import DocumentConverter
 from pathlib import Path
 from typing import Dict, List, Tuple
 import difflib
+import json
+import logging
+import re
 from langchain_core.documents import Document as LCDocument
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import Chroma
 from app.core.config import get_settings
 from app.services.embeddings_service import embeddings_service
+from app.services.llm import llm_service
 from app.services.ai_settings_service import get_prompt
-import json
+
+logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
@@ -108,28 +113,19 @@ class DocumentComparator:
         text1 = self.extract_document(doc1_path)
         text2 = self.extract_document(doc2_path)
 
-        # LLM-промпт для извлечения спецификаций
-        from langchain_ollama import OllamaLLM
-        llm = OllamaLLM(
-            model=settings.LLM_MODEL,
-            base_url=settings.OLLAMA_BASE_URL,
-            temperature=0.1,
-        )
-
         extract_prompt = get_prompt("comparison_technical_prompt")
 
         # Извлекаем спецификации из обоих документов
-        spec1_raw = llm.invoke(extract_prompt.format(text=text1[:8000]))
-        spec2_raw = llm.invoke(extract_prompt.format(text=text2[:8000]))
+        spec1_raw = llm_service.simple_chat(extract_prompt.format(text=text1[:16000]))
+        spec2_raw = llm_service.simple_chat(extract_prompt.format(text=text2[:16000]))
 
-        # Парсим JSON
-        import re
         def extract_json(text):
             match = re.search(r'\{.*\}', text, re.DOTALL)
             if match:
                 try:
                     return json.loads(match.group())
-                except:
+                except json.JSONDecodeError as e:
+                    logger.warning("Failed to parse spec JSON: %s | raw: %.200s", e, text)
                     return None
             return None
 
@@ -209,8 +205,8 @@ class DocumentComparator:
         try:
             n1 = float(s1.replace(",", "."))
             n2 = float(s2.replace(",", "."))
-            return abs(n1 - n2) < 0.01  # Допуск 1%
-        except:
+            return abs(n1 - n2) < 0.01
+        except (ValueError, TypeError):
             pass
 
         return False
@@ -286,17 +282,6 @@ class DocumentComparator:
             "diff_count": diff_count,
             "diff_lines": diff_lines,
         }
-
-
-    async def semantic_compare_async(self, text1: str, text2: str, llm_service) -> dict:
-        prompt = f"Сравни два документа семантически (темы, содержание, выводы):\n\nДокумент 1:\n{text1[:3000]}\n\nДокумент 2:\n{text2[:3000]}"
-        result = await llm_service.agenerate(prompt)
-        return {"comparison": result, "type": "semantic"}
-
-    async def technical_compare_async(self, text1: str, text2: str, llm_service) -> dict:
-        prompt = f"Сравни два документа технически (структура, форматирование, метаданные, длина):\n\nДокумент 1:\n{text1[:3000]}\n\nДокумент 2:\n{text2[:3000]}"
-        result = await llm_service.agenerate(prompt)
-        return {"comparison": result, "type": "technical"}
 
 
 comparator = DocumentComparator()

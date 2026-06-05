@@ -22,16 +22,16 @@ html[data-theme='dark'] {
   --border-default: rgba(148, 163, 184, 0.22);
   --border-strong: rgba(148, 163, 184, 0.36);
 
-  --accent-primary: #60A5FA;
-  --accent-primary-hover: #93C5FD;
-  --accent-secondary: #3B82F6;
+  --accent-primary: var(--color-cyan-400);
+  --accent-primary-hover: var(--color-cyan-300);
+  --accent-secondary: var(--color-blue-400);
 
   --status-success: var(--color-green-400);
   --status-warning: var(--color-amber-400);
   --status-danger: var(--color-red-400);
   --status-info: var(--color-blue-400);
-  --focus-ring: rgba(41, 82, 163, 0.42);
-  --selection-bg: rgba(41, 82, 163, 0.22);
+  --focus-ring: rgba(34, 211, 238, 0.42);
+  --selection-bg: rgba(34, 211, 238, 0.22);
 
   --glass-bg: rgba(15, 23, 42, 0.76);
   --glass-bg-strong: rgba(15, 23, 42, 0.84);
@@ -39,6 +39,26 @@ html[data-theme='dark'] {
   --glass-highlight: rgba(255, 255, 255, 0.12);
   --glass-blur: 20px;
   --glass-shadow: var(--shadow-glass);
+
+  /* Shell surface tokens */
+  --surface-overlay:    rgba(15, 23, 42, 0.85);
+  --surface-panel-soft: rgba(15, 23, 42, 0.75);
+  --surface-panel:      rgba(15, 23, 42, 0.95);
+  --surface-float:      rgba(15, 23, 42, 0.97);
+  --surface-scrim:      rgba(2, 6, 23, 0.70);
+  --surface-scrim-hi:   rgba(2, 6, 23, 0.90);
+  --surface-scrim-max:  rgba(2, 6, 23, 0.92);
+  --tint-xs:      rgba(255, 255, 255, 0.03);
+  --tint-faint:   rgba(255, 255, 255, 0.04);
+  --tint-soft:    rgba(255, 255, 255, 0.05);
+  --border-rail:  rgba(255, 255, 255, 0.06);
+  --tint-med:     rgba(255, 255, 255, 0.07);
+  --tint-raised:  rgba(255, 255, 255, 0.08);
+  --border-glass: rgba(255, 255, 255, 0.09);
+  --tint-base:    rgba(255, 255, 255, 0.10);
+  --tint-strong:  rgba(255, 255, 255, 0.12);
+  --tint-bolder:  rgba(255, 255, 255, 0.14);
+  --tint-bold:    rgba(255, 255, 255, 0.15);
 }
 
 html[data-theme='light'] {
@@ -58,23 +78,45 @@ html[data-theme='light'] {
   --border-default: rgba(15, 23, 42, 0.14);
   --border-strong: rgba(15, 23, 42, 0.22);
 
-  --accent-primary: #3B82F6;
-  --accent-primary-hover: #2563EB;
+  --accent-primary: #0891b2;
+  --accent-primary-hover: #0e7490;
   --accent-secondary: #64748B;
 
   --status-success: var(--color-green-600);
   --status-warning: var(--color-amber-600);
   --status-danger: var(--color-red-600);
   --status-info: var(--color-blue-600);
-  --focus-ring: rgba(30, 58, 110, 0.32);
-  --selection-bg: rgba(30, 58, 110, 0.18);
+  --focus-ring: rgba(8, 145, 178, 0.32);
+  --selection-bg: rgba(8, 145, 178, 0.18);
 
   --glass-bg: rgba(255, 255, 255, 0.88);
   --glass-bg-strong: rgba(255, 255, 255, 0.94);
   --glass-border: rgba(15, 23, 42, 0.12);
-  --glass-highlight: rgba(255, 255, 255, 0.72);
+  --glass-highlight: rgba(15, 23, 42, 0.08);
   --glass-blur: 18px;
   --glass-shadow: 0 20px 48px rgba(15, 23, 42, 0.12);
+
+  /* Shell surface tokens — light overrides */
+  --surface-overlay:    rgba(248, 250, 252, 0.92);
+  --surface-panel-soft: rgba(255, 255, 255, 0.85);
+  --surface-panel:      rgba(255, 255, 255, 0.98);
+  --surface-float:      rgb(255, 255, 255);
+  --surface-scrim:      rgba(241, 245, 249, 0.72);
+  --surface-scrim-hi:   rgba(241, 245, 249, 0.92);
+  --surface-scrim-max:  rgba(241, 245, 249, 0.96);
+
+  /* Shell tint tokens — dark-alpha in light mode */
+  --tint-xs:      rgba(15, 23, 42, 0.02);
+  --tint-faint:   rgba(15, 23, 42, 0.03);
+  --tint-soft:    rgba(15, 23, 42, 0.04);
+  --border-rail:  rgba(15, 23, 42, 0.08);
+  --tint-med:     rgba(15, 23, 42, 0.05);
+  --tint-raised:  rgba(15, 23, 42, 0.06);
+  --border-glass: rgba(15, 23, 42, 0.10);
+  --tint-base:    rgba(15, 23, 42, 0.07);
+  --tint-strong:  rgba(15, 23, 42, 0.10);
+  --tint-bolder:  rgba(15, 23, 42, 0.12);
+  --tint-bold:    rgba(15, 23, 42, 0.14);
 }
 
 /* Legacy compatibility bridge:
@@ -115,4 +157,24 @@ html.dark {
   --glass-highlight: rgba(255, 255, 255, 0.12);
   --glass-blur: 20px;
   --glass-shadow: var(--shadow-glass);
+
+  /* Shell surface tokens */
+  --surface-overlay:    rgba(15, 23, 42, 0.85);
+  --surface-panel-soft: rgba(15, 23, 42, 0.75);
+  --surface-panel:      rgba(15, 23, 42, 0.95);
+  --surface-float:      rgba(15, 23, 42, 0.97);
+  --surface-scrim:      rgba(2, 6, 23, 0.70);
+  --surface-scrim-hi:   rgba(2, 6, 23, 0.90);
+  --surface-scrim-max:  rgba(2, 6, 23, 0.92);
+  --tint-xs:      rgba(255, 255, 255, 0.03);
+  --tint-faint:   rgba(255, 255, 255, 0.04);
+  --tint-soft:    rgba(255, 255, 255, 0.05);
+  --border-rail:  rgba(255, 255, 255, 0.06);
+  --tint-med:     rgba(255, 255, 255, 0.07);
+  --tint-raised:  rgba(255, 255, 255, 0.08);
+  --border-glass: rgba(255, 255, 255, 0.09);
+  --tint-base:    rgba(255, 255, 255, 0.10);
+  --tint-strong:  rgba(255, 255, 255, 0.12);
+  --tint-bolder:  rgba(255, 255, 255, 0.14);
+  --tint-bold:    rgba(255, 255, 255, 0.15);
 }

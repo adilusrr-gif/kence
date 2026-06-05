@@ -14,6 +14,7 @@ router = APIRouter(tags=["knowledge-graph"])
 
 class ExtractRequest(BaseModel):
     session_id: str
+    language: str = "ru"
 
 
 class GraphQueryRequest(BaseModel):
@@ -53,7 +54,7 @@ async def trigger_extraction(
     from app.services.entity_extractor import run_extraction_job
     llm = LLMService()
 
-    asyncio.create_task(run_extraction_job(job_id, req.session_id, org_id, markdown_text, llm))
+    asyncio.create_task(run_extraction_job(job_id, req.session_id, org_id, markdown_text, llm, req.language))
 
     return {"job_id": job_id, "status": "pending"}
 

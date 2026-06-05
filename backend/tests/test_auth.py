@@ -44,7 +44,7 @@ def test_register_new_user(client):
     username = f"reg_{uuid.uuid4().hex[:8]}"
     r = client.post(
         "/api/auth/register",
-        json={"username": username, "password": "testpass123"},
+        json={"username": username, "password": "Testpass123"},
     )
     assert r.status_code == 200, r.text
     body = r.json()
@@ -57,11 +57,11 @@ def test_register_duplicate_user(client):
     username = f"dup_{uuid.uuid4().hex[:8]}"
     client.post(
         "/api/auth/register",
-        json={"username": username, "password": "testpass123"},
+        json={"username": username, "password": "Testpass123"},
     )
     r = client.post(
         "/api/auth/register",
-        json={"username": username, "password": "testpass123"},
+        json={"username": username, "password": "Testpass123"},
     )
     assert r.status_code == 400
 
@@ -69,7 +69,7 @@ def test_register_duplicate_user(client):
 def test_register_username_too_short(client):
     r = client.post(
         "/api/auth/register",
-        json={"username": "ab", "password": "testpass123"},
+        json={"username": "ab", "password": "Testpass123"},
     )
     assert r.status_code == 422
 

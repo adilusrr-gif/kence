@@ -1,22 +1,29 @@
 import { useState, useEffect } from 'react'
+import { SkeletonStats, SkeletonCard } from '../shared/ui/skeleton/Skeleton'
+import { useTranslation } from 'react-i18next'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } from 'recharts'
 import useOrgStore from '../shared/stores/orgStore'
 import { apiGetKPI, apiGetKPITrend, apiExportReport } from '../lib/api'
 
-const PERIODS = [{ value: 'day', label: 'День' }, { value: 'week', label: 'Неделя' }, { value: 'month', label: 'Месяц' }]
-
-export default function ExecutiveDashboardPage({ currentUser }) {
+export default function ExecutiveDashboardPage() {
+  const { t } = useTranslation()
   const { currentOrgId, currentOrgName } = useOrgStore()
   const [period, setPeriod] = useState('day')
   const [kpi, setKpi] = useState(null)
   const [trend, setTrend] = useState([])
   const [loading, setLoading] = useState(false)
 
+  const PERIODS = [
+    { value: 'day',   label: t('executive.periodDay') },
+    { value: 'week',  label: t('executive.periodWeek') },
+    { value: 'month', label: t('executive.periodMonth') },
+  ]
+
   useEffect(() => {
     if (!currentOrgId) return
     setLoading(true)
     Promise.all([apiGetKPI(currentOrgId, period), apiGetKPITrend(currentOrgId, period, 7)])
-      .then(([k, t]) => { setKpi(k); setTrend(t) })
+      .then(([k, tr]) => { setKpi(k); setTrend(tr) })
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [currentOrgId, period])
@@ -26,81 +33,82 @@ export default function ExecutiveDashboardPage({ currentUser }) {
     window.open(url, '_blank')
   }
 
-  const s = {
-    page: { padding: '2rem', maxWidth: 1100, margin: '0 auto', color: 'var(--text-primary)' },
-    header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' },
-    title: { fontSize: 22, fontWeight: 700 },
-    toolbar: { display: 'flex', gap: 8 },
-    periodBtn: (a) => ({ padding: '0.4rem 0.85rem', background: a ? 'var(--accent)' : 'var(--bg-hover)', border: 'none', borderRadius: 6, cursor: 'pointer', color: a ? '#fff' : 'var(--text-primary)', fontSize: 13 }),
-    exportBtn: { padding: '0.4rem 0.85rem', background: 'var(--bg-hover)', border: '1px solid var(--border)', borderRadius: 6, cursor: 'pointer', color: 'var(--text-primary)', fontSize: 13 },
-    cards: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 16, marginBottom: '2rem' },
-    card: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '1.25rem' },
-    cardVal: { fontSize: 32, fontWeight: 700, color: 'var(--accent)' },
-    cardLabel: { fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 },
-    section: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '1.5rem', marginBottom: '1.5rem' },
-    sectionTitle: { fontWeight: 600, marginBottom: '1rem', fontSize: 15 },
+  const KPI_ROWS = [
+    ['total_events',   t('executive.kpiTotalEvents')],
+    ['total_sessions', t('executive.kpiTotalSessions')],
+    ['unique_users',   t('executive.kpiUniqueUsers')],
+    ['library_docs',   t('executive.kpiLibraryDocs')],
+    ['uploads',        t('executive.kpiUploads')],
+    ['chats',          t('executive.kpiChats')],
+  ]
+
+  if (!currentOrgId) {
+    return <div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>{t('executive.noOrg')}</div>
   }
 
-  if (!currentOrgId) return <div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>Выберите организацию</div>
-
   return (
-    <div style={s.page}>
-      <div style={s.header}>
-        <div style={s.title}>Executive Dashboard — {currentOrgName}</div>
-        <div style={s.toolbar}>
+    <div className="exec-page">
+      <div className="exec-header">
+        <div className="exec-title">{t('executive.title', { org: currentOrgName })}</div>
+        <div className="exec-toolbar">
           {PERIODS.map(p => (
-            <button key={p.value} style={s.periodBtn(period === p.value)} onClick={() => setPeriod(p.value)}>{p.label}</button>
+            <button
+              key={p.value}
+              className={`exec-period-btn${period === p.value ? ' exec-period-btn--active' : ''}`}
+              onClick={() => setPeriod(p.value)}
+            >
+              {p.label}
+            </button>
           ))}
-          <button style={s.exportBtn} onClick={() => handleExport('pdf')}>Экспорт PDF</button>
-          <button style={s.exportBtn} onClick={() => handleExport('xlsx')}>Экспорт Excel</button>
+          <button className="exec-export-btn" onClick={() => handleExport('pdf')}>{t('executive.exportPdf')}</button>
+          <button className="exec-export-btn" onClick={() => handleExport('xlsx')}>{t('executive.exportExcel')}</button>
         </div>
       </div>
 
-      {loading && <div style={{ color: 'var(--text-secondary)', marginBottom: 16 }}>Загрузка данных...</div>}
+      {loading && (
+        <div style={{ marginBottom: 16 }}>
+          <SkeletonStats count={6} />
+          <div style={{ marginTop: 12 }}><SkeletonCard rows={5} /></div>
+          <div style={{ marginTop: 12 }}><SkeletonCard rows={4} /></div>
+        </div>
+      )}
 
       {kpi && (
         <>
-          <div style={s.cards}>
-            {[
-              ['total_events', 'Всего событий'],
-              ['total_sessions', 'Сессий'],
-              ['unique_users', 'Активных пользователей'],
-              ['library_docs', 'Документов в библиотеке'],
-              ['uploads', 'Загрузок'],
-              ['chats', 'Чат-запросов'],
-            ].map(([key, label]) => (
-              <div key={key} style={s.card}>
-                <div style={s.cardVal}>{kpi[key] ?? 0}</div>
-                <div style={s.cardLabel}>{label}</div>
+          <div className="exec-kpi-grid">
+            {KPI_ROWS.map(([key, label]) => (
+              <div key={key} className="exec-kpi-card">
+                <div className="exec-kpi-card__value">{kpi[key] ?? 0}</div>
+                <div className="exec-kpi-card__label">{label}</div>
               </div>
             ))}
           </div>
 
           {trend.length > 0 && (
-            <div style={s.section}>
-              <div style={s.sectionTitle}>Активность по периодам</div>
+            <div className="exec-section">
+              <div className="exec-section__title">{t('executive.activityTitle')}</div>
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={trend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-default)" />
                   <XAxis dataKey="snapshot_at" tickFormatter={v => v.slice(0, 10)} tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
                   <YAxis tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
-                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />
-                  <Line type="monotone" dataKey="total_events" stroke="var(--accent)" strokeWidth={2} dot={false} name="События" />
-                  <Line type="monotone" dataKey="total_sessions" stroke="#a855f7" strokeWidth={2} dot={false} name="Сессии" />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface-1)', border: '1px solid var(--border-default)' }} />
+                  <Line type="monotone" dataKey="total_events"   stroke="var(--accent-primary)"      strokeWidth={2} dot={false} name={t('executive.kpiTotalEvents')} />
+                  <Line type="monotone" dataKey="total_sessions" stroke="var(--color-violet-500)"    strokeWidth={2} dot={false} name={t('executive.kpiTotalSessions')} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
           )}
 
           {kpi.by_type && (
-            <div style={s.section}>
-              <div style={s.sectionTitle}>Типы событий</div>
+            <div className="exec-section">
+              <div className="exec-section__title">{t('executive.eventTypeTitle')}</div>
               <ResponsiveContainer width="100%" height={180}>
                 <BarChart data={Object.entries(kpi.by_type).map(([name, value]) => ({ name, value }))}>
                   <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
                   <YAxis tick={{ fontSize: 11, fill: 'var(--text-secondary)' }} />
-                  <Tooltip contentStyle={{ background: 'var(--bg-surface)', border: '1px solid var(--border)' }} />
-                  <Bar dataKey="value" fill="var(--accent)" radius={[4, 4, 0, 0]} />
+                  <Tooltip contentStyle={{ background: 'var(--bg-surface-1)', border: '1px solid var(--border-default)' }} />
+                  <Bar dataKey="value" fill="var(--accent-primary)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
