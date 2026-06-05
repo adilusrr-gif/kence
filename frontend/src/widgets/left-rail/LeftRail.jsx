@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Upload, MessageSquare, GitCompare,
   Presentation, RefreshCw, BarChart2,
-  ChevronLeft, ChevronRight, Library, TrendingUp, Network, Bot,
+  ChevronLeft, ChevronRight, Library, TrendingUp, Network, Bot, Sparkles,
 } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useShellStore } from '@/shared/stores/shellStore'
@@ -24,6 +24,7 @@ function useIsMobile() {
 const NAV_ITEMS = [
   { icon: LayoutDashboard, labelKey: 'nav.dashboard',    path: '/' },
   { icon: Upload,          labelKey: 'nav.upload',        path: '/upload' },
+  { icon: Sparkles,        labelKey: 'nav.insights',      path: '/insights' },
   { icon: MessageSquare,   labelKey: 'nav.workspace',     path: '/workspace' },
   { icon: GitCompare,      labelKey: 'nav.compare',       path: '/compare' },
   { icon: Presentation,    labelKey: 'nav.presentation',  path: '/presentation' },

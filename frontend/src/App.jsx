@@ -20,6 +20,7 @@ import KnowledgeGraphPage from './pages/KnowledgeGraphPage'
 import AgentLauncherPage from './pages/AgentLauncherPage'
 import AgentTaskMonitorPage from './pages/AgentTaskMonitorPage'
 import AgentTaskHistoryPage from './pages/AgentTaskHistoryPage'
+import DocumentInsightsPage from './pages/DocumentInsightsPage'
 import { getStoredUser, clearAuth, apiRefreshToken, saveAuth } from './lib/api'
 import { AppShellLayout } from '@/app/layouts/app-shell'
 import ShellHydrator from '@/app/shell/ShellHydrator'
@@ -72,6 +73,7 @@ function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, se
               <Route path="/agents"          element={<AgentLauncherPage currentUser={currentUser} />} />
               <Route path="/agents/tasks/:taskId" element={<AgentTaskMonitorPage currentUser={currentUser} />} />
               <Route path="/agents/history"  element={<AgentTaskHistoryPage currentUser={currentUser} />} />
+              <Route path="/insights"        element={<DocumentInsightsPage sessionId={sessionId} documentName={documentName} />} />
               <Route path="/chat"            element={<Navigate to="/workspace" replace />} />
               <Route path="/vector-base"     element={<Navigate to="/admin" replace />} />
               <Route path="/login"           element={<Navigate to="/" replace />} />

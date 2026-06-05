@@ -103,7 +103,7 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
       setUploaded(true)
       ingestEvent({ type: 'DOCUMENT_READY', message: `Document ready: ${file.name}` })
       toast.success(t('upload.success', { name: file.name }))
-      navTimerRef.current = setTimeout(() => navigate('/workspace'), 1500)
+      navTimerRef.current = setTimeout(() => navigate('/insights'), 1500)
     } catch (err) {
       const msg = err.message || t('upload.error')
       setError(msg)

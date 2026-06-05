@@ -3257,6 +3257,10 @@
 .ws-bubble:hover .ws-regen-btn,
 .ws-msg:hover .ws-regen-btn { opacity: 0.55; }
 .ws-regen-btn:hover { opacity: 1 !important; }
+.ws-explain-btn { opacity: 0; transition: opacity 0.15s; background: color-mix(in srgb, var(--accent-primary) 12%, transparent) !important; color: var(--accent-primary) !important; border: 1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent) !important; }
+.ws-bubble:hover .ws-explain-btn,
+.ws-msg:hover .ws-explain-btn { opacity: 1 !important; }
+.ws-explain-btn:hover { opacity: 1 !important; background: color-mix(in srgb, var(--accent-primary) 20%, transparent) !important; }
 
 /* Tip chips: lift + accent glow */
 .ws-tip {

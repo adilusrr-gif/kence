@@ -222,7 +222,15 @@ function SourcesPanel({ sources }) {
   )
 }
 
-const TIP_KEYS = ['workspace.tips.summary', 'workspace.tips.keyFindings', 'workspace.tips.dates', 'workspace.tips.explain']
+const TIP_KEYS = [
+  'workspace.tips.summary',
+  'workspace.tips.keyFindings',
+  'workspace.tips.dates',
+  'workspace.tips.explain',
+  'workspace.tips.risks',
+  'workspace.tips.actions',
+  'workspace.tips.whoIsInvolved',
+]
 
 const LANGS = [
   { code: 'kz', label: 'KZ' },
@@ -241,7 +249,7 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
-function ChatMessage({ msg, i, copied, onCopy, onRegenerate }) {
+function ChatMessage({ msg, i, copied, onCopy, onRegenerate, onExplainSimply }) {
   const { t } = useTranslation()
   return (
     <motion.div
@@ -283,6 +291,20 @@ function ChatMessage({ msg, i, copied, onCopy, onRegenerate }) {
               >
                 <RefreshCw size={11} />
               </button>
+            )}
+            {/* Phase 5: Explain Simply button */}
+            {onExplainSimply && !msg.isSimplified && (
+              <button
+                className="ws-action-btn ws-explain-btn"
+                onClick={() => onExplainSimply(i, msg.content)}
+                title="Объяснить проще"
+                style={{ opacity: 0, transition: 'opacity 0.15s', fontSize: 10, padding: '2px 6px', borderRadius: 6 }}
+              >
+                💡 Проще
+              </button>
+            )}
+            {msg.isSimplified && (
+              <span style={{ fontSize: 10, color: 'var(--accent-primary)', marginLeft: 6 }}>💡 Упрощено</span>
             )}
           </>
         )}
@@ -380,7 +402,7 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
     inputRef, messagesEndRef,
     handleSend, handleClearHistory, handleVisualDescribe,
     handleTranslate, handleExport, handleCopy,
-    handleRegenerate, handleExportChat,
+    handleRegenerate, handleExportChat, handleExplainSimply,
   } = useChatMessages(sessionId, isImageDoc)
 
   const {
@@ -808,7 +830,7 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
             {messages.map((msg, i) =>
               msg.role === 'divider'
                 ? <div key={i} className="ws-history-divider">{t('workspace.prevSession')}</div>
-                : <ChatMessage key={i} msg={msg} i={i} copied={copied} onCopy={handleCopy} onRegenerate={handleRegenerate} />
+                : <ChatMessage key={i} msg={msg} i={i} copied={copied} onCopy={handleCopy} onRegenerate={handleRegenerate} onExplainSimply={handleExplainSimply} />
             )}
             <div ref={messagesEndRef} />
           </div>

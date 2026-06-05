@@ -2,20 +2,21 @@
   "nav": {
     "dashboard": "Dashboard",
     "upload": "Upload",
-    "workspace": "Workspace",
+    "workspace": "Document",
     "compare": "Compare",
     "presentation": "Presentation",
     "convert": "Convert",
     "library": "Library",
-    "graph": "Graph",
-    "agents": "AI Agents",
+    "graph": "Connections",
+    "agents": "Analysis",
     "analytics": "Analytics",
-    "executive": "Executive",
+    "executive": "Statistics",
     "profile": "Profile",
     "org": "Org Settings",
     "admin": "Admin",
-    "aiSettings": "AI Settings",
-    "collapse": "Collapse"
+    "aiSettings": "Settings",
+    "collapse": "Collapse",
+    "insights": "Document Analysis"
   },
   "topbar": {
     "search": "Search commands…",
@@ -61,10 +62,10 @@
     "processing": "Processing…",
     "done": "Done",
     "stages": {
-      "upload": "Upload",
-      "parse": "Parse",
-      "extract": "Extract",
-      "vectorize": "Vectorize"
+      "upload": "Uploading",
+      "parse": "Reading document",
+      "extract": "Analyzing content",
+      "vectorize": "Preparing search"
     }
   },
   "dashboard": {
@@ -110,18 +111,18 @@
   },
   "workspace": {
     "translate": "Translate:",
-    "precise": "Precise",
+    "precise": "Precise Answer",
     "consultation": "Consultation",
-    "visual": "Visual",
+    "visual": "Image Description",
     "placeholder": "Ask a question about the document… (Enter to send)",
     "noSession": "Upload a document first",
-    "greeting": "Hello! Select text in the document or ask a question.",
+    "greeting": "Hello! Upload a document and ask any question — I will answer in plain language.",
     "document": "Document",
-    "ai": "AI Assistant",
+    "ai": "Smart Assistant",
     "clearHistory": "Clear history",
     "prevSession": "Previous session",
-    "docContext": "Document context",
-    "contextHint": "Describe the document — AI will use this in responses",
+    "docContext": "About Document",
+    "contextHint": "Describe the document — the assistant will consider this when answering",
     "contextPlaceholder": "E.g.: rental agreement 2025, parties — Almaz LLC and John Doe",
     "saveContext": "Save",
     "saved": "Saved",
@@ -145,10 +146,13 @@
     "extractText": "Extract text",
     "tableData": "Data from table/chart",
     "tips": {
-      "summary": "Document summary",
-      "keyFindings": "Key findings?",
-      "dates": "List all dates and events",
-      "explain": "Explain the main idea in simple terms"
+      "summary": "Briefly summarize this document",
+      "keyFindings": "What is the most important information?",
+      "dates": "What are the key dates and deadlines?",
+      "explain": "Explain the main idea in simple words",
+      "risks": "What risks or issues are described?",
+      "actions": "What actions need to be taken?",
+      "whoIsInvolved": "Who is involved and which organizations are mentioned?"
     },
     "langNames": {
       "kz": "Kazakh",
@@ -166,26 +170,26 @@
     "chars": "chars",
     "download": "Download",
     "contextPrefix": "Context",
-    "preciseTitle": "Strict answer based only on document content",
-    "consultationTitle": "Expanded consultation with interpretation",
-    "visualTitle": "Visual image analysis via VLM",
+    "preciseTitle": "Precise answers strictly from the document",
+    "consultationTitle": "Broad analysis with interpretation and conclusions",
+    "visualTitle": "Detailed image description",
     "saveFailed": "Failed to save document",
     "agentStarting": "Starting agent…",
-    "agentRunning": "Running…",
-    "agentLaunch": "Launch",
+    "agentRunning": "Processing…",
+    "agentLaunch": "Run",
     "agentError": "Error: {{msg}}",
     "agentConnectionError": "Connection error",
     "agentDefaultInstructions": "Improve structure, fix grammar and formatting",
-    "agentEditHeader": "Edit with AI Agent",
-    "agentHint": "Describe what needs to be done with the document. The agent will edit text, tables and can add charts.",
-    "agentPlaceholder": "For example: improve table structure, add a brief summary at the beginning, insert a chart from numeric data",
-    "chartHintBadge": "AI data at export",
+    "agentEditHeader": "Improve Document with AI",
+    "agentHint": "Describe what to improve — AI will make the changes automatically.",
+    "agentPlaceholder": "E.g.: improve structure, fix grammar, add summary",
+    "chartHintBadge": "Chart will be created automatically",
     "chartNoData": "No data for chart «{{title}}»",
     "insertTable": "Insert table",
     "insertChart": "Insert chart",
-    "editWithAgent": "Edit with AI agent",
-    "downloadDocx": "Download as DOCX",
-    "downloadPdf": "Download as PDF",
+    "editWithAgent": "Improve with AI",
+    "downloadDocx": "Download Word",
+    "downloadPdf": "Download PDF",
     "saving": "Saving…",
     "regenerate": "Regenerate answer",
     "exportChat": "Export chat",
@@ -370,8 +374,8 @@
     "edit": "Edit"
   },
   "agents": {
-    "title": "AI Agents",
-    "subtitle": "Select an agent for intelligent document analysis",
+    "title": "Document Analysis",
+    "subtitle": "Choose what you want to get from the document",
     "backToAgents": "← Agents",
     "historyTitle": "Task History",
     "task": "Task #{{id}}",
@@ -388,9 +392,9 @@
     "launching": "Launching...",
     "launchError": "Agent launch error",
     "historyLink": "Task history →",
-    "sessionIdLabel": "Session ID (leave empty for current session)",
+    "sessionIdLabel": "Document (leave blank to use current)",
     "noSession": "no active session",
-    "questionLabel": "Question / Task",
+    "questionLabel": "Your question",
     "questionPlaceholder": "What needs to be analyzed?",
     "instructionsLabel": "Instructions (optional)",
     "instructionsPlaceholder": "Special report requirements...",
@@ -746,8 +750,8 @@
     "activeSession": "Active session",
     "features": {
       "rag": {
-        "label": "RAG chat with document",
-        "desc": "50+ formats, precise text search"
+        "label": "Ask Questions",
+        "desc": "Ask anything — get precise answers from the document"
       },
       "translate": {
         "label": "Translation KZ / RU / EN",
@@ -786,20 +790,20 @@
     },
     "activity": {
       "rag": {
-        "label": "RAG index ready",
-        "meta": "ChromaDB · active"
+        "label": "Document search ready",
+        "meta": "Fast full-text search"
       },
       "ollama": {
-        "label": "Ollama connected",
-        "meta": "LLM · running"
+        "label": "AI assistant connected",
+        "meta": "Ready to answer questions"
       },
       "pipeline": {
-        "label": "Pipeline started",
-        "meta": "Docling · ready"
+        "label": "Document reading ready",
+        "meta": "All formats supported"
       },
       "local": {
-        "label": "Local mode",
-        "meta": "Isolated environment"
+        "label": "Data stored locally",
+        "meta": "Privacy guaranteed"
       }
     },
     "steps": {

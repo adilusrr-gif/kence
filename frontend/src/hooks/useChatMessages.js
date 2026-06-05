@@ -178,12 +178,35 @@ export function useChatMessages(sessionId, isImageDoc) {
     setTimeout(() => setCopied(null), 1800)
   }, [])
 
+  // Phase 5: Explain Simply — rewrite complex answer in plain language
+  const handleExplainSimply = useCallback(async (msgIndex, content) => {
+    if (loading) return
+    const simplifyPrompt = (
+      `Объясни следующий ответ максимально простым языком для человека без технического образования.\n` +
+      `Избегай жаргона, сложных терминов и длинных предложений.\n` +
+      `Структурируй как: 1) Что произошло, 2) Почему это важно, 3) Что делать дальше.\n\n` +
+      `Ответ для упрощения:\n${content}`
+    )
+    setLoading(true)
+    setMessages(prev => [...prev, { role: 'assistant', content: '', status: 'typing', streaming: true, isSimplified: true }])
+    await streamWithEvents(sessionId, simplifyPrompt, {
+      mode: 'precise',
+      ...makeStreamHandlers(),
+      onDone: (full) => setMessages(prev => {
+        const m = [...prev]
+        m[m.length - 1] = { role: 'assistant', content: full, streaming: false, ts: Date.now(), isSimplified: true }
+        return m
+      }),
+    })
+    setLoading(false)
+  }, [loading, sessionId, makeStreamHandlers])
+
   return {
     messages, input, setInput, loading, copied,
     chatMode, setChatMode, visualizing, translating,
     inputRef, messagesEndRef,
     handleSend, handleClearHistory, handleVisualDescribe,
     handleTranslate, handleExport, handleCopy,
-    handleRegenerate, handleExportChat,
+    handleRegenerate, handleExportChat, handleExplainSimply,
   }
 }
