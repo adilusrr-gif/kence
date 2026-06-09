@@ -58,7 +58,7 @@ def clear_history(session_id: str) -> None:
         from app.core.database import SessionLocal
         from app.models.models import ChatMessage
         with SessionLocal() as db:
-            db.query(ChatMessage).filter(ChatMessage.session_id == session_id).delete()
+            db.query(ChatMessage).filter(ChatMessage.session_id == session_id).delete(synchronize_session=False)
             db.commit()
     except Exception as e:
         logger.warning("memory clear_history failed for %s: %s", session_id, e)

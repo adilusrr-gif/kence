@@ -107,14 +107,17 @@ def list_members(org_id: int) -> list[dict]:
 
 def get_user_orgs(username: str) -> list[dict]:
     with _db() as db:
-        memberships = db.query(OrgMembership).filter_by(username=username).all()
+        rows = (
+            db.query(Organization, OrgMembership)
+            .join(OrgMembership, OrgMembership.org_id == Organization.id)
+            .filter(OrgMembership.username == username, Organization.is_active == True)
+            .all()
+        )
         result = []
-        for m in memberships:
-            org = db.query(Organization).filter_by(id=m.org_id).first()
-            if org and org.is_active:
-                d = _org_to_dict(org)
-                d["org_role"] = m.org_role
-                result.append(d)
+        for org, m in rows:
+            d = _org_to_dict(org)
+            d["org_role"] = m.org_role
+            result.append(d)
         return result
 
 

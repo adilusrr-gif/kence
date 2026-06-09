@@ -9,8 +9,10 @@ from app.services.library_service import (
     add_to_library, list_library, get_library_doc, delete_library_doc, search_library
 )
 from app.core.session import session_manager
+from app.core.config import get_settings
 
 router = APIRouter(tags=["library"])
+_settings = get_settings()
 
 
 class AddToLibraryRequest(BaseModel):
@@ -45,13 +47,17 @@ async def add_doc_to_library(
     if not session:
         raise HTTPException(status_code=404, detail="Сессия не найдена")
 
-    upload_dir = os.getenv("UPLOAD_DIR", "./uploads")
+    upload_dir = _settings.UPLOAD_DIR
     session_dir = os.path.join(upload_dir, req.session_id)
     if not os.path.isdir(session_dir):
         raise HTTPException(status_code=404, detail="Файлы сессии не найдены")
 
-    # Find the uploaded file
-    files = [f for f in os.listdir(session_dir) if not f.startswith(".")]
+    # Find the uploaded file (skip generated/converted artifacts)
+    _ARTIFACT_PREFIXES = ("converted_", "translated_", "edited_", "presentation")
+    files = [
+        f for f in os.listdir(session_dir)
+        if not f.startswith(".") and not any(f.startswith(p) for p in _ARTIFACT_PREFIXES)
+    ]
     if not files:
         raise HTTPException(status_code=404, detail="В сессии нет файлов")
 
@@ -102,7 +108,7 @@ async def open_library_doc_in_session(org_id: int, doc_id: int, current_user: di
         raise HTTPException(status_code=404, detail="Файл не найден")
 
     session_id = session_manager.create_session()
-    upload_dir = os.getenv("UPLOAD_DIR", "./uploads")
+    upload_dir = _settings.UPLOAD_DIR
     dest_dir = os.path.join(upload_dir, session_id)
     os.makedirs(dest_dir, exist_ok=True)
 
@@ -111,7 +117,7 @@ async def open_library_doc_in_session(org_id: int, doc_id: int, current_user: di
     shutil.copy2(doc["file_path"], dest_path)
 
     session = session_manager.get_session(session_id)
-    session["document_name"] = doc["name"]
+    session["document"] = doc["name"]
     session["org_id"] = org_id
     session["owner_username"] = current_user["username"]
     session_manager.save_session(session_id)

@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import secrets
 import os
 from datetime import datetime, timezone
@@ -17,6 +18,10 @@ def _db() -> Session:
 
 
 def _hash_key(raw_key: str) -> str:
+    """HMAC-SHA256 when API_KEY_HMAC_SECRET is set; plain SHA-256 otherwise."""
+    secret = os.getenv("API_KEY_HMAC_SECRET", "").encode()
+    if secret:
+        return hmac.new(secret, raw_key.encode(), hashlib.sha256).hexdigest()
     return hashlib.sha256(raw_key.encode()).hexdigest()
 
 
@@ -41,10 +46,15 @@ def create_api_key(org_id: int, created_by: str, name: Optional[str] = None, exp
 
 
 def validate_api_key(raw_key: str) -> Optional[dict]:
+    if not raw_key or not raw_key.startswith(_PREFIX):
+        return None
     key_hash = _hash_key(raw_key)
     with _db() as db:
         record = db.query(APIKey).filter_by(key_hash=key_hash, is_active=True).first()
         if not record:
+            return None
+        # Constant-time comparison — prevents timing oracle on the stored hash
+        if not hmac.compare_digest(record.key_hash, key_hash):
             return None
         if record.expires_at and record.expires_at < datetime.now(timezone.utc):
             return None

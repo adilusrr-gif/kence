@@ -4,11 +4,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Upload, MessageSquare, GitCompare,
   Presentation, RefreshCw, BarChart2,
-  ChevronLeft, ChevronRight, Library, TrendingUp, Network, Bot, Sparkles,
+  ChevronLeft, ChevronRight, Library, TrendingUp, Network, Bot, Sparkles, Settings,
 } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { useShellStore } from '@/shared/stores/shellStore'
 import { useAuthStore, selectCurrentRole } from '@/shared/stores/authStore'
+import { useFeatureFlags } from '@/shared/stores/featureStore'
 
 function useIsMobile() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 600)
@@ -21,7 +22,8 @@ function useIsMobile() {
   return isMobile
 }
 
-const NAV_ITEMS = [
+// Full enterprise nav
+const NAV_ITEMS_ENTERPRISE = [
   { icon: LayoutDashboard, labelKey: 'nav.dashboard',    path: '/' },
   { icon: Upload,          labelKey: 'nav.upload',        path: '/upload' },
   { icon: Sparkles,        labelKey: 'nav.insights',      path: '/insights' },
@@ -29,22 +31,35 @@ const NAV_ITEMS = [
   { icon: GitCompare,      labelKey: 'nav.compare',       path: '/compare' },
   { icon: Presentation,    labelKey: 'nav.presentation',  path: '/presentation' },
   { icon: RefreshCw,       labelKey: 'nav.convert',       path: '/convert' },
-  { icon: Library,         labelKey: 'nav.library',       path: '/library' },
-  { icon: Network,         labelKey: 'nav.graph',         path: '/graph' },
-  { icon: Bot,             labelKey: 'nav.agents',        path: '/agents' },
+  { icon: Library,         labelKey: 'nav.library',       path: '/library', featureFlag: 'documentLibrary' },
+  { icon: Network,         labelKey: 'nav.graph',         path: '/graph',   featureFlag: 'knowledgeGraph' },
+  { icon: Bot,             labelKey: 'nav.agents',        path: '/agents',  featureFlag: 'fullAgents' },
 ]
 
-const UTILITY_ITEMS = [
-  { icon: BarChart2,  labelKey: 'nav.analytics', path: '/analytics' },
-  { icon: TrendingUp, labelKey: 'nav.executive', path: '/executive', orgAdminOnly: true },
+// Government edition — 5 items, plain-language labels
+const NAV_ITEMS_GOV = [
+  { icon: LayoutDashboard, label: 'Главная',    path: '/' },
+  { icon: Upload,          label: 'Загрузить',  path: '/upload' },
+  { icon: Sparkles,        label: 'Анализ',     path: '/insights' },
+  { icon: GitCompare,      label: 'Сравнить',   path: '/compare' },
+  { icon: Presentation,    label: 'Доклад',     path: '/presentation' },
 ]
 
-function NavItem({ icon: Icon, labelKey, path, isActive, collapsed, onNavigate, isMobile }) {
+const UTILITY_ITEMS_ENTERPRISE = [
+  { icon: BarChart2,  labelKey: 'nav.analytics',   path: '/analytics',    featureFlag: 'analytics' },
+  { icon: TrendingUp, labelKey: 'nav.executive',   path: '/executive',    featureFlag: 'executiveDashboard', orgAdminOnly: true },
+]
+
+const UTILITY_ITEMS_GOV = [
+  { icon: TrendingUp, label: 'Статистика', path: '/executive', orgAdminOnly: true },
+]
+
+function NavItem({ icon: Icon, label, labelKey, path, isActive, collapsed, onNavigate, isMobile }) {
   const { t } = useTranslation()
-  const label = t(labelKey)
+  const text = label || t(labelKey)
   const showLabel = !collapsed || isMobile
   return (
-    <div className="left-rail__nav-item-wrapper" title={collapsed && !isMobile ? label : undefined}>
+    <div className="left-rail__nav-item-wrapper" title={collapsed && !isMobile ? text : undefined}>
       {isActive && (
         <motion.div
           className="left-rail__nav-active-bg"
@@ -55,7 +70,7 @@ function NavItem({ icon: Icon, labelKey, path, isActive, collapsed, onNavigate, 
       <button
         type="button"
         className={`left-rail__nav-item${isActive ? ' left-rail__nav-item--active' : ''}`}
-        aria-label={label}
+        aria-label={text}
         aria-current={isActive ? 'page' : undefined}
         onClick={() => onNavigate(path)}
       >
@@ -72,11 +87,11 @@ function NavItem({ icon: Icon, labelKey, path, isActive, collapsed, onNavigate, 
               transition={{ duration: 0.18, ease: 'easeOut' }}
               style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}
             >
-              {label}
+              {text}
             </motion.span>
           )}
           {isMobile && (
-            <span className="left-rail__nav-label">{label}</span>
+            <span className="left-rail__nav-label">{text}</span>
           )}
         </AnimatePresence>
       </button>
@@ -123,6 +138,7 @@ export default function LeftRail({ user, onNavigate }) {
   const setLeftRailCollapsed = useShellStore((s) => s.setLeftRailCollapsed)
   const role = useAuthStore(selectCurrentRole)
   const isMobile = useIsMobile()
+  const flags = useFeatureFlags()
 
   const handleNavigate = useCallback((path) => {
     onNavigate?.(path)
@@ -131,6 +147,20 @@ export default function LeftRail({ user, onNavigate }) {
   const username = user?.username || ''
   const userRole = user?.role || role || 'user'
   const isAdmin = userRole === 'admin'
+  const isGov = flags.govUx
+
+  const navItems = isGov
+    ? NAV_ITEMS_GOV
+    : NAV_ITEMS_ENTERPRISE.filter(item => {
+        if (item.featureFlag && !flags[item.featureFlag]) return false
+        return true
+      })
+
+  const utilityItems = (isGov ? UTILITY_ITEMS_GOV : UTILITY_ITEMS_ENTERPRISE).filter(item => {
+    if (item.orgAdminOnly && !isAdmin) return false
+    if (item.featureFlag && !flags[item.featureFlag]) return false
+    return true
+  })
 
   return (
     <motion.nav
@@ -139,7 +169,7 @@ export default function LeftRail({ user, onNavigate }) {
       transition={{ duration: 0.22, ease: 'easeOut' }}
       aria-label="Главная навигация"
     >
-      {/* Brand — без кнопки */}
+      {/* Brand */}
       <div className="left-rail__brand">
         <div className="left-rail__logo-icon" aria-hidden="true">K</div>
         <AnimatePresence initial={false}>
@@ -152,7 +182,7 @@ export default function LeftRail({ user, onNavigate }) {
               transition={{ duration: 0.18, ease: 'easeOut' }}
               style={{ overflow: 'hidden', whiteSpace: 'nowrap' }}
             >
-              KENCE.ai
+              {isGov ? 'KENCE.gov' : 'KENCE.ai'}
             </motion.span>
           )}
         </AnimatePresence>
@@ -160,7 +190,7 @@ export default function LeftRail({ user, onNavigate }) {
 
       {/* Main nav */}
       <div className="left-rail__nav-section">
-        {NAV_ITEMS.map((item) => (
+        {navItems.map((item) => (
           <NavItem
             key={item.path}
             {...item}
@@ -176,10 +206,7 @@ export default function LeftRail({ user, onNavigate }) {
 
       {/* Utility nav */}
       <div className="left-rail__nav-section left-rail__nav-section--utility">
-        {UTILITY_ITEMS.filter((item) => {
-          if (item.orgAdminOnly && !isAdmin) return false
-          return true
-        }).map((item) => (
+        {utilityItems.map((item) => (
           <NavItem
             key={item.path}
             {...item}

@@ -41,21 +41,21 @@ import useOrgStore from '@/shared/stores/orgStore'
 import { useSessionTabsStore, ROUTE_TAB_MAP } from '@/shared/stores/sessionTabsStore'
 import { useShellStore } from '@/shared/stores/shellStore'
 
-function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, sessionHistory, setDocumentName, setSessionId, onNewSession, onRestoreSession }) {
+function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, sessionHistory, setDocumentName, setSessionId, onNewSession, onRestoreSession, onDeleteSession }) {
   return (
     <LegacyPageCanvasHost>
       <div className="legacy-main-content">
-        <AnimatePresence mode="wait">
+        <AnimatePresence>
           <motion.div
             key={location.pathname}
-            className={['/', '/upload', '/workspace'].includes(location.pathname) ? 'page-full' : 'page-container'}
-            initial={{ opacity: 0, y: 10 }}
+            className={['/upload', '/workspace'].includes(location.pathname) ? 'page-full' : location.pathname === '/' ? 'page-scrollable' : 'page-container'}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
           >
             <Routes location={location}>
-              <Route path="/"             element={<DashboardPage sessionHistory={sessionHistory} currentUser={currentUser} onNewSession={onNewSession} onRestoreSession={onRestoreSession} />} />
+              <Route path="/"             element={<DashboardPage sessionHistory={sessionHistory} currentUser={currentUser} onNewSession={onNewSession} onRestoreSession={onRestoreSession} onDeleteSession={onDeleteSession} />} />
               <Route path="/home"         element={<LandingPage />} />
               <Route path="/upload"       element={<UploadPage sessionId={sessionId} setSessionId={setSessionId} setDocumentName={setDocumentName} />} />
               <Route path="/workspace"    element={<DocumentWorkspacePage sessionId={sessionId} documentName={documentName} />} />
@@ -177,11 +177,21 @@ export default function App() {
     }
   }, [location.pathname, currentUser, openTab])
 
+  const handleDeleteSession = useCallback((id) => {
+    setSessionHistory(prev => {
+      const next = prev.filter(s => s.id !== id)
+      localStorage.setItem('kence_session_history', JSON.stringify(next))
+      return next
+    })
+  }, [])
+
   const handleLogout = useCallback(() => {
     clearAuth()
     setCurrentUser(null)
     handleSetSessionId(null)
     handleSetDocumentName('')
+    setSessionHistory([])
+    localStorage.removeItem('kence_session_history')
     useSessionTabsStore.getState().clearSessionTabs()
     navigate('/login', { replace: true })
   }, [navigate, handleSetSessionId, handleSetDocumentName])
@@ -256,6 +266,7 @@ export default function App() {
             setSessionId={handleSetSessionId}
             onNewSession={handleNewSession}
             onRestoreSession={handleRestoreSession}
+            onDeleteSession={handleDeleteSession}
           />
         )}
         rightPanel={<RightIntelligencePanel />}

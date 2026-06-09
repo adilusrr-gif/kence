@@ -2,6 +2,7 @@
 import logging
 from typing import Optional
 from app.core.config import get_settings
+from app.services.cypher_policy import cypher_policy, CypherPolicyError, sanitize_rel_type
 
 logger = logging.getLogger(__name__)
 _driver = None
@@ -69,7 +70,7 @@ async def upsert_relationship(
     if not driver:
         return
     props = properties or {}
-    safe_rel = rel_type.upper().replace(" ", "_").replace("-", "_")
+    safe_rel = sanitize_rel_type(rel_type)
     try:
         async with driver.session() as session:
             await session.run(
@@ -148,32 +149,43 @@ async def export_graph_for_d3(org_id: int) -> dict:
             )
             links = [{"source": r["source"], "target": r["target"], "type": r["type"]} async for r in edges_result]
 
-        return {"nodes": nodes, "links": links}
+        truncated = len(nodes) >= 500 or len(links) >= 1000
+        return {"nodes": nodes, "links": links, "truncated": truncated}
     except Exception as e:
         logger.error("export_graph_for_d3 error: %s", e)
         return {"nodes": [], "links": []}
 
 
-async def natural_language_query(query_text: str, llm_service) -> str:
-    """Converts natural language to Cypher via LLM and executes it."""
+async def natural_language_query(query_text: str, llm_service, org_id: int = 0) -> str:
+    """Converts natural language to Cypher via LLM and executes it (read-only, org-scoped).
+
+    Security: CypherPolicyEngine validates and sanitizes the LLM output before execution.
+    Neo4j session uses READ_ACCESS mode as the final backstop against write mutations.
+    """
     driver = get_driver()
     if not driver:
         return "Neo4j недоступен"
     cypher_prompt = (
-        f"Преобразуй следующий запрос на естественном языке в Cypher-запрос для Neo4j. "
-        f"Граф содержит узлы (:Entity) с полями: org_id, label, entity_type. "
+        "Преобразуй следующий запрос на естественном языке в READ-ONLY Cypher-запрос для Neo4j. "
+        "Граф содержит узлы (:Entity) с полями: org_id, label, entity_type. "
+        "Используй только MATCH, WHERE и RETURN. "
         f"Верни ТОЛЬКО Cypher-запрос, без объяснений.\n\nЗапрос: {query_text}"
     )
     try:
-        cypher = await llm_service.agenerate(cypher_prompt)
-        cypher = cypher.strip().strip("```").strip()
-        async with driver.session() as session:
-            result = await session.run(cypher)
+        raw_cypher = await llm_service.agenerate(cypher_prompt)
+        safe_cypher = cypher_policy.validate_and_sanitize(raw_cypher, org_id)
+
+        from neo4j import READ_ACCESS
+        async with driver.session(default_access_mode=READ_ACCESS) as session:
+            result = await session.run(safe_cypher, {"org_id": org_id})
             records = [dict(r) async for r in result]
-        return str(records[:20])
+        return str(records[:cypher_policy.MAX_LIMIT_RESULT])
+    except CypherPolicyError as e:
+        logger.warning("natural_language_query policy violation (org_id=%d): %s", org_id, e)
+        return f"Запрос отклонён: {e}"
     except Exception as e:
         logger.error("natural_language_query error: %s", e)
-        return f"Ошибка выполнения запроса: {e}"
+        return "Ошибка выполнения запроса"
 
 
 async def delete_org_graph(org_id: int) -> int:

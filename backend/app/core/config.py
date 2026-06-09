@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "nomic-embed-text"
     CHUNK_SIZE: int = 2000
     CHUNK_OVERLAP: int = 400
-    SESSION_TIMEOUT: int = 3600
+    SESSION_TIMEOUT: int = 28800  # 8 hours for government work sessions
     MAX_FILE_SIZE: int = 100 * 1024 * 1024
     ALLOWED_UPLOAD_FORMATS: frozenset = frozenset({
         ".pdf", ".docx", ".pptx", ".xlsx",
@@ -30,10 +30,23 @@ class Settings(BaseSettings):
     # LLM call timeout in seconds (reduced from 300 for faster failure detection)
     LLM_TIMEOUT_SEC: int = 60
 
-    # JWT Auth — MUST be overridden via JWT_SECRET_KEY in .env for production
-    JWT_SECRET_KEY: str = "dev-only-insecure-change-in-production"
+    # JWT Auth — REQUIRED. Generate with: openssl rand -hex 32
+    # Server refuses to start if this is missing or weak.
+    JWT_SECRET_KEY: str = ""
+    # During rotation: set new key as JWT_SECRET_KEY, move old key here.
+    # Old tokens remain valid until they expire; then clear this field.
+    JWT_SECRET_KEY_PREVIOUS: str = ""
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+
+    # Prometheus /metrics auth — set to a long random token (openssl rand -hex 32).
+    # If empty, /metrics is restricted to loopback (127.0.0.1) only.
+    METRICS_TOKEN: str = ""
+
+    # HMAC secret for API key hashing — set in .env to enable HMAC-SHA256.
+    # If empty, falls back to plain SHA-256 (keys generated before this was set
+    # remain valid; regenerate them after setting this value).
+    API_KEY_HMAC_SECRET: str = ""
 
     USERS_FILE: str = "./data/users.json"
 
@@ -52,6 +65,22 @@ class Settings(BaseSettings):
     # Enterprise defaults
     DEFAULT_ORG_SLUG: str = "default"
     API_KEY_PREFIX: str = "kce_"
+
+    # Observability
+    LOG_LEVEL: str = "INFO"          # DEBUG | INFO | WARNING | ERROR
+    LOG_FORMAT: str = "json"         # json | text
+
+    # CORS — comma-separated allowed origins.
+    # Dev default allows localhost ports. Override in production.
+    CORS_ORIGINS: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "http://localhost:5173,http://127.0.0.1:5173,"
+        "http://localhost:5174,http://127.0.0.1:5174"
+    )
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     class Config:
         env_file = ".env"

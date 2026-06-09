@@ -72,7 +72,12 @@ async def build(session_id: str, body: BuildRequest, user: dict = Depends(get_cu
         raise HTTPException(status_code=400, detail="No plan found — call POST /plan first")
     try:
         path = build_presentation(plan, body.theme, body.slide_ids, session_id, llm_service)
-        analytics_service.log_event("presentation", username=user.get("sub"), session_id=session_id, theme=body.theme)
+        _u = user.get("username")
+        asyncio.create_task(asyncio.to_thread(
+            analytics_service.log_event, "presentation",
+            username=_u, session_id=session_id, theme=body.theme,
+            org_id=analytics_service.resolve_org_id(_u),
+        ))
         return {
             "status": "built",
             "download_url": f"/api/presentations/download/{session_id}",

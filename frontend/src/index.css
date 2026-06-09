@@ -397,6 +397,12 @@
   flex: 1;
 }
 
+/* Content pages that manage their own padding/layout but need scroll */
+.page-scrollable {
+  flex: 1;
+  min-height: 0;
+}
+
 /* full-screen pages (landing, upload): no constraints */
 .page-full {
   flex: 1;

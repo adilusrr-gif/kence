@@ -909,7 +909,7 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
                   disabled={loading}
                 />
                 <button
-                  onClick={handleSend}
+                  onClick={() => handleSend()}
                   disabled={!input.trim() || loading}
                   className={`ws-send-btn${input.trim() && !loading ? ' ws-send-btn--active' : ''}`}
                 >

@@ -1,3 +1,4 @@
+from app.core.limiter import limiter
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError
@@ -5,12 +6,12 @@ from pydantic import BaseModel, field_validator
 from datetime import timedelta
 from typing import Optional
 import re
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
 from app.core.security import create_access_token, decode_token
 from app.services.user_service import authenticate, create_user, get_user, list_users, set_user_active, change_password, delete_user, set_user_role
 from app.core.config import get_settings
+from app.services import analytics_service
+import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,6 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 router = APIRouter(prefix="/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
-limiter = Limiter(key_func=get_remote_address)
 
 
 # ── Dependencies ─────────────────────────────────────────────────────────────
@@ -180,6 +180,29 @@ class CreateUserAdminRequest(BaseModel):
     password: str
     role: str = "user"
 
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 3 or len(v) > 32:
+            raise ValueError("Имя пользователя должно быть от 3 до 32 символов")
+        if not re.match(r'^[a-zA-Z0-9_.-]+$', v):
+            raise ValueError("Имя пользователя может содержать только буквы, цифры, _, ., -")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v: str) -> str:
+        if len(v) < 10:
+            raise ValueError("Пароль должен содержать не менее 10 символов")
+        if not re.search(r'[A-Z]', v):
+            raise ValueError("Пароль должен содержать хотя бы одну заглавную букву")
+        if not re.search(r'[a-z]', v):
+            raise ValueError("Пароль должен содержать хотя бы одну строчную букву")
+        if not re.search(r'\d', v):
+            raise ValueError("Пароль должен содержать хотя бы одну цифру")
+        return v
+
 
 class ChangeRoleRequest(BaseModel):
     role: str
@@ -203,6 +226,11 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         {"sub": user["username"]},
         timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
+    asyncio.create_task(asyncio.to_thread(
+        analytics_service.log_event, "login",
+        username=user["username"],
+        org_id=analytics_service.resolve_org_id(user["username"]),
+    ))
     return TokenResponse(access_token=token, username=user["username"], role=user["role"])
 
 
@@ -285,7 +313,7 @@ async def activate_user(username: str, admin: dict = Depends(require_admin)):
 @router.post("/change-password")
 @limiter.limit("5/minute")
 async def change_password_endpoint(
-    http_request: Request,
+    request: Request,
     req: ChangePasswordRequest,
     current_user: dict = Depends(get_current_user),
 ):

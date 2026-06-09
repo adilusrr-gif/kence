@@ -16,6 +16,7 @@ class AgentState(TypedDict):
     task_id: int
     question: Optional[str]
     instructions: Optional[str]
+    language: str
     context: Optional[str]
     graph_context: Optional[str]
     history: list

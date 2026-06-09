@@ -9,7 +9,7 @@ services:
     environment:
       POSTGRES_DB: kenceai
       POSTGRES_USER: kence
-      POSTGRES_PASSWORD: kence2026
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kence2026}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -26,7 +26,7 @@ services:
     container_name: kence-neo4j
     restart: unless-stopped
     environment:
-      NEO4J_AUTH: neo4j/kence_neo4j_2026
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-kence_neo4j_2026}
       NEO4J_PLUGINS: '["apoc"]'
       NEO4J_dbms_security_procedures_unrestricted: "apoc.*"
       NEO4J_dbms_memory_heap_initial__size: "512m"
@@ -48,7 +48,7 @@ services:
     image: ollama/ollama:latest
     container_name: kence-ollama
     volumes:
-      - C:/Users/Admin/.ollama:/root/.ollama
+      - ${OLLAMA_MODELS_PATH:-~/.ollama}:/root/.ollama
     ports:
       - "11434:11434"
     environment:
@@ -87,12 +87,12 @@ services:
       - OLLAMA_BASE_URL=http://ollama:11434
       - LLM_MODEL=qwen2.5:7b
       - EMBEDDING_MODEL=nomic-embed-text
-      - DATABASE_URL=postgresql://kence:kence2026@postgres:5432/kenceai
-      # Set a strong random value in production (e.g. openssl rand -hex 32)
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-only-insecure-change-in-production}
+      - DATABASE_URL=postgresql://kence:${POSTGRES_PASSWORD:-kence2026}@postgres:5432/kenceai
+      # REQUIRED — generate with: openssl rand -hex 32  then set JWT_SECRET_KEY in .env
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
-      - NEO4J_PASSWORD=kence_neo4j_2026
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-kence_neo4j_2026}
       - DEFAULT_ORG_SLUG=default
       - API_KEY_PREFIX=kce_
       # Load tuning for 100 concurrent users

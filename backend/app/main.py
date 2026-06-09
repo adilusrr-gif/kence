@@ -1,18 +1,22 @@
 from fastapi import FastAPI, Request
 from fastapi import HTTPException as FastAPIHTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from fastapi.responses import JSONResponse, Response
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from app.core.limiter import limiter
+from app.core.logging_config import setup_logging
 from contextlib import asynccontextmanager
 import asyncio
+import hmac
 import json
 import logging
 import secrets
 import string
 from pathlib import Path
 
+# Configure structured logging before any logger is used
+setup_logging()
 logger = logging.getLogger(__name__)
 
 try:
@@ -34,33 +38,33 @@ from app.api.branding_routes import router as branding_router
 from app.api.executive_routes import router as executive_router
 from app.api.graph_routes import router as graph_router
 from app.api.agent_routes import router as agent_router
+from app.api.config_routes import router as config_router
+from app.api.insights_routes import router as insights_router
 from app.core.session import session_manager
 from app.core.config import get_settings
 from app.services.user_service import create_user, get_user
 
 settings = get_settings()
 
-limiter = Limiter(key_func=get_remote_address)
-
 
 def _init_db():
     try:
         from app.core.database import create_tables
         create_tables()
-        print("[DB] Tables ready")
+        logger.info("DB tables ready")
         _migrate_users_from_json()
         _ensure_default_org()
     except Exception as e:
-        print(f"[DB] Warning: {e} — running without persistent DB")
+        logger.warning("DB init failed — running without persistent DB: %s", e)
 
 
 def _ensure_default_org():
     try:
         from app.services.org_service import ensure_default_org
         org = ensure_default_org()
-        print(f"[ORG] Default org ready: {org['slug']} (id={org['id']})")
+        logger.info("Default org ready: %s (id=%s)", org['slug'], org['id'])
     except Exception as e:
-        print(f"[ORG] Warning: could not ensure default org: {e}")
+        logger.warning("Could not ensure default org: %s", e)
 
 
 def _migrate_users_from_json():
@@ -82,9 +86,9 @@ def _migrate_users_from_json():
                         is_active=data.get("is_active", True),
                     ))
             db.commit()
-        print(f"[DB] Migrated {len(users)} users from {users_file}")
+        logger.info("Migrated %d users from %s", len(users), users_file)
     except Exception as e:
-        print(f"[DB] Migration skipped: {e}")
+        logger.debug("User migration skipped: %s", e)
 
 
 def _ensure_default_admin():
@@ -94,15 +98,26 @@ def _ensure_default_admin():
     if not password:
         alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
         password = "".join(secrets.choice(alphabet) for _ in range(20))
-        print("=" * 60)
-        print("[SECURITY] Default admin created with generated password:")
-        print(f"           username: admin")
-        print(f"           password: {password}")
-        print("  >>> Save this password now — it will NOT be shown again <<<")
-        print("  Set ADMIN_INITIAL_PASSWORD in .env to control this value.")
-        print("=" * 60)
+        # Write to a file readable only by this process — never log credentials
+        try:
+            cred_file = Path(settings.UPLOAD_DIR) / ".admin_initial_password"
+            cred_file.parent.mkdir(parents=True, exist_ok=True)
+            cred_file.write_text(f"username=admin\npassword={password}\n")
+            cred_file.chmod(0o600)
+            logger.warning(
+                "SECURITY: Default admin created with auto-generated password. "
+                "Retrieve it from: %s — delete this file after first login. "
+                "Set ADMIN_INITIAL_PASSWORD in .env to control the value.",
+                cred_file.resolve(),
+            )
+        except Exception as e:
+            logger.critical(
+                "SECURITY: Default admin created but credentials file could not be written (%s). "
+                "Set ADMIN_INITIAL_PASSWORD in .env before restarting.",
+                e,
+            )
     else:
-        print("[OK] Default admin created from ADMIN_INITIAL_PASSWORD")
+        logger.info("Default admin created from ADMIN_INITIAL_PASSWORD")
     create_user("admin", password, role="admin")
 
 
@@ -110,34 +125,53 @@ def _ensure_default_admin():
 async def lifespan(app: FastAPI):
     _init_db()
     _ensure_default_admin()
-    print(f"[START] {settings.APP_NAME} started")
-    print(f"[LLM] {settings.LLM_MODEL} @ {settings.OLLAMA_BASE_URL}")
-    print(f"[AUTH] JWT / {settings.JWT_ALGORITHM} / {settings.ACCESS_TOKEN_EXPIRE_MINUTES}min")
-    print(f"[DB] {settings.DATABASE_URL.split('@')[-1]}")
-    if "change-in-production" in settings.JWT_SECRET_KEY or "dev-only" in settings.JWT_SECRET_KEY:
-        print("[SECURITY WARNING] JWT_SECRET_KEY is the default dev value — set a strong secret in .env!")
+    logger.info(
+        "%s started",
+        settings.APP_NAME,
+        extra={
+            "llm_model": settings.LLM_MODEL,
+            "ollama_url": settings.OLLAMA_BASE_URL,
+            "jwt_algorithm": settings.JWT_ALGORITHM,
+            "token_expire_min": settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+            "db": settings.DATABASE_URL.split("@")[-1],
+        },
+    )
+    _weak_jwt_patterns = ("change-in-production", "dev-only", "CHANGE_ME", "insecure")
+    if not settings.JWT_SECRET_KEY or len(settings.JWT_SECRET_KEY) < 32 or any(p in settings.JWT_SECRET_KEY for p in _weak_jwt_patterns):
+        logger.critical(
+            "SECURITY: JWT_SECRET_KEY is missing, too short (< 32 chars), or a known-weak placeholder. "
+            "Generate a secret with:  openssl rand -hex 32  then set JWT_SECRET_KEY in .env. "
+            "Server startup aborted."
+        )
+        raise SystemExit(1)
+    if not settings.METRICS_TOKEN:
+        logger.warning("SECURITY: METRICS_TOKEN not set — /metrics restricted to loopback only")
+    if not settings.API_KEY_HMAC_SECRET:
+        logger.warning("SECURITY: API_KEY_HMAC_SECRET not set — API keys use plain SHA-256; set this and regenerate keys")
     if not settings.NEO4J_PASSWORD:
-        print("[SECURITY WARNING] NEO4J_PASSWORD is empty — set it in .env for production")
+        logger.warning("SECURITY: NEO4J_PASSWORD is empty — set it in .env for production")
 
     # ── Ollama health check at startup (warning only — never blocks start) ──────
     try:
         from app.services.llm import llm_service
         ollama_status = await llm_service.health_check()
         if ollama_status.get("status") == "ok":
-            print(f"[OLLAMA] ✓ {settings.LLM_MODEL} ready")
+            logger.info("Ollama ready: %s", settings.LLM_MODEL)
         else:
-            print(f"[OLLAMA] ⚠ Not reachable ({ollama_status.get('error','?')}) — "
-                  "responses will fail until Ollama recovers")
+            logger.warning(
+                "Ollama not reachable (%s) — responses will fail until it recovers",
+                ollama_status.get("error", "?"),
+            )
     except Exception as e:
-        print(f"[OLLAMA] ⚠ Health check failed: {e}")
+        logger.warning("Ollama health check failed: %s", e)
 
     # ── Neo4j constraints (best-effort) ──────────────────────────────────────
     try:
         from app.services.graph_service import ensure_constraints
         await ensure_constraints()
-        print("[NEO4J] ✓ Constraints ready")
+        logger.info("Neo4j constraints ready")
     except Exception as e:
-        print(f"[NEO4J] ⚠ Skipped constraints: {e}")
+        logger.warning("Neo4j constraints skipped: %s", e)
 
     # ── Background tasks ──────────────────────────────────────────────────────
     async def cleanup_task():
@@ -165,11 +199,11 @@ async def lifespan(app: FastAPI):
         drv = get_driver()
         if drv:
             drv.close()
-            print("[NEO4J] Driver closed")
+            logger.info("Neo4j driver closed")
     except Exception:
         pass
 
-    print("[STOP] Shutting down...")
+    logger.info("Shutdown complete")
 
 app = FastAPI(
     title="KENCE.ai",
@@ -183,18 +217,47 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000", "http://127.0.0.1:3000",
-        "http://localhost:5173", "http://127.0.0.1:5173",
-        "http://localhost:5174", "http://127.0.0.1:5174",
-        "http://localhost:5175", "http://127.0.0.1:5175",
-        "http://localhost:5176", "http://127.0.0.1:5176",
-        "http://localhost:5177", "http://127.0.0.1:5177",
-    ],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-API-Key"],
+    allow_headers=["*"],
 )
+
+from app.core.middleware import RequestTracingMiddleware  # noqa: E402
+app.add_middleware(RequestTracingMiddleware)  # pure ASGI — safe with CORSMiddleware
+
+# Prometheus metrics — /metrics endpoint (Prometheus scrape target)
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    Instrumentator(
+        should_group_status_codes=True,
+        excluded_handlers=["/metrics", "/docs", "/openapi.json", "/redoc"],
+    ).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+    logger.info("Prometheus metrics enabled at /metrics")
+except ImportError:
+    logger.warning("prometheus-fastapi-instrumentator not installed — /metrics disabled")
+
+
+@app.middleware("http")
+async def _guard_metrics_endpoint(request: Request, call_next):
+    """Protect /metrics from unauthenticated scraping."""
+    if request.url.path != "/metrics":
+        return await call_next(request)
+
+    metrics_token = settings.METRICS_TOKEN
+    if metrics_token:
+        auth = request.headers.get("Authorization", "")
+        expected = f"Bearer {metrics_token}"
+        # constant-time comparison prevents timing oracle on the token
+        if not (auth and hmac.compare_digest(auth.encode(), expected.encode())):
+            return Response(status_code=403, content="Forbidden")
+    else:
+        # No token configured — loopback only
+        client_host = getattr(request.client, "host", "") if request.client else ""
+        if client_host not in ("127.0.0.1", "::1"):
+            return Response(status_code=403, content="Forbidden")
+
+    return await call_next(request)
 
 app.include_router(auth_router,         prefix="/api")
 app.include_router(main_router,         prefix="/api")
@@ -210,6 +273,8 @@ app.include_router(branding_router,     prefix="/api")
 app.include_router(executive_router,    prefix="/api")
 app.include_router(graph_router,        prefix="/api")
 app.include_router(agent_router,        prefix="/api")
+app.include_router(config_router,       prefix="/api")
+app.include_router(insights_router,     prefix="/api")
 
 @app.exception_handler(FastAPIHTTPException)
 async def http_exception_handler(request: Request, exc: FastAPIHTTPException):

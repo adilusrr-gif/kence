@@ -97,7 +97,9 @@
       "convert": "Түрлендіру",
       "convertDesc": "TXT, Markdown, DOCX",
       "agents": "AI Агенттер",
-      "agentsDesc": "Дербес тапсырмалар"
+      "agentsDesc": "Дербес тапсырмалар",
+      "insights": "Құжат талдауы",
+      "insightsDesc": "Түйін, тәуекел, хронология"
     },
     "time": {
       "days_one": "{{count}} күн бұрын",

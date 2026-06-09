@@ -1,28 +1,29 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
+from app.core.limiter import limiter
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Literal
 from pathlib import Path
 import shutil
 import asyncio
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 from app.core.session import session_manager
 from app.core.config import get_settings
 from app.services.comparison import comparator
 from app.services import analytics_service
+from app.services.analytics_service import resolve_org_id
 from app.api.auth_routes import get_current_user
 
 router = APIRouter()
 settings = get_settings()
-limiter = Limiter(key_func=get_remote_address)
 
 
-def _require_comparison_docs(session_id: str) -> dict:
-    """Validate session has comparison docs and return them."""
+def _require_comparison_docs(session_id: str, current_user: dict) -> dict:
+    """Validate session ownership and presence of comparison docs, return the docs dict."""
+    from app.api.routes import _verify_session_access
     session = session_manager.get_session(session_id)
     if not session or "comparison_docs" not in session:
         raise HTTPException(status_code=400, detail="Upload two documents first")
+    _verify_session_access(session, current_user)
     return session["comparison_docs"]
 
 
@@ -32,7 +33,7 @@ def _require_comparison_docs(session_id: str) -> dict:
 @limiter.limit("10/minute")
 async def upload_comparison_documents(
     request: Request,
-    session_id: str,
+    session_id: str = Query(...),
     file1: UploadFile = File(...),
     file2: UploadFile = File(...),
     user: dict = Depends(get_current_user),
@@ -85,6 +86,7 @@ async def upload_comparison_documents(
         saved_paths[key] = str(file_path)
 
     session["comparison_docs"] = saved_paths
+    session_manager.save_session(session_id)
 
     return {
         "status": "uploaded",
@@ -95,35 +97,51 @@ async def upload_comparison_documents(
 
 @router.post("/compare/semantic")
 @limiter.limit("5/minute")
-async def compare_semantic(request: Request, session_id: str, user: dict = Depends(get_current_user)):
+async def compare_semantic(request: Request, session_id: str = Query(...), user: dict = Depends(get_current_user)):
     """Сравнение по смыслу — общие темы, различия, схожесть"""
-    docs = _require_comparison_docs(session_id)
+    docs = _require_comparison_docs(session_id, user)
     try:
-        result = comparator.compare_semantic(docs["doc1"], docs["doc2"])
-        analytics_service.log_event("compare", username=user.get("sub"), session_id=session_id, mode="semantic")
+        result = await asyncio.to_thread(comparator.compare_semantic, docs["doc1"], docs["doc2"])
+        _u = user.get("username")
+        asyncio.create_task(asyncio.to_thread(
+            analytics_service.log_event, "compare",
+            username=_u, session_id=session_id, mode="semantic",
+            org_id=resolve_org_id(_u),
+        ))
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/compare/technical")
 @limiter.limit("5/minute")
-async def compare_technical(request: Request, session_id: str, user: dict = Depends(get_current_user)):
+async def compare_technical(request: Request, session_id: str = Query(...), user: dict = Depends(get_current_user)):
     """Сравнение технических спецификаций — параметры, значения, совпадения"""
-    docs = _require_comparison_docs(session_id)
+    docs = _require_comparison_docs(session_id, user)
     try:
-        result = comparator.compare_technical_specs(docs["doc1"], docs["doc2"])
-        analytics_service.log_event("compare", username=user.get("sub"), session_id=session_id, mode="technical")
+        result = await asyncio.to_thread(comparator.compare_technical_specs, docs["doc1"], docs["doc2"])
+        _u = user.get("username")
+        asyncio.create_task(asyncio.to_thread(
+            analytics_service.log_event, "compare",
+            username=_u, session_id=session_id, mode="technical",
+            org_id=resolve_org_id(_u),
+        ))
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/compare/exact")
 @limiter.limit("5/minute")
-async def compare_exact(request: Request, session_id: str, user: dict = Depends(get_current_user)):
+async def compare_exact(request: Request, session_id: str = Query(...), user: dict = Depends(get_current_user)):
     """Точное посимвольное сравнение — каждый символ должен совпадать"""
-    docs = _require_comparison_docs(session_id)
+    docs = _require_comparison_docs(session_id, user)
     try:
-        result = comparator.compare_exact(docs["doc1"], docs["doc2"])
+        result = await asyncio.to_thread(comparator.compare_exact, docs["doc1"], docs["doc2"])
+        _u = user.get("username")
+        asyncio.create_task(asyncio.to_thread(
+            analytics_service.log_event, "compare",
+            username=_u, session_id=session_id, mode="exact",
+            org_id=resolve_org_id(_u),
+        ))
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -131,12 +149,17 @@ async def compare_exact(request: Request, session_id: str, user: dict = Depends(
 
 @router.post("/compare/thematic")
 @limiter.limit("5/minute")
-async def compare_thematic(request: Request, session_id: str, user: dict = Depends(get_current_user)):
+async def compare_thematic(request: Request, session_id: str = Query(...), user: dict = Depends(get_current_user)):
     """Тематическое сравнение: темы, аргументы, позиции, тон документов"""
-    docs = _require_comparison_docs(session_id)
+    docs = _require_comparison_docs(session_id, user)
     try:
         result = await asyncio.to_thread(comparator.compare_thematic, docs["doc1"], docs["doc2"])
-        analytics_service.log_event("compare", username=user.get("sub"), session_id=session_id, mode="thematic")
+        _u = user.get("username")
+        asyncio.create_task(asyncio.to_thread(
+            analytics_service.log_event, "compare",
+            username=_u, session_id=session_id, mode="thematic",
+            org_id=resolve_org_id(_u),
+        ))
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

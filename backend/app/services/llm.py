@@ -10,9 +10,22 @@ from langchain_ollama import OllamaLLM
 from app.core.config import get_settings
 from app.services.document import doc_processor
 import asyncio
+import contextvars
 import logging
 import time
 from typing import AsyncGenerator, List, Dict, Optional
+
+# Carries the active UI language through the async call tree.
+# Set by orchestrator before each agent run; read by agenerate() automatically.
+_current_language: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "current_language", default="ru"
+)
+
+_LANG_INSTRUCTIONS: dict[str, str] = {
+    "ru": "Отвечай СТРОГО на русском языке.",
+    "kz": "ТЕК қазақ тілінде жауап бер.",
+    "en": "Respond STRICTLY in English.",
+}
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
@@ -155,7 +168,10 @@ class LLMService:
         return get_prompt(prompt_type)
 
     def _build_context(self, docs, doc_context: Optional[str] = None) -> str:
-        context = "\n\n".join([d.page_content for d in docs])
+        parts = []
+        for i, d in enumerate(docs, 1):
+            parts.append(f"[Фрагмент {i}]\n{d.page_content}")
+        context = "\n\n".join(parts)
         if doc_context and doc_context.strip():
             context = f"[Описание документа: {doc_context}]\n\n{context}"
         return context
@@ -192,16 +208,25 @@ class LLMService:
         finally:
             _queue_guard.leave()
 
+    # ── Language helpers ──────────────────────────────────────────────────────
+
+    @staticmethod
+    def _lang_suffix(language: Optional[str] = None) -> str:
+        lang = language or _current_language.get()
+        return "\n\n" + _LANG_INSTRUCTIONS.get(lang, _LANG_INSTRUCTIONS["ru"])
+
     # ── Synchronous chat ──────────────────────────────────────────────────────
 
     def chat(self, question: str, session_id: str,
              doc_context: Optional[str] = None,
-             history: Optional[List[Dict[str, str]]] = None) -> str:
+             history: Optional[List[Dict[str, str]]] = None,
+             language: str = "ru") -> str:
         retriever = doc_processor.get_retriever(session_id)
         docs = retriever.invoke(question)
         context = self._build_context(docs, doc_context)
         q = self._inject_history(question, history or [])
         prompt_text = self._get_prompt("chat_prompt").format(context=context, question=q)
+        prompt_text += self._lang_suffix(language)
         return self.llm.invoke(prompt_text)
 
     # ── RAG retrieval ─────────────────────────────────────────────────────────
@@ -224,6 +249,7 @@ class LLMService:
         mode: str = "precise",
         history: Optional[List[Dict[str, str]]] = None,
         prebuilt_context: Optional[str] = None,
+        language: str = "ru",
     ) -> AsyncGenerator[str, None]:
         if not _circuit_breaker.is_allowed():
             yield "[Ollama временно недоступен. Повторите запрос через 30 секунд.]"
@@ -239,6 +265,7 @@ class LLMService:
         q = self._inject_history(question, history or [])
         prompt_key = "consultation_prompt" if mode == "consultation" else "chat_prompt"
         prompt_text = self._get_prompt(prompt_key).format(context=context, question=q)
+        prompt_text += self._lang_suffix(language)
         llm = self.llm_consult if mode == "consultation" else self.llm
 
         _queue_guard.enter()
@@ -260,9 +287,11 @@ class LLMService:
     def simple_chat(self, prompt: str) -> str:
         return self.llm.invoke(prompt)
 
-    async def agenerate(self, prompt: str) -> str:
+    async def agenerate(self, prompt: str, language: Optional[str] = None) -> str:
+        full_prompt = prompt + self._lang_suffix(language)
+
         async def _call():
-            return await asyncio.to_thread(self.simple_chat, prompt)
+            return await asyncio.to_thread(self.simple_chat, full_prompt)
 
         return await _guarded_invoke_standalone(_call)
 

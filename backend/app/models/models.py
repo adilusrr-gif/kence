@@ -3,6 +3,28 @@ from sqlalchemy.sql import func
 from app.core.database import Base
 
 
+class AuditEvent(Base):
+    """Immutable audit log — one row per significant user action.
+    Append-only: never update or delete rows after insert."""
+    __tablename__ = "audit_events"
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    action        = Column(String(64), nullable=False, index=True)   # upload|view|briefing_view|export|delete
+    result        = Column(String(16), nullable=False, default="success")  # success|failure
+    username      = Column(String(64), ForeignKey("users.username", ondelete="SET NULL"), nullable=True, index=True)
+    org_id        = Column(Integer, ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True)
+    session_id    = Column(String(64), nullable=True, index=True)
+    document_name = Column(String(256), nullable=True)
+    ip_address    = Column(String(64), nullable=True)
+    detail        = Column(JSON, nullable=True)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    __table_args__ = (
+        Index("ix_audit_events_org_action", "org_id", "action"),
+        Index("ix_audit_events_org_created", "org_id", "created_at"),
+    )
+
+
 class Organization(Base):
     __tablename__ = "organizations"
 
@@ -66,18 +88,18 @@ class APIKey(Base):
 class User(Base):
     __tablename__ = "users"
 
-    username        = Column(String(64), primary_key=True, index=True)
+    username        = Column(String(64), primary_key=True)  # PK already creates unique index
     hashed_password = Column(String(256), nullable=False)
     role            = Column(String(32), nullable=False, default="user")
     is_active       = Column(Boolean, nullable=False, default=True)
     created_at      = Column(DateTime(timezone=True), server_default=func.now())
-    default_org_id  = Column(Integer, ForeignKey("organizations.id"), nullable=True)
+    default_org_id  = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
 
 
 class DocSession(Base):
     __tablename__ = "doc_sessions"
 
-    session_id        = Column(String(64), primary_key=True, index=True)
+    session_id        = Column(String(64), primary_key=True)  # PK creates unique index
     document_name     = Column(String(256), nullable=True)
     has_vector_store  = Column(Boolean, nullable=False, default=False)
     preview           = Column(Text, nullable=True)
@@ -88,6 +110,13 @@ class DocSession(Base):
     owner_username    = Column(String(64), ForeignKey("users.username"), nullable=True, index=True)
     created_at        = Column(DateTime(timezone=True), server_default=func.now())
     last_activity     = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        # Speeds up list_sessions() which filters by owner and sorts by recency
+        Index("ix_doc_sessions_owner_activity", "owner_username", "last_activity"),
+        # Speeds up org-scoped session lookups
+        Index("ix_doc_sessions_org_activity", "org_id", "last_activity"),
+    )
 
 
 class AIPrompt(Base):
@@ -102,10 +131,16 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
 
     id         = Column(Integer, primary_key=True, autoincrement=True)
-    session_id = Column(String(64), nullable=False, index=True)
+    session_id = Column(String(64), ForeignKey("doc_sessions.session_id", ondelete="CASCADE"), nullable=False, index=True)
+    org_id     = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     role       = Column(String(16), nullable=False)   # "user" | "assistant"
     content    = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        # Speeds up paginated history queries ordered by time within a session
+        Index("ix_chat_messages_session_created", "session_id", "created_at"),
+    )
 
 
 class UsageLog(Base):
@@ -119,6 +154,13 @@ class UsageLog(Base):
     org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
     extra       = Column(JSON, nullable=True)
     created_at  = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+    __table_args__ = (
+        # Speeds up analytics queries that filter by org and aggregate by event type
+        Index("ix_usage_logs_org_event", "org_id", "event_type"),
+        # Speeds up timeline queries that slice by org and time window
+        Index("ix_usage_logs_org_created", "org_id", "created_at"),
+    )
 
 
 class DocumentContext(Base):
@@ -160,15 +202,20 @@ class WorkspaceShare(Base):
 
     id           = Column(Integer, primary_key=True, autoincrement=True)
     session_id   = Column(String(64), ForeignKey("doc_sessions.session_id"), nullable=False, index=True)
-    shared_by    = Column(String(64), ForeignKey("users.username"), nullable=False)
-    shared_with  = Column(String(64), ForeignKey("users.username"), nullable=True)  # null = whole org
-    org_id       = Column(Integer, ForeignKey("organizations.id"), nullable=False)
+    shared_by    = Column(String(64), ForeignKey("users.username"), nullable=False, index=True)
+    shared_with  = Column(String(64), ForeignKey("users.username"), nullable=True, index=True)  # null = whole org
+    org_id       = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     permission   = Column(String(16), nullable=False, default="view")  # view|edit|comment
     created_at   = Column(DateTime(timezone=True), server_default=func.now())
     expires_at   = Column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        UniqueConstraint("session_id", "shared_with", name="uq_session_share"),
+        # Two partial unique indexes (handled in DB migration):
+        # uq_session_share_user: UNIQUE(session_id, shared_with) WHERE shared_with IS NOT NULL
+        # uq_session_share_org:  UNIQUE(session_id, org_id)      WHERE shared_with IS NULL
+        Index("ix_workspace_shares_shared_by", "shared_by"),
+        Index("ix_workspace_shares_shared_with", "shared_with"),
+        Index("ix_workspace_shares_org_id", "org_id"),
     )
 
 
@@ -216,8 +263,8 @@ class GraphExtractionJob(Base):
     __tablename__ = "graph_extraction_jobs"
 
     id           = Column(Integer, primary_key=True, autoincrement=True)
-    org_id       = Column(Integer, ForeignKey("organizations.id"), nullable=False)
-    session_id   = Column(String(64), ForeignKey("doc_sessions.session_id"), nullable=False)
+    org_id       = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
+    session_id   = Column(String(64), ForeignKey("doc_sessions.session_id"), nullable=False, index=True)
     status       = Column(String(32), nullable=False, default="pending")  # pending|running|done|failed
     entity_count = Column(Integer, nullable=True)
     rel_count    = Column(Integer, nullable=True)
@@ -233,7 +280,7 @@ class AgentTask(Base):
     __tablename__ = "agent_tasks"
 
     id          = Column(Integer, primary_key=True, autoincrement=True)
-    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+    org_id      = Column(Integer, ForeignKey("organizations.id"), nullable=False, index=True)
     username    = Column(String(64), ForeignKey("users.username"), nullable=False, index=True)
     task_type   = Column(String(64), nullable=False)
     status      = Column(String(32), nullable=False, default="queued")  # queued|running|done|failed|cancelled
@@ -244,3 +291,10 @@ class AgentTask(Base):
     started_at  = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
     created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        # Speeds up list_tasks() which filters by username and optionally by status
+        Index("ix_agent_tasks_username_status", "username", "status"),
+        # Speeds up org-scoped task dashboards
+        Index("ix_agent_tasks_org_status", "org_id", "status"),
+    )

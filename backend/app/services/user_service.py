@@ -10,6 +10,20 @@ def _db():
 
 
 def get_user(username: str) -> Optional[dict]:
+    """Returns public user dict (no hashed_password). Use _get_user_internal for auth."""
+    with _db() as db:
+        user = db.get(User, username)
+        if not user:
+            return None
+        return {
+            "username": user.username,
+            "role": user.role,
+            "is_active": user.is_active,
+        }
+
+
+def _get_user_with_hash(username: str) -> Optional[dict]:
+    """Returns user dict including hashed_password. Only for authenticate()."""
     with _db() as db:
         user = db.get(User, username)
         if not user:
@@ -47,12 +61,12 @@ def create_user(username: str, password: str, role: str = "user") -> dict:
 
 
 def authenticate(username: str, password: str) -> Optional[dict]:
-    user = get_user(username)
+    user = _get_user_with_hash(username)
     if not user or not verify_password(password, user["hashed_password"]):
         return None
     if not user["is_active"]:
         return None
-    return user
+    return get_user(username)
 
 
 def list_users() -> list[dict]:
@@ -99,9 +113,16 @@ def change_password(username: str, old_password: str, new_password: str) -> None
         user = db.get(User, username)
         if not user:
             raise ValueError("Пользователь не найден")
-        if not verify_password(old_password, user.hashed_password):
+        if not verify_password(old_password, user.hashed_password):  # noqa: direct ORM access OK here
             raise ValueError("Неверный текущий пароль")
-        if len(new_password) < 6:
-            raise ValueError("Новый пароль должен содержать не менее 6 символов")
+        if len(new_password) < 10:
+            raise ValueError("Новый пароль должен содержать не менее 10 символов")
+        import re
+        if not re.search(r'[A-Z]', new_password):
+            raise ValueError("Новый пароль должен содержать хотя бы одну заглавную букву")
+        if not re.search(r'[a-z]', new_password):
+            raise ValueError("Новый пароль должен содержать хотя бы одну строчную букву")
+        if not re.search(r'\d', new_password):
+            raise ValueError("Новый пароль должен содержать хотя бы одну цифру")
         user.hashed_password = hash_password(new_password)
         db.commit()

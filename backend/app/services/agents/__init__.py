@@ -46,4 +46,9 @@ AGENT_TYPES = {
         "description": "Редактирует текст и таблицы, строит графики, экспортирует в DOCX",
         "input_schema": {"session_id": "string", "instructions": "string"},
     },
+    "government_briefing": {
+        "label": "Оперативная сводка",
+        "description": "Государственная аналитическая сводка: резюме, риски, хронология, рекомендации, решения",
+        "input_schema": {"session_id": "string"},
+    },
 }

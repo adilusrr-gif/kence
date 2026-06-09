@@ -11,10 +11,12 @@ export const apiDeleteDocumentContext = name      => request('DELETE', '/api/ai-
 export const apiGetDocumentContexts = ()          => request('GET', '/api/ai-settings/document-contexts')
 
 // ── Organizations ─────────────────────────────────────────────────────────────
+export const apiAdminListOrgs       = ()              => request('GET', '/api/orgs')
 export const apiGetMyOrgs           = ()              => request('GET', '/api/orgs/me')
 export const apiGetOrg              = id              => request('GET', `/api/orgs/${id}`)
 export const apiCreateOrg           = data            => request('POST', '/api/orgs', { body: data })
 export const apiUpdateOrg           = (id, data)      => request('PATCH', `/api/orgs/${id}`, { body: data })
+export const apiAdminDeleteOrg      = id              => request('DELETE', `/api/orgs/${id}`)
 export const apiGetOrgMembers       = id              => request('GET', `/api/orgs/${id}/members`)
 export const apiAddOrgMember        = (id, data)      => request('POST', `/api/orgs/${id}/members`, { body: data })
 export const apiRemoveOrgMember     = (id, u)         => request('DELETE', `/api/orgs/${id}/members/${u}`)
@@ -57,6 +59,17 @@ export const apiGetGraphNodes     = (orgId, type)     => request('GET', `/api/or
 export const apiExportGraph       = orgId             => request('GET', `/api/orgs/${orgId}/graph/export`)
 export const apiQueryGraph        = (orgId, query)    => request('POST', `/api/orgs/${orgId}/graph/query`, { body: { query } })
 export const apiDeleteGraph       = orgId             => request('DELETE', `/api/orgs/${orgId}/graph`)
+
+// ── Insights ──────────────────────────────────────────────────────────────────
+export const apiExportInsightsPdf = (documentName, results, orgName) =>
+  request('POST', '/api/insights/export', {
+    body: { document_name: documentName, results, org_name: orgName },
+  })
+
+export const apiExportGovBriefPdf = (documentName, brief, orgName, classification = 'ДСП') =>
+  request('POST', '/api/insights/export/gov', {
+    body: { document_name: documentName, brief, org_name: orgName, classification },
+  })
 
 // ── Agents ────────────────────────────────────────────────────────────────────
 export const apiGetAgentTypes   = ()        => request('GET', '/api/agents/types')

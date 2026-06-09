@@ -2,13 +2,11 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional, Any
+from app.core.limiter import limiter
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
-limiter = Limiter(key_func=get_remote_address)
 
 from app.api.auth_routes import get_current_user, verify_token, oauth2_scheme
 from app.core.config import get_settings
@@ -18,6 +16,10 @@ from app.services.agents import AGENT_TYPES
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
+# Keeps strong references to running agent asyncio.Tasks so CPython GC cannot
+# collect them before they finish. Cleaned up via add_done_callback.
+_task_registry: dict[int, asyncio.Task] = {}
+
 
 class CreateTaskRequest(BaseModel):
     task_type: str
@@ -25,6 +27,7 @@ class CreateTaskRequest(BaseModel):
     session_id: Optional[str] = None
     question: Optional[str] = None
     instructions: Optional[str] = None
+    language: Optional[str] = None
 
 
 @router.get("/types")
@@ -34,7 +37,7 @@ async def list_agent_types(current_user: dict = Depends(get_current_user)):
 
 @router.post("/tasks")
 @limiter.limit("20/minute")
-async def create_task(http_request: Request, req: CreateTaskRequest, current_user: dict = Depends(get_current_user)):
+async def create_task(request: Request, req: CreateTaskRequest, current_user: dict = Depends(get_current_user)):
     if req.task_type not in AGENT_TYPES:
         raise HTTPException(status_code=400, detail=f"Неизвестный тип агента: {req.task_type}")
 
@@ -43,11 +46,27 @@ async def create_task(http_request: Request, req: CreateTaskRequest, current_use
         "question": req.question,
         "instructions": req.instructions,
         "org_id": req.org_id,
+        "language": req.language or request.headers.get("x-language", "ru"),
     }
+
+    # Resolve org_id — fall back to user's first org, then default org
+    org_id = req.org_id
+    if not org_id:
+        from app.services.org_service import get_user_orgs, ensure_default_org
+        orgs = get_user_orgs(current_user["username"])
+        if orgs:
+            org_id = orgs[0]["id"]
+        else:
+            try:
+                org_id = ensure_default_org()["id"]
+            except Exception:
+                pass
+    if not org_id:
+        raise HTTPException(status_code=400, detail="Не удалось определить организацию. Убедитесь, что вы состоите в организации.")
 
     with SessionLocal() as db:
         task = AgentTask(
-            org_id=req.org_id,
+            org_id=org_id,
             username=current_user["username"],
             task_type=req.task_type,
             input_data=input_data,
@@ -59,9 +78,20 @@ async def create_task(http_request: Request, req: CreateTaskRequest, current_use
         task_id = task.id
 
     from app.services.agents.orchestrator import run_agent_task
-    asyncio.create_task(
-        run_agent_task(task_id, req.task_type, input_data, req.org_id, current_user["username"])
+    from app.services import analytics_service
+    t = asyncio.create_task(
+        run_agent_task(task_id, req.task_type, input_data, org_id, current_user["username"])
     )
+    _task_registry[task_id] = t
+    t.add_done_callback(lambda _: _task_registry.pop(task_id, None))
+
+    asyncio.create_task(asyncio.to_thread(
+        analytics_service.log_event, "agent_task",
+        username=current_user["username"],
+        session_id=req.session_id,
+        org_id=org_id,
+        task_type=req.task_type,
+    ))
 
     return {"task_id": task_id, "status": "queued"}
 
@@ -100,6 +130,12 @@ async def cancel_task(task_id: int, current_user: dict = Depends(get_current_use
         task.status = "cancelled"
         task.finished_at = datetime.now(timezone.utc)
         db.commit()
+
+    # Cancel the actual asyncio task if it is still running
+    running = _task_registry.pop(task_id, None)
+    if running and not running.done():
+        running.cancel()
+
     return {"message": "Задание отменено"}
 
 
@@ -181,7 +217,7 @@ async def download_task_result(
         settings = get_settings()
         safe_base = Path(settings.UPLOAD_DIR).resolve()
         actual_path = Path(raw_path).resolve()
-        if not str(actual_path).startswith(str(safe_base)):
+        if not actual_path.is_relative_to(safe_base):
             raise HTTPException(status_code=403, detail="Invalid file path")
         if not actual_path.exists():
             raise HTTPException(status_code=404, detail="File not found on disk")

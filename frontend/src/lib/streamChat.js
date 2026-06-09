@@ -6,15 +6,19 @@ import { getBaseUrl } from './api'
  * @param {string} question
  * @param {{ onStatus, onChunk, onDone, onError }} callbacks
  */
-export async function streamChat(sessionId, question, { onStatus, onChunk, onDone, onError, onSources, mode = 'precise', customUrl = null }) {
+export async function streamChat(sessionId, question, { onStatus, onChunk, onDone, onError, onSources, mode = 'precise', customUrl = null, signal = null }) {
   const BASE  = getBaseUrl()
   const token = localStorage.getItem('kence_token')
   const url   = customUrl ?? (`${BASE}/api/chat/stream?` + new URLSearchParams({ session_id: sessionId, question, mode }))
 
   let res
   try {
-    res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} })
+    res = await fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal,
+    })
   } catch (e) {
+    if (e.name === 'AbortError') return  // navigated away — silent
     onError?.(new Error('Failed to fetch: ' + e.message))
     return
   }
@@ -62,6 +66,9 @@ export async function streamChat(sessionId, question, { onStatus, onChunk, onDon
     }
     onDone?.(fullText || '(пустой ответ)')
   } catch (e) {
+    if (e.name === 'AbortError') return  // navigated away — silent
     onError?.(e)
+  } finally {
+    try { reader.cancel() } catch { /* ignore */ }
   }
 }

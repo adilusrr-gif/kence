@@ -1,19 +1,21 @@
 """Agent task orchestrator — dispatches tasks to the correct agent."""
 import logging
 from app.services.agents.base_agent import AgentState, update_task_status
+from app.services.llm import _current_language
 
 logger = logging.getLogger(__name__)
 
 _REGISTRY = {
-    "document_analyst": "app.services.agents.document_analyst",
-    "data_extractor":   "app.services.agents.data_extractor",
-    "timeline":         "app.services.agents.timeline_agent",
-    "risk_engine":      "app.services.agents.risk_engine",
-    "summary":          "app.services.agents.summary_agent",
-    "comparison":       "app.services.agents.comparison_agent",
-    "report_generator": "app.services.agents.report_generator",
-    "research":         "app.services.agents.research_agent",
-    "document_editor":  "app.services.agents.document_editor",
+    "document_analyst":   "app.services.agents.document_analyst",
+    "data_extractor":     "app.services.agents.data_extractor",
+    "timeline":           "app.services.agents.timeline_agent",
+    "risk_engine":        "app.services.agents.risk_engine",
+    "summary":            "app.services.agents.summary_agent",
+    "comparison":         "app.services.agents.comparison_agent",
+    "report_generator":   "app.services.agents.report_generator",
+    "research":           "app.services.agents.research_agent",
+    "document_editor":    "app.services.agents.document_editor",
+    "government_briefing": "app.services.agents.briefing_orchestrator",
 }
 
 
@@ -27,10 +29,11 @@ def get_agent_class(task_type: str):
 
 async def run_agent_task(task_id: int, task_type: str, input_data: dict, org_id: int, username: str) -> None:
     update_task_status(task_id, "running")
+    lang = input_data.get("language", "ru")
+    lang_token = _current_language.set(lang)
     try:
         agent_module = get_agent_class(task_type)
-        from app.services.llm import LLMService
-        llm = LLMService()
+        from app.services.llm import llm_service as llm
 
         state: AgentState = {
             "session_id": input_data.get("session_id"),
@@ -39,6 +42,7 @@ async def run_agent_task(task_id: int, task_type: str, input_data: dict, org_id:
             "task_id": task_id,
             "question": input_data.get("question"),
             "instructions": input_data.get("instructions"),
+            "language": lang,
             "context": None,
             "graph_context": None,
             "history": [],
@@ -57,3 +61,5 @@ async def run_agent_task(task_id: int, task_type: str, input_data: dict, org_id:
     except Exception as e:
         logger.error("Agent task %d failed: %s", task_id, e)
         update_task_status(task_id, "failed", error=str(e))
+    finally:
+        _current_language.reset(lang_token)

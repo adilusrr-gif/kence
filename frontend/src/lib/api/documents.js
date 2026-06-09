@@ -17,7 +17,7 @@ export const apiSaveMarkdown = (sessionId, markdown) =>
 
 export async function apiExportMarkdown(sessionId, markdown, format) {
   const token = getToken()
-  const res = await fetch('/api/documents/export-markdown', {
+  const res = await fetch(BASE + '/api/documents/export-markdown', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

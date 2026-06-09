@@ -16,10 +16,14 @@ import {
   FileText, AlertTriangle, Clock, Users, Building2,
   CheckCircle, ChevronDown, ChevronRight, MessageSquare,
   Loader2, RefreshCw, Eye, EyeOff, Zap, BookOpen,
-  BarChart2, Download, Brain,
+  BarChart2, Download, Brain, Shield, Target, Calendar,
+  Hash, DollarSign, MapPin, TrendingUp, Square, CheckSquare,
+  Printer, Copy,
 } from 'lucide-react'
-import { apiCreateAgentTask, apiGetAgentTask } from '../lib/api/enterprise.js'
+import { apiCreateAgentTask, apiGetAgentTask, apiExportInsightsPdf, apiExportGovBriefPdf } from '../lib/api/enterprise.js'
 import { useToastStore } from '../shared/stores/toastStore'
+import useOrgStore from '../shared/stores/orgStore'
+import GovernmentBriefView, { ConfidenceBadge, ClassificationBadge } from './GovernmentBriefView.jsx'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -42,47 +46,59 @@ const ANALYSIS_STEPS = [
 
 // ── Insight Card ──────────────────────────────────────────────────────────────
 
-function InsightCard({ icon: Icon, color, title, status, children, defaultOpen = false }) {
+function InsightCard({ icon: Icon, color, title, status, children, defaultOpen = false, onRetry }) {
   const [open, setOpen] = useState(defaultOpen)
 
   return (
     <motion.div variants={CARD_ITEM} className="surface-bento" style={{ padding: '18px 20px' }}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-          background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
-        }}
-      >
-        <div style={{
-          width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-          background: `color-mix(in srgb, ${color} 15%, transparent)`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          {status === 'loading'
-            ? <Loader2 size={16} style={{ color, animation: 'spin 1s linear infinite' }} />
-            : status === 'done'
-              ? <Icon size={16} style={{ color }} />
-              : <Icon size={16} style={{ color: 'var(--text-faint)' }} />
-          }
-        </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          onClick={() => setOpen(o => !o)}
+          style={{
+            flex: 1, display: 'flex', alignItems: 'center', gap: 10,
+            background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+          }}
+        >
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            background: `color-mix(in srgb, ${color} 15%, transparent)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {status === 'loading'
+              ? <Loader2 size={16} style={{ color, animation: 'spin 1s linear infinite' }} />
+              : status === 'done'
+                ? <Icon size={16} style={{ color }} />
+                : <Icon size={16} style={{ color: 'var(--text-faint)' }} />
+            }
+          </div>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</div>
-          {status === 'loading' && (
-            <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>Анализируется…</div>
-          )}
-          {status === 'error' && (
-            <div style={{ fontSize: 11, color: 'var(--status-danger)' }}>Не удалось проанализировать</div>
-          )}
-        </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{title}</div>
+            {status === 'loading' && (
+              <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>Анализируется…</div>
+            )}
+            {status === 'error' && (
+              <div style={{ fontSize: 11, color: 'var(--status-danger)' }}>Не удалось проанализировать</div>
+            )}
+          </div>
 
-        {status === 'done' && (
-          open
-            ? <ChevronDown size={14} style={{ color: 'var(--text-faint)', flexShrink: 0 }} />
-            : <ChevronRight size={14} style={{ color: 'var(--text-faint)', flexShrink: 0 }} />
+          {status === 'done' && (
+            open
+              ? <ChevronDown size={14} style={{ color: 'var(--text-faint)', flexShrink: 0 }} />
+              : <ChevronRight size={14} style={{ color: 'var(--text-faint)', flexShrink: 0 }} />
+          )}
+        </button>
+        {status === 'error' && onRetry && (
+          <button
+            onClick={onRetry}
+            title="Повторить анализ"
+            style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid var(--border-default)', background: 'var(--bg-surface-1)', cursor: 'pointer', fontSize: 11, color: 'var(--text-secondary)', flexShrink: 0 }}
+          >
+            <RefreshCw size={12} style={{ display: 'inline', marginRight: 4 }} />
+            Повторить
+          </button>
         )}
-      </button>
+      </div>
 
       <AnimatePresence>
         {open && status === 'done' && (
@@ -147,8 +163,8 @@ function SimpleText({ text, maxChars = 600 }) {
 
 // ── Manager View (Phase 8) ────────────────────────────────────────────────────
 
-function ManagerView({ results, docName }) {
-  const summary = results.summary?.short_summary || results.summary?.summary || ''
+function ManagerView({ results, docName, onCopy, copied }) {
+  const summary = results.summary?.short_summary || results.summary?.executive_summary || results.summary?.summary || ''
   const risks   = results.risk_engine?.top_risks?.slice(0, 3) || []
   const actions = results.summary?.action_items?.slice(0, 3) ||
                   results.risk_engine?.top_risks?.slice(0, 2).map(r => r.recommendation).filter(Boolean) || []
@@ -162,9 +178,18 @@ function ManagerView({ results, docName }) {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
         <Zap size={16} style={{ color: 'var(--accent-primary)' }} />
-        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-primary)', textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1 }}>
           Режим руководителя · {docName}
         </span>
+        {onCopy && (
+          <button
+            onClick={onCopy}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 7, border: '1px solid var(--border-default)', background: 'var(--bg-surface-1)', cursor: 'pointer', fontSize: 12, color: copied ? 'var(--status-success)' : 'var(--text-secondary)' }}
+          >
+            {copied ? <CheckCircle size={12} /> : <Download size={12} />}
+            {copied ? 'Скопировано' : 'Скопировать доклад'}
+          </button>
+        )}
       </div>
 
       {/* Summary */}
@@ -232,11 +257,26 @@ export default function DocumentInsightsPage({ sessionId, documentName }) {
   const navigate = useNavigate()
   const addToast = useToastStore(s => s.addToast)
 
+  const orgName    = useOrgStore(s => s.currentOrgName)
+  const orgId      = useOrgStore(s => s.currentOrgId)
+  const orgPlan    = useOrgStore(s => s.currentOrgPlan)
+  const orgsLoaded = useOrgStore(s => s.orgsLoaded)
+  const isGovPlan  = orgPlan === 'gov'
+
   const [stepStatus, setStepStatus] = useState({}) // id → 'idle'|'loading'|'done'|'error'
   const [results,    setResults]    = useState({})  // id → output_data
-  const [managerMode, setManagerMode] = useState(false)
+  const [managerMode, setManagerMode] = useState(true)
   const [allDone,    setAllDone]    = useState(false)
+  const [copied,     setCopied]     = useState(false)
+  const [exporting,  setExporting]  = useState(false)
   const pollRefs = useRef({})
+
+  // Gov plan state
+  const [briefResult,          setBriefResult]          = useState(null)
+  const [briefStatus,          setBriefStatus]          = useState('idle') // 'idle'|'loading'|'done'|'error'
+  const [briefPhase,           setBriefPhase]           = useState('')
+  const [classificationLevel,  setClassificationLevel]  = useState('ДСП')
+  const briefPollRef = useRef(null)
 
   // Poll an agent task until done
   const pollTask = useCallback((stepId, taskId) => {
@@ -254,10 +294,61 @@ export default function DocumentInsightsPage({ sessionId, documentName }) {
       } catch {
         clearInterval(interval)
         setStepStatus(s => ({ ...s, [stepId]: 'error' }))
+        addToast('error', 'Анализ не удался. Проверьте соединение с сервером.')
       }
     }, 2000)
     pollRefs.current[stepId] = interval
-  }, [])
+  }, [addToast])
+
+  // ── Gov plan: poll a single government_briefing task ──────────────────────
+
+  const pollBrief = useCallback((taskId) => {
+    const iv = setInterval(async () => {
+      try {
+        const task = await apiGetAgentTask(taskId)
+        if (task.steps?.length) {
+          const last = task.steps[task.steps.length - 1]
+          if (last.detail) setBriefPhase(last.detail)
+        }
+        if (task.status === 'done') {
+          clearInterval(iv)
+          setBriefStatus('done')
+          setBriefResult(task.output_data)
+          setAllDone(true)
+        } else if (task.status === 'failed' || task.status === 'cancelled') {
+          clearInterval(iv)
+          setBriefStatus('error')
+          addToast('error', 'Не удалось подготовить сводку. Попробуйте ещё раз.')
+        }
+      } catch {
+        clearInterval(iv)
+        setBriefStatus('error')
+      }
+    }, 2000)
+    briefPollRef.current = iv
+  }, [addToast])
+
+  const runBriefing = useCallback(async () => {
+    if (!sessionId) return
+    if (briefPollRef.current) clearInterval(briefPollRef.current)
+    setBriefStatus('loading')
+    setBriefResult(null)
+    setBriefPhase('Запуск оперативной сводки…')
+    setAllDone(false)
+    const lang = localStorage.getItem('kence_lang') || 'ru'
+    try {
+      const task = await apiCreateAgentTask({
+        task_type: 'government_briefing',
+        session_id: sessionId,
+        org_id: orgId,
+        language: lang,
+      })
+      pollBrief(task.task_id)
+    } catch {
+      setBriefStatus('error')
+      addToast('error', 'Не удалось запустить анализ. Проверьте соединение с сервером.')
+    }
+  }, [sessionId, orgId, pollBrief, addToast])
 
   // Launch all analysis tasks
   const runAnalysis = useCallback(async () => {
@@ -276,21 +367,55 @@ export default function DocumentInsightsPage({ sessionId, documentName }) {
     setStepStatus(idle)
     setResults({})
 
+    const lang = localStorage.getItem('kence_lang') || 'ru'
     for (const [stepId, payload] of Object.entries(agentMap)) {
       try {
-        const task = await apiCreateAgentTask({ ...payload, session_id: sessionId })
+        const task = await apiCreateAgentTask({ ...payload, session_id: sessionId, org_id: orgId, language: lang })
         pollTask(stepId, task.task_id)
       } catch {
         setStepStatus(s => ({ ...s, [stepId]: 'error' }))
       }
     }
-  }, [sessionId, pollTask])
+  }, [sessionId, orgId, pollTask])
 
-  // Auto-start on mount
+  const AGENT_MAP = {
+    summary:        { task_type: 'summary' },
+    risk_engine:    { task_type: 'risk_engine' },
+    timeline:       { task_type: 'timeline' },
+    data_extractor: { task_type: 'data_extractor' },
+  }
+
+  const runSingleAnalysis = useCallback(async (stepId) => {
+    if (pollRefs.current[stepId]) clearInterval(pollRefs.current[stepId])
+    setStepStatus(s => ({ ...s, [stepId]: 'loading' }))
+    setResults(r => { const n = { ...r }; delete n[stepId]; return n })
+    const lang = localStorage.getItem('kence_lang') || 'ru'
+    try {
+      const task = await apiCreateAgentTask({ ...AGENT_MAP[stepId], session_id: sessionId, org_id: orgId, language: lang })
+      pollTask(stepId, task.task_id)
+    } catch {
+      setStepStatus(s => ({ ...s, [stepId]: 'error' }))
+      addToast('error', 'Не удалось запустить анализ. Проверьте соединение с сервером.')
+    }
+  }, [sessionId, orgId, pollTask, addToast])
+
+  // Track whether analysis has been dispatched to prevent re-runs when orgPlan resolves
+  const analysisStartedRef = useRef(false)
+
+  // Auto-start — wait for org plan to load before choosing pipeline.
+  // Gov plan → single orchestrated government_briefing task.
+  // Standard plans → 4 parallel agents.
   useEffect(() => {
-    if (sessionId) runAnalysis()
-    return () => Object.values(pollRefs.current).forEach(clearInterval)
-  }, [sessionId]) // eslint-disable-line
+    if (!sessionId || !orgsLoaded) return
+    if (analysisStartedRef.current) return
+    analysisStartedRef.current = true
+    if (isGovPlan) runBriefing()
+    else runAnalysis()
+    return () => {
+      Object.values(pollRefs.current).forEach(clearInterval)
+      if (briefPollRef.current) clearInterval(briefPollRef.current)
+    }
+  }, [sessionId, orgsLoaded]) // eslint-disable-line
 
   // Detect all done
   useEffect(() => {
@@ -315,6 +440,14 @@ export default function DocumentInsightsPage({ sessionId, documentName }) {
     )
   }
 
+  if (!orgsLoaded) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
+        <p style={{ color: 'var(--text-faint)', fontSize: 14 }}>Загрузка профиля организации…</p>
+      </div>
+    )
+  }
+
   const summaryData    = results.summary || {}
   const riskData       = results.risk_engine || {}
   const timelineData   = results.timeline || {}
@@ -334,26 +467,63 @@ export default function DocumentInsightsPage({ sessionId, documentName }) {
           <h1 style={{ fontSize: 'var(--text-xl)', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
             {documentName || 'Документ'}
           </h1>
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '4px 0 0' }}>
-            {allDone ? 'Анализ завершён' : 'Анализируется…'}
+          <p style={{ fontSize: 13, color: allDone ? 'var(--status-success)' : 'var(--text-secondary)', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {allDone && <CheckCircle size={13} style={{ color: 'var(--status-success)' }} />}
+            {isGovPlan
+              ? (briefStatus === 'done'  ? 'Сводка готова'
+                : briefStatus === 'error' ? 'Ошибка подготовки сводки'
+                : briefPhase || 'Подготовка оперативной сводки…')
+              : (allDone ? 'Анализ завершён — результаты готовы' : 'Анализируется…')
+            }
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {/* Manager Mode toggle */}
-          <button
-            onClick={() => setManagerMode(m => !m)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 14px', borderRadius: 9,
-              border: `1px solid ${managerMode ? 'var(--accent-primary)' : 'var(--border-default)'}`,
-              background: managerMode ? 'color-mix(in srgb, var(--accent-primary) 10%, transparent)' : 'var(--bg-surface-1)',
-              cursor: 'pointer', fontSize: 13, fontWeight: 500,
-              color: managerMode ? 'var(--accent-primary)' : 'var(--text-primary)',
-            }}
-          >
-            <Zap size={13} /> Режим руководителя
-          </button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {/* Classification picker — gov plan only */}
+          {isGovPlan && (
+            <select
+              value={classificationLevel}
+              onChange={e => setClassificationLevel(e.target.value)}
+              style={{
+                padding: '7px 10px', borderRadius: 9, fontSize: 12, fontWeight: 700,
+                border: `1px solid ${
+                  classificationLevel === 'СЕКРЕТНО' ? 'var(--color-violet-400)' :
+                  classificationLevel === 'КОНФИДЕНЦИАЛЬНО' ? '#ef4444' :
+                  classificationLevel === 'ДСП' ? '#f59e0b' :
+                  classificationLevel === 'ВНУТРЕННЕЕ' ? '#3b82f6' :
+                  'var(--status-success)'
+                }`,
+                background: 'var(--bg-surface-1)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                letterSpacing: '0.04em',
+              }}
+              title="Гриф секретности документа"
+            >
+              <option value="ОТКРЫТО">ОТКРЫТО</option>
+              <option value="ВНУТРЕННЕЕ">ВНУТРЕННЕЕ</option>
+              <option value="ДСП">ДСП</option>
+              <option value="КОНФИДЕНЦИАЛЬНО">КОНФИДЕНЦИАЛЬНО</option>
+              <option value="СЕКРЕТНО">СЕКРЕТНО</option>
+            </select>
+          )}
+
+          {/* Manager Mode toggle — standard plan only */}
+          {!isGovPlan && (
+            <button
+              onClick={() => setManagerMode(m => !m)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', borderRadius: 9,
+                border: `1px solid ${managerMode ? 'var(--accent-primary)' : 'var(--border-default)'}`,
+                background: managerMode ? 'color-mix(in srgb, var(--accent-primary) 10%, transparent)' : 'var(--bg-surface-1)',
+                cursor: 'pointer', fontSize: 13, fontWeight: 500,
+                color: managerMode ? 'var(--accent-primary)' : 'var(--text-primary)',
+              }}
+            >
+              <Zap size={13} /> Режим руководителя
+            </button>
+          )}
 
           {/* Ask questions */}
           <button
@@ -369,10 +539,87 @@ export default function DocumentInsightsPage({ sessionId, documentName }) {
             <MessageSquare size={13} /> Задать вопрос
           </button>
 
-          {/* Refresh */}
-          {allDone && (
+          {/* Export PDF — standard plan */}
+          {!isGovPlan && (results.summary || results.risk_engine) && (
             <button
-              onClick={runAnalysis}
+              onClick={async () => {
+                setExporting(true)
+                try {
+                  const blob = await apiExportInsightsPdf(documentName || 'Документ', results, orgName)
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `KENCE_Brief_${(documentName || 'doc').replace(/\s+/g, '_').slice(0, 40)}.pdf`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                } catch {
+                  addToast('error', 'Не удалось создать PDF. Попробуйте ещё раз.')
+                } finally {
+                  setExporting(false)
+                }
+              }}
+              disabled={exporting}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', borderRadius: 9,
+                border: '1px solid var(--border-default)',
+                background: 'var(--bg-surface-1)',
+                cursor: exporting ? 'not-allowed' : 'pointer',
+                fontSize: 13, fontWeight: 500,
+                color: 'var(--text-primary)',
+                opacity: exporting ? 0.6 : 1,
+              }}
+            >
+              {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+              {exporting ? 'Создаётся…' : 'Скачать PDF'}
+            </button>
+          )}
+
+          {/* Export PDF — government plan */}
+          {isGovPlan && briefStatus === 'done' && briefResult && (
+            <button
+              onClick={async () => {
+                setExporting(true)
+                try {
+                  const blob = await apiExportGovBriefPdf(
+                    documentName || 'Документ',
+                    briefResult,
+                    orgName,
+                    classificationLevel,
+                  )
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = `KENCE_Gov_Brief_${(documentName || 'doc').replace(/\s+/g, '_').slice(0, 40)}.pdf`
+                  a.click()
+                  URL.revokeObjectURL(url)
+                } catch {
+                  addToast('error', 'Не удалось создать PDF. Попробуйте ещё раз.')
+                } finally {
+                  setExporting(false)
+                }
+              }}
+              disabled={exporting}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '8px 14px', borderRadius: 9,
+                border: '1px solid var(--border-default)',
+                background: 'var(--bg-surface-1)',
+                cursor: exporting ? 'not-allowed' : 'pointer',
+                fontSize: 13, fontWeight: 500,
+                color: 'var(--text-primary)',
+                opacity: exporting ? 0.6 : 1,
+              }}
+            >
+              {exporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+              {exporting ? 'Создаётся…' : 'Скачать сводку'}
+            </button>
+          )}
+
+          {/* Retry — routes to correct runner by plan */}
+          {(allDone || (isGovPlan && briefStatus === 'error')) && (
+            <button
+              onClick={isGovPlan ? runBriefing : runAnalysis}
               style={{ padding: '8px 10px', borderRadius: 9, border: '1px solid var(--border-default)', background: 'var(--bg-surface-1)', cursor: 'pointer', color: 'var(--text-secondary)' }}
               title="Повторить анализ"
             >
@@ -382,21 +629,75 @@ export default function DocumentInsightsPage({ sessionId, documentName }) {
         </div>
       </motion.div>
 
-      {/* Manager Mode */}
+      {/* Manager Mode — standard plan only */}
       <AnimatePresence>
-        {managerMode && allDone && (
+        {!isGovPlan && managerMode && (results.summary || results.risk_engine) && (
           <motion.div
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -4 }}
             style={{ marginBottom: 24 }}
           >
-            <ManagerView results={results} docName={documentName || 'Документ'} />
+            <ManagerView results={results} docName={documentName || 'Документ'} onCopy={() => {
+              const s = results.summary || {}
+              const r = results.risk_engine || {}
+              const summary = s.short_summary || s.executive_summary || s.summary || ''
+              const findings = s.key_findings?.slice(0, 3) || []
+              const actions  = s.action_items?.slice(0, 3) || r.top_risks?.slice(0, 2).map(x => x.recommendation).filter(Boolean) || []
+              const riskScore = r.overall_risk_score
+              const risks    = r.top_risks?.slice(0, 3) || []
+              const lines = [
+                documentName || 'Документ',
+                '',
+                summary && `РЕЗЮМЕ:\n${summary}`,
+                findings.length > 0 && `\nКЛЮЧЕВЫЕ ВЫВОДЫ:\n${findings.map((f, i) => `${i + 1}. ${f}`).join('\n')}`,
+                riskScore !== undefined && `\nОЦЕНКА РИСКА: ${riskScore}/100`,
+                risks.length > 0 && `\nОСНОВНЫЕ РИСКИ:\n${risks.map(r => `• ${r.description}`).join('\n')}`,
+                actions.length > 0 && `\nРЕКОМЕНДАЦИИ:\n${actions.map((a, i) => `${i + 1}. ${a}`).join('\n')}`,
+              ].filter(Boolean).join('\n')
+              navigator.clipboard.writeText(lines).then(() => setCopied(true)).catch(() => {})
+              setTimeout(() => setCopied(false), 2000)
+            }} copied={copied} />
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Cards Grid */}
+      {/* ── Gov plan: Government Briefing View ────────────────────────────── */}
+      {isGovPlan && (
+        briefStatus === 'loading' ? (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="surface-bento"
+            style={{ padding: '28px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
+            <Loader2 size={20} style={{ color: 'var(--accent-primary)', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>Подготовка оперативной сводки</div>
+              <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 3 }}>{briefPhase || 'Инициализация…'}</div>
+            </div>
+          </motion.div>
+        ) : briefStatus === 'error' ? (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="surface-bento"
+            style={{ padding: '32px 24px', textAlign: 'center' }}>
+            <AlertTriangle size={32} style={{ color: 'var(--status-danger)', margin: '0 auto 12px', display: 'block' }} />
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 18 }}>
+              Не удалось подготовить сводку. Проверьте соединение с сервером и попробуйте ещё раз.
+            </p>
+            <button onClick={runBriefing} style={{
+              padding: '9px 22px', background: 'var(--gradient-accent)',
+              border: 'none', borderRadius: 9, cursor: 'pointer',
+              fontSize: 13, fontWeight: 600, color: 'var(--color-neutral-950)',
+            }}>
+              <RefreshCw size={13} style={{ display: 'inline', marginRight: 6 }} />
+              Повторить
+            </button>
+          </motion.div>
+        ) : briefResult ? (
+          <GovernmentBriefView brief={briefResult} classification={classificationLevel} />
+        ) : null
+      )}
+
+      {/* ── Standard plan: existing InsightCards ───────────────────────────── */}
+      {!isGovPlan && (
       <motion.div
         variants={CARD_STAGGER}
         initial="hidden"
@@ -411,6 +712,7 @@ export default function DocumentInsightsPage({ sessionId, documentName }) {
           title="Краткое содержание"
           status={stepStatus.summary || 'idle'}
           defaultOpen={true}
+          onRetry={() => runSingleAnalysis('summary')}
         >
           {summaryData.executive_summary && (
             <div style={{ marginBottom: 12, padding: '10px 14px', background: `color-mix(in srgb, var(--color-cyan-400) 8%, var(--bg-surface-2))`, borderRadius: 8, borderLeft: '3px solid var(--color-cyan-400)' }}>
@@ -451,6 +753,7 @@ export default function DocumentInsightsPage({ sessionId, documentName }) {
           color="var(--color-amber-400)"
           title="Риски"
           status={stepStatus.risk_engine || 'idle'}
+          onRetry={() => runSingleAnalysis('risk_engine')}
         >
           {riskData.overall_risk_score !== undefined && (
             <RiskScore score={riskData.overall_risk_score} />
@@ -480,6 +783,7 @@ export default function DocumentInsightsPage({ sessionId, documentName }) {
           color="var(--color-violet-400)"
           title="Хронология событий"
           status={stepStatus.timeline || 'idle'}
+          onRetry={() => runSingleAnalysis('timeline')}
         >
           {timelineData.timeline?.slice(0, 10).map((e, i) => (
             <div key={i} style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'flex-start' }}>
@@ -504,6 +808,7 @@ export default function DocumentInsightsPage({ sessionId, documentName }) {
           color="var(--color-green-400)"
           title="Люди и организации"
           status={stepStatus.data_extractor || 'idle'}
+          onRetry={() => runSingleAnalysis('data_extractor')}
         >
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
             {entities.persons?.length > 0 && (
@@ -547,6 +852,7 @@ export default function DocumentInsightsPage({ sessionId, documentName }) {
         </InsightCard>
 
       </motion.div>
+      )} {/* end !isGovPlan */}
 
       {/* Bottom CTA */}
       {allDone && (

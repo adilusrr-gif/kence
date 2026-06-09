@@ -98,7 +98,9 @@
       "convert": "Convert",
       "convertDesc": "TXT, Markdown, DOCX",
       "agents": "AI Agents",
-      "agentsDesc": "Autonomous tasks"
+      "agentsDesc": "Autonomous tasks",
+      "insights": "Document Analysis",
+      "insightsDesc": "Summary, risks, timeline"
     },
     "time": {
       "days_one": "{{count}}d ago",

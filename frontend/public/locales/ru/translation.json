@@ -98,7 +98,9 @@
       "convert": "Конвертировать",
       "convertDesc": "TXT, Markdown, DOCX",
       "agents": "AI Агенты",
-      "agentsDesc": "Автономные задачи"
+      "agentsDesc": "Автономные задачи",
+      "insights": "Анализ документа",
+      "insightsDesc": "Резюме, риски, хронология"
     },
     "time": {
       "days_one": "{{count}}д назад",

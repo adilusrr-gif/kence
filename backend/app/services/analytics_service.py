@@ -6,11 +6,24 @@ from sqlalchemy import func, text
 logger = logging.getLogger(__name__)
 
 
+def resolve_org_id(username: Optional[str]) -> Optional[int]:
+    """Return the primary org_id for a user, or None if unresolvable."""
+    if not username:
+        return None
+    try:
+        from app.services.org_service import get_user_orgs
+        orgs = get_user_orgs(username)
+        return orgs[0]["id"] if orgs else None
+    except Exception:
+        return None
+
+
 def log_event(
     event_type: str,
     username: Optional[str] = None,
     session_id: Optional[str] = None,
     file_format: Optional[str] = None,
+    org_id: Optional[int] = None,
     **extra,
 ) -> None:
     try:
@@ -22,6 +35,7 @@ def log_event(
                 username=username,
                 session_id=session_id,
                 file_format=file_format,
+                org_id=org_id,
                 extra=extra or None,
             ))
             db.commit()

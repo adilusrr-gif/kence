@@ -36,6 +36,8 @@ class SessionManager:
             markdown_text=data.get("markdown_text"),
             html_text=data.get("html_text"),
             presentation_plan=data.get("presentation_plan"),
+            org_id=data.get("org_id"),
+            owner_username=data.get("owner_username"),
         )
 
     def _from_row(self, row) -> dict:
@@ -51,6 +53,8 @@ class SessionManager:
             "presentation_plan": row.presentation_plan,
             "created_at": row.created_at.timestamp() if row.created_at else time.time(),
             "last_activity": time.time(),
+            "owner_username": row.owner_username,
+            "org_id": row.org_id,
         }
 
     # ── public API ─────────────────────────────────────────────────────────
@@ -117,6 +121,10 @@ class SessionManager:
                     row.html_text          = data.get("html_text")
                     row.presentation_plan  = data.get("presentation_plan")
                     row.last_activity      = datetime.now(timezone.utc)
+                    if data.get("org_id") is not None:
+                        row.org_id = data.get("org_id")
+                    if data.get("owner_username") is not None:
+                        row.owner_username = data.get("owner_username")
                 else:
                     db.add(self._to_row(session_id, data))
                 db.commit()

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import {
   Upload, MessageSquare, GitCompare, Presentation, Plus, FileText,
-  Trash2, RefreshCw, Bot, Activity, TrendingUp, Search, FolderOpen, ArrowRight,
+  Trash2, RefreshCw, Bot, Activity, TrendingUp, Search, FolderOpen, ArrowRight, Brain,
 } from 'lucide-react'
 import { BarChart, Bar, ResponsiveContainer, Tooltip as RTooltip } from 'recharts'
 import { Button } from '@/shared/ui/button'
@@ -109,7 +109,7 @@ const SparkTip = ({ active, payload, label }) => {
   )
 }
 
-function SessionCard({ entry, onContinue, onDelete, index, t }) {
+function SessionCard({ entry, onContinue, onDelete, isDeleting, t }) {
   const ext = entry.name?.includes('.') ? entry.name.split('.').pop().toUpperCase() : null
   const fmtStyle = ext && FMT_COLORS[ext] ? FMT_COLORS[ext] : { bg: 'var(--color-fmt-other-bg)', color: 'var(--color-fmt-other)' }
   return (
@@ -140,7 +140,9 @@ function SessionCard({ entry, onContinue, onDelete, index, t }) {
         type="button"
         className="dashboard-session-card__delete"
         aria-label={t('dashboard.delete')}
+        disabled={isDeleting}
         onClick={(e) => { e.stopPropagation(); onDelete(entry.id) }}
+        style={{ opacity: isDeleting ? 0.4 : undefined }}
       >
         <Trash2 size={13} />
       </button>
@@ -150,12 +152,13 @@ function SessionCard({ entry, onContinue, onDelete, index, t }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function DashboardPage({ sessionHistory = [], currentUser, onNewSession, onRestoreSession }) {
+export default function DashboardPage({ sessionHistory = [], currentUser, onNewSession, onRestoreSession, onDeleteSession }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const toast = useToast()
   const [serverSessions, setServerSessions] = useState([])
   const [deletedIds, setDeletedIds] = useState(new Set())
+  const [deletingIds, setDeletingIds] = useState(new Set())
   const [overview, setOverview] = useState(null)
   const [timeline, setTimeline] = useState([])
   const [search, setSearch] = useState('')
@@ -168,7 +171,7 @@ export default function DashboardPage({ sessionHistory = [], currentUser, onNewS
     { icon: GitCompare,   label: t('dashboard.features.compare'),       desc: t('dashboard.features.compareDesc'),       path: '/compare'                      },
     { icon: Presentation, label: t('dashboard.features.presentation'),  desc: t('dashboard.features.presentationDesc'),  path: '/presentation'                 },
     { icon: RefreshCw,    label: t('dashboard.features.convert'),       desc: t('dashboard.features.convertDesc'),       path: '/convert'                      },
-    { icon: Bot,          label: t('dashboard.features.agents'),        desc: t('dashboard.features.agentsDesc'),        path: '/agents'                       },
+    { icon: Brain,        label: t('dashboard.features.insights'),       desc: t('dashboard.features.insightsDesc'),      path: '/insights'                     },
   ]
 
   useEffect(() => {
@@ -189,8 +192,13 @@ export default function DashboardPage({ sessionHistory = [], currentUser, onNewS
   }, [])
 
   const handleDelete = async (id) => {
+    if (deletingIds.has(id)) return
+    setDeletingIds(prev => new Set([...prev, id]))
     setDeletedIds(prev => new Set([...prev, id]))
+    setServerSessions(prev => prev.filter(s => s.session_id !== id))
+    onDeleteSession?.(id)
     await apiDeleteSession(id).catch(() => {})
+    setDeletingIds(prev => { const n = new Set(prev); n.delete(id); return n })
   }
 
   const mergedHistory = useMemo(() => {
@@ -352,6 +360,7 @@ export default function DashboardPage({ sessionHistory = [], currentUser, onNewS
                     t={t}
                     onContinue={e => { if (onRestoreSession) onRestoreSession(e); else navigate('/workspace') }}
                     onDelete={handleDelete}
+                    isDeleting={deletingIds.has(entry.id)}
                   />
                 </motion.div>
               ))}

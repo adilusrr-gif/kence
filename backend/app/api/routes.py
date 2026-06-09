@@ -1,3 +1,4 @@
+from app.core.limiter import limiter
 from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request, Query
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
@@ -7,10 +8,7 @@ from uuid import UUID
 import shutil
 import json
 import asyncio
-from slowapi import Limiter
-from slowapi.util import get_remote_address
 
-limiter = Limiter(key_func=get_remote_address)
 
 from app.core.session import session_manager
 from app.core.config import get_settings
@@ -22,18 +20,33 @@ from app.services.converter import converter_service
 from app.services.ai_settings_service import get_document_context
 from app.services import memory_service
 from app.services import analytics_service
+from app.services import audit_service
 from app.api.auth_routes import get_current_user
+from app.core.features import get_edition_flags
+from app.services.org_service import get_user_orgs
 
 router = APIRouter()
 settings = get_settings()
 
 
-def _require_chat_session(session_id: str, username: str = "") -> tuple[dict, str, object]:
-    """Validate session has a document and return (session, doc_name, doc_context)."""
+def _verify_session_access(session: dict, current_user: dict) -> None:
+    """Raises 403 if the user does not own the session. Admins bypass the check.
+    Sessions without an owner (created before ownership tracking) remain accessible."""
+    if current_user.get("role") == "admin":
+        return
+    owner = session.get("owner_username")
+    if owner and owner != current_user.get("username"):
+        raise HTTPException(status_code=403, detail="Access denied to this session")
+
+
+def _require_chat_session(session_id: str, current_user: dict) -> tuple[dict, str, object]:
+    """Validate session has a document, enforce ownership, return (session, doc_name, doc_context)."""
     session = session_manager.get_session(session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
+    _verify_session_access(session, current_user)
     doc_name = session.get("document", "")
+    username = current_user.get("username", "")
     doc_context = get_document_context(username, doc_name) if doc_name and username else None
     return session, doc_name, doc_context
 
@@ -59,6 +72,7 @@ def _require_image_session(session_id: str) -> tuple[str, Path]:
 class ChatRequest(BaseModel):
     session_id: str
     question: str
+    language: Literal["ru", "kz", "en"] = "ru"
 
 class ChatResponse(BaseModel):
     answer: str
@@ -81,18 +95,15 @@ async def create_session(user: dict = Depends(get_current_user)):
 
 @router.get("/sessions")
 async def list_sessions(user: dict = Depends(get_current_user)):
-    """Возвращает все активные сессии из БД (с загруженным документом)."""
+    """Returns active sessions owned by the current user (admins see all)."""
     try:
         from app.core.database import SessionLocal
         from app.models.models import DocSession
         with SessionLocal() as db:
-            rows = (
-                db.query(DocSession)
-                .filter(DocSession.has_vector_store == True)
-                .order_by(DocSession.last_activity.desc())
-                .limit(20)
-                .all()
-            )
+            q = db.query(DocSession).filter(DocSession.has_vector_store == True)
+            if user.get("role") != "admin":
+                q = q.filter(DocSession.owner_username == user["username"])
+            rows = q.order_by(DocSession.last_activity.desc()).limit(50).all()
             return [
                 {
                     "session_id": r.session_id,
@@ -107,19 +118,46 @@ async def list_sessions(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/sessions/{session_id}")
-async def delete_session(session_id: str, user: dict = Depends(get_current_user)):
+async def delete_session(session_id: str, request: Request, user: dict = Depends(get_current_user)):
+    session = session_manager.get_session(session_id)
+    doc_name = (session or {}).get("document")
+    if session:
+        _verify_session_access(session, user)
     session_manager.cleanup_session(session_id)
     memory_service.clear_history(session_id)
+    asyncio.create_task(asyncio.to_thread(
+        audit_service.log, "delete",
+        username=user.get("username"),
+        session_id=session_id,
+        document_name=doc_name,
+        ip_address=getattr(request.client, "host", None) if request.client else None,
+    ))
     return {"status": "deleted"}
 
 # ─── История чата ────────────────────────────────────────
 
 @router.get("/chat/history/{session_id}")
-async def get_chat_history(session_id: str, limit: int = Query(20, ge=1, le=100), user: dict = Depends(get_current_user)):
+async def get_chat_history(session_id: str, request: Request, limit: int = Query(20, ge=1, le=100), user: dict = Depends(get_current_user)):
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    _verify_session_access(session, user)
+    asyncio.create_task(asyncio.to_thread(
+        audit_service.log, "view",
+        username=user.get("username"),
+        session_id=session_id,
+        document_name=session.get("document"),
+        ip_address=getattr(request.client, "host", None) if request.client else None,
+    ))
     return {"session_id": session_id, "messages": memory_service.get_history(session_id, limit)}
 
 @router.delete("/chat/history/{session_id}")
 async def clear_chat_history(session_id: str, user: dict = Depends(get_current_user)):
+    session = session_manager.get_session(session_id)
+    if session:
+        _verify_session_access(session, user)
+        session.pop("conversation_summary", None)
+        session_manager.save_session(session_id)
     memory_service.clear_history(session_id)
     return {"status": "cleared"}
 
@@ -139,14 +177,22 @@ async def upload_document(request: Request, session_id: str, file: UploadFile = 
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    ext = Path(file.filename).suffix.lower()
+    # Strip any directory components and enforce max filename length
+    safe_name = Path(file.filename or "").name
+    if not safe_name or len(safe_name) > 200:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    ext = Path(safe_name).suffix.lower()
     if ext not in settings.ALLOWED_UPLOAD_FORMATS:
         raise HTTPException(status_code=400, detail=f"Allowed formats: {', '.join(sorted(settings.ALLOWED_UPLOAD_FORMATS))}")
 
     if file.size and file.size > settings.MAX_FILE_SIZE:
         raise HTTPException(status_code=413, detail=f"File too large. Max {settings.MAX_FILE_SIZE // 1024 // 1024} MB")
 
-    file_path = Path(f"{settings.UPLOAD_DIR}/{session_id}/{file.filename}")
+    upload_root = Path(settings.UPLOAD_DIR).resolve()
+    file_path = (upload_root / session_id / safe_name).resolve()
+    if not file_path.is_relative_to(upload_root):
+        raise HTTPException(status_code=400, detail="Invalid file path")
     file_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(file_path, "wb") as buffer:
@@ -159,17 +205,32 @@ async def upload_document(request: Request, session_id: str, file: UploadFile = 
 
     try:
         vector_store, markdown_text, html_text = doc_processor.process_file(str(file_path), session_id)
-        session["document"] = file.filename
+        session["document"] = safe_name
         session["vector_store"] = True
         session["preview"] = markdown_text[:800]
         session["markdown_text"] = markdown_text
         session["html_text"] = html_text if len(html_text) < 15_000_000 else ""
+        session["owner_username"] = user.get("username")
         session_manager.save_session(session_id)
-        analytics_service.log_event("upload", username=user.get("sub"), session_id=session_id, file_format=ext.lstrip(".").upper())
+        _username = user.get("username")
+        asyncio.create_task(asyncio.to_thread(
+            analytics_service.log_event, "upload",
+            username=_username, session_id=session_id,
+            file_format=ext.lstrip(".").upper(),
+            org_id=analytics_service.resolve_org_id(_username),
+        ))
+        asyncio.create_task(asyncio.to_thread(
+            audit_service.log, "upload",
+            username=_username,
+            session_id=session_id,
+            document_name=safe_name,
+            ip_address=getattr(request.client, "host", None) if request.client else None,
+            detail={"format": ext.lstrip(".").upper()},
+        ))
 
         return {
             "status": "processed",
-            "filename": file.filename,
+            "filename": safe_name,
             "session_id": session_id,
             "format": ext,
             "is_image": ext in _IMAGE_EXTS,
@@ -269,11 +330,12 @@ async def visual_chat_stream(
 @router.post("/chat", response_model=ChatResponse)
 @limiter.limit("20/minute")
 async def chat(request: Request, body: ChatRequest, user: dict = Depends(get_current_user)):
-    _, _, doc_context = _require_chat_session(body.session_id, user.get("username", ""))
+    _, _, doc_context = _require_chat_session(body.session_id, user)
     history = memory_service.get_history(body.session_id, limit=10)
+    language = body.language or request.headers.get("x-language", "ru")
 
     try:
-        answer = llm_service.chat(body.question, body.session_id, doc_context, history)
+        answer = llm_service.chat(body.question, body.session_id, doc_context, history, language=language)
         memory_service.add_message(body.session_id, "user", body.question)
         memory_service.add_message(body.session_id, "assistant", answer)
         return ChatResponse(answer=answer, session_id=body.session_id)
@@ -289,10 +351,12 @@ async def chat_stream(
     session_id: str,
     question: str,
     mode: str = "precise",
+    language: str = "ru",
     user: dict = Depends(get_current_user),
 ):
-    _, _, doc_context = _require_chat_session(session_id, user.get("username", ""))
+    _, _, doc_context = _require_chat_session(session_id, user)
     history = memory_service.get_history(session_id, limit=10)
+    lang = language or request.headers.get("x-language", "ru")
 
     async def generate():
         yield f"data: {json.dumps({'status': 'Ищу релевантные фрагменты...'})}\n\n"
@@ -306,7 +370,7 @@ async def chat_stream(
             first = True
             async for chunk in llm_service.chat_astream(
                 question, session_id, mode=mode, history=history,
-                prebuilt_context=context,
+                prebuilt_context=context, language=lang,
             ):
                 if first:
                     yield f"data: {json.dumps({'status': 'Формирую ответ...'})}\n\n"
@@ -332,7 +396,12 @@ async def chat_stream(
             if full_answer:
                 memory_service.add_message(session_id, "user", question)
                 memory_service.add_message(session_id, "assistant", "".join(full_answer))
-                analytics_service.log_event("chat", username=user.get("sub"), session_id=session_id, mode=mode)
+                _username = user.get("username")
+                asyncio.create_task(asyncio.to_thread(
+                    analytics_service.log_event, "chat",
+                    username=_username, session_id=session_id, mode=mode,
+                    org_id=analytics_service.resolve_org_id(_username),
+                ))
 
     return StreamingResponse(
         generate(),
@@ -348,6 +417,7 @@ async def get_document_content(session_id: str, user: dict = Depends(get_current
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    _verify_session_access(session, user)
     return {
         "filename": session.get("document", ""),
         "markdown": session.get("markdown_text", ""),
@@ -364,6 +434,7 @@ async def translate_document(request: Request, body: TranslateRequest, user: dic
     session = session_manager.get_session(body.session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
+    _verify_session_access(session, user)
     markdown_text = session.get("markdown_text", "")
     if not markdown_text:
         raise HTTPException(status_code=400, detail="Document text not found, please re-upload")
@@ -372,7 +443,12 @@ async def translate_document(request: Request, body: TranslateRequest, user: dic
             translation_service.translate_document,
             markdown_text, body.target_language
         )
-        analytics_service.log_event("translate", username=user.get("sub"), session_id=body.session_id, language=body.target_language)
+        _username = user.get("username")
+        asyncio.create_task(asyncio.to_thread(
+            analytics_service.log_event, "translate",
+            username=_username, session_id=body.session_id, language=body.target_language,
+            org_id=analytics_service.resolve_org_id(_username),
+        ))
         return {
             "translated": translated,
             "language": body.target_language,
@@ -383,12 +459,13 @@ async def translate_document(request: Request, body: TranslateRequest, user: dic
 
 @router.post("/translate/export")
 @limiter.limit("5/minute")
-async def translate_export(http_request: Request, request: TranslateRequest, target_format: Literal["txt", "md", "docx"], user: dict = Depends(get_current_user)):
+async def translate_export(request: Request, body: TranslateRequest, target_format: Literal["txt", "md", "docx"], user: dict = Depends(get_current_user)):
     """Переводит документ и сразу экспортирует в формат для скачивания"""
-    session = session_manager.get_session(request.session_id)
+    session = session_manager.get_session(body.session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
-    
+    _verify_session_access(session, user)
+
     markdown_text = session.get("markdown_text", "")
     if not markdown_text:
         raise HTTPException(status_code=400, detail="Document text not found, please re-upload")
@@ -396,25 +473,25 @@ async def translate_export(http_request: Request, request: TranslateRequest, tar
         # 1. Сначала переводим
         translated_text = await asyncio.to_thread(
             translation_service.translate_document,
-            markdown_text, request.target_language
+            markdown_text, body.target_language
         )
-        
+
         # 2. Сохраняем в файл нужного формата
-        output_filename = f"translated_{request.target_language}"
-        output_path = Path(f"{settings.UPLOAD_DIR}/{request.session_id}/{output_filename}{converter_service.FORMAT_EXTENSIONS[target_format]}")
-        
+        output_filename = f"translated_{body.target_language}"
+        output_path = Path(f"{settings.UPLOAD_DIR}/{body.session_id}/{output_filename}{converter_service.FORMAT_EXTENSIONS[target_format]}")
+
         converter_service.text_to_format(
-            translated_text, 
-            output_path, 
-            target_format, 
-            title=f"Translated ({request.target_language})"
+            translated_text,
+            output_path,
+            target_format,
+            title=f"Translated ({body.target_language})"
         )
-        
+
         return {
             "status": "exported",
             "format": target_format,
-            "language": request.target_language,
-            "download_url": f"/api/documents/converted/{request.session_id}/{target_format}?translated=true"
+            "language": body.target_language,
+            "download_url": f"/api/documents/converted/{body.session_id}/{target_format}?translated=true"
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -428,9 +505,15 @@ async def convert_document(request: Request, session_id: str, target_format: Lit
     session = session_manager.get_session(session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
+    _verify_session_access(session, user)
     try:
         output_path = converter_service.convert(session_id, target_format)
-        analytics_service.log_event("convert", username=user.get("sub"), session_id=session_id, target_format=target_format)
+        _username = user.get("username")
+        asyncio.create_task(asyncio.to_thread(
+            analytics_service.log_event, "convert",
+            username=_username, session_id=session_id, target_format=target_format,
+            org_id=analytics_service.resolve_org_id(_username),
+        ))
         return {
             "status": "converted",
             "format": target_format,
@@ -469,11 +552,24 @@ async def download_converted(session_id: str, fmt: str, translated: bool = False
         "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "pdf":  "application/pdf",
     }
-    return FileResponse(
+    # Gov watermark: prefix filename with CONFIDENTIAL marker
+    orgs = get_user_orgs(user["username"])
+    plan = orgs[0]["plan"] if orgs else "free"
+    flags = get_edition_flags(plan)
+    from datetime import datetime, timezone
+    base_filename = candidates[0].name
+    if flags.get("watermark_downloads"):
+        ts = datetime.now(timezone.utc).strftime("%Y%m%d")
+        base_filename = f"[CONFIDENTIAL_{user['username']}_{ts}] {base_filename}"
+
+    resp = FileResponse(
         str(candidates[0]),
-        filename=candidates[0].name,
-        media_type=media_types[fmt]
+        filename=base_filename,
+        media_type=media_types[fmt],
     )
+    if flags.get("watermark_downloads"):
+        resp.headers["X-Content-Watermark"] = f"KENCE.ai | {user['username']} | {datetime.now(timezone.utc).isoformat()}"
+    return resp
 
 # ─── Vision status ──────────────────────────────────────
 
@@ -502,6 +598,7 @@ async def save_document_content(
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    _verify_session_access(session, current_user)
     session["markdown_text"] = body.markdown
     session_manager.save_session(session_id)
     return {"ok": True}
@@ -516,12 +613,20 @@ class ExportMarkdownRequest(BaseModel):
 @router.post("/documents/export-markdown")
 @limiter.limit("10/minute")
 async def export_markdown(
-    http_request: Request,
+    request: Request,
     body: ExportMarkdownRequest,
     current_user: dict = Depends(get_current_user),
 ):
     """Convert edited markdown (with tables + [CHART] directives) to DOCX or PDF."""
-    session_dir = Path(settings.UPLOAD_DIR) / body.session_id
+    try:
+        UUID(body.session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session_id")
+
+    upload_root = Path(settings.UPLOAD_DIR).resolve()
+    session_dir = (upload_root / body.session_id).resolve()
+    if not str(session_dir).startswith(str(upload_root)):
+        raise HTTPException(status_code=400, detail="Invalid session_id")
     session_dir.mkdir(parents=True, exist_ok=True)
 
     ext = ".docx" if body.format == "docx" else ".pdf"
@@ -569,8 +674,8 @@ async def health_check_full():
             drv = get_driver()
             if not drv:
                 return {"status": "down", "error": "driver not initialized"}
-            with drv.session() as sess:
-                sess.run("RETURN 1")
+            async with drv.session() as sess:
+                await sess.run("RETURN 1")
             return {"status": "ok"}
         except Exception as e:
             return {"status": "down", "error": str(e)[:120]}

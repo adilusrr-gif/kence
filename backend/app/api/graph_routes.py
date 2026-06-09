@@ -8,8 +8,13 @@ from app.api.auth_routes import get_current_user, require_org_member, require_or
 from app.core.database import SessionLocal
 from app.models.models import GraphExtractionJob, KnowledgeGraphNode
 from app.services import graph_service
+from app.services.llm import llm_service
 
 router = APIRouter(tags=["knowledge-graph"])
+
+# Keeps strong references to running extraction asyncio.Tasks so CPython GC cannot
+# collect them before they finish. Cleaned up via add_done_callback.
+_extraction_task_registry: dict[int, asyncio.Task] = {}
 
 
 class ExtractRequest(BaseModel):
@@ -49,12 +54,10 @@ async def trigger_extraction(
         db.refresh(job)
         job_id = job.id
 
-    # Run extraction as background task
-    from app.services.llm import LLMService
     from app.services.entity_extractor import run_extraction_job
-    llm = LLMService()
-
-    asyncio.create_task(run_extraction_job(job_id, req.session_id, org_id, markdown_text, llm, req.language))
+    t = asyncio.create_task(run_extraction_job(job_id, req.session_id, org_id, markdown_text, llm_service, req.language))
+    _extraction_task_registry[job_id] = t
+    t.add_done_callback(lambda _: _extraction_task_registry.pop(job_id, None))
 
     return {"job_id": job_id, "status": "pending"}
 
@@ -127,9 +130,7 @@ async def query_graph(
     current_user: dict = Depends(get_current_user),
 ):
     require_org_member(org_id, current_user)
-    from app.services.llm import LLMService
-    llm = LLMService()
-    result = await graph_service.natural_language_query(req.query, llm)
+    result = await graph_service.natural_language_query(req.query, llm_service, org_id=org_id)
     return {"query": req.query, "result": result}
 
 

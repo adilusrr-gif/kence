@@ -69,3 +69,1484 @@ docker-compose.yml
 Файл backend/app/db/users.json (чтобы не создавать админа заново).
 Итог: Лучше просто скопируйте всю папку проекта (без временных файлов), это самый надежный способ. Самое тяжелое там — это архивы, которые вы уже создали.
 
+
+
+
+● I have everything I need. Writing the full architecture document
+  now.
+
+  ---
+  KENCE.ai Product Segmentation Architecture
+
+  Phases 1–6 · Final Deliverable
+
+  Status: ANALYSIS ONLY — awaiting approval before implementation
+
+  ---
+  PHASE 1 — PLATFORM SEGMENTATION
+
+  Current State
+
+  The existing codebase already has a multi-tenant organization
+  model:
+
+  # models.py — Organization (current)
+  class Organization(Base):
+      id           = Column(Integer, primary_key=True)
+      slug         = Column(String(64), unique=True)
+      display_name = Column(String(128))
+      plan         = Column(String(32), default="free")  #
+  free|pro|enterprise
+      is_active    = Column(Boolean, default=True)
+
+  # org_service.py — plan field used in create_org()
+  org = Organization(slug=slug, display_name=display_name,
+  plan=plan)
+
+  The plan field currently conflates two orthogonal dimensions:
+  1. Billing tier (how much the customer pays)
+  2. Product edition (which product they are using)
+
+  A government ministry and a corporation might both be
+  "enterprise" tier — but they need entirely different UX,
+  features, and terminology. These must be separated.
+
+  ---
+  Architecture Principle
+
+  Organization
+  ├── plan    = free | pro | enterprise        ← BILLING dimension
+  └── edition = community | enterprise | gov   ← PRODUCT dimension
+
+  Cross matrix:
+    edition=gov       × plan=contract          → Government
+  ministry
+    edition=enterprise × plan=enterprise       → Large corporation
+    edition=enterprise × plan=pro              → SME
+    edition=community  × plan=free             → Open-source user /
+  dev
+
+  ---
+  Core Platform — Shared Components
+
+  These components belong to the KENCE Core and are used by ALL
+  editions without modification:
+
+  ┌────────────────┬───────────────────────────────┬───────────┐
+  │   Component    │        Current File(s)        │   Core    │
+  │                │                               │  Status   │
+  ├────────────────┼───────────────────────────────┼───────────┤
+  │                │ auth_routes.py, security.py,  │ ✅ Core — │
+  │ Authentication │ user_service.py               │           │
+  │                │                               │ unchanged │
+  ├────────────────┼───────────────────────────────┼───────────┤
+  │ Document       │ services/document.py          │ ✅ Core — │
+  │ Processing     │ (Docling)                     │           │
+  │                │                               │ unchanged │
+  ├────────────────┼───────────────────────────────┼───────────┤
+  │                │                               │ ✅ Core — │
+  │ OCR / Vision   │ services/vision_service.py    │           │
+  │                │                               │ unchanged │
+  ├────────────────┼───────────────────────────────┼───────────┤
+  │ Chunking &     │ services/document.py +        │ ✅ Core — │
+  │ Embedding      │ ChromaDB                      │           │
+  │                │                               │ unchanged │
+  ├────────────────┼───────────────────────────────┼───────────┤
+  │ LLM            │ services/llm.py (circuit      │ ✅ Core — │
+  │ Orchestration  │ breaker, queue, semaphore)    │           │
+  │                │                               │ unchanged │
+  ├────────────────┼───────────────────────────────┼───────────┤
+  │                │ services/retriever.py         │ ✅ Core — │
+  │ RAG Retrieval  │ (HybridRetriever)             │           │
+  │                │                               │ unchanged │
+  ├────────────────┼───────────────────────────────┼───────────┤
+  │                │                               │ ✅ Core — │
+  │ Knowledge      │ services/entity_extractor.py  │  runs     │
+  │ Extraction     │                               │ silently  │
+  │                │                               │ in GOV    │
+  ├────────────────┼───────────────────────────────┼───────────┤
+  │                │ core/session.py, upload dir,  │ ✅ Core — │
+  │ Storage        │ ChromaDB                      │           │
+  │                │                               │ unchanged │
+  ├────────────────┼───────────────────────────────┼───────────┤
+  │ User           │                               │ ✅ Core — │
+  │ Management     │ services/user_service.py      │           │
+  │                │                               │ unchanged │
+  ├────────────────┼───────────────────────────────┼───────────┤
+  │ Organization   │ models/models.py,             │ ✅ Core — │
+  │ Model          │ services/org_service.py       │  extended │
+  ├────────────────┼───────────────────────────────┼───────────┤
+  │                │                               │ ✅ Core — │
+  │ Analytics      │ services/analytics_service.py │  display  │
+  │ Engine         │  (event logging)              │ varies by │
+  │                │                               │  edition  │
+  ├────────────────┼───────────────────────────────┼───────────┤
+  │                │ cypher_policy.py, MIME        │ ✅ Core — │
+  │ Security       │ validation, rate limiter      │           │
+  │                │                               │ unchanged │
+  ├────────────────┼───────────────────────────────┼───────────┤
+  │                │ NEW                           │ ✅ Core — │
+  │ Feature Flags  │ services/feature_service.py   │  new      │
+  │                │                               │ component │
+  └────────────────┴───────────────────────────────┴───────────┘
+
+  Edition-exclusive components (NOT in Core):
+
+  ┌────────────────────────────────┬─────────────────┬──────────┐
+  │           Component            │ Enterprise Only │ Gov Only │
+  ├────────────────────────────────┼─────────────────┼──────────┤
+  │ Knowledge Graph UI             │ ✅              │ —        │
+  ├────────────────────────────────┼─────────────────┼──────────┤
+  │ Agent Launcher / Monitor       │ ✅              │ —        │
+  ├────────────────────────────────┼─────────────────┼──────────┤
+  │ Executive Dashboard (charts)   │ ✅              │ —        │
+  ├────────────────────────────────┼─────────────────┼──────────┤
+  │ Advanced Analytics             │ ✅              │ —        │
+  ├────────────────────────────────┼─────────────────┼──────────┤
+  │ Presentation Builder           │ ✅              │ —        │
+  ├────────────────────────────────┼─────────────────┼──────────┤
+  │ Document Brief (auto-analysis) │ —               │ ✅       │
+  ├────────────────────────────────┼─────────────────┼──────────┤
+  │ Intelligence Report Export     │ —               │ ✅       │
+  ├────────────────────────────────┼─────────────────┼──────────┤
+  │ Simplified Workflow Shell      │ —               │ ✅       │
+  └────────────────────────────────┴─────────────────┴──────────┘
+
+  ---
+  PHASE 2 — GOVERNMENT EDITION
+
+  Target Users
+
+  Military, Police, Intelligence Agencies, Government Analysts,
+  Command Staff.
+
+  Mental model of the user: "I received a document. What does it
+  mean? What should I do?"
+
+  They do NOT want to:
+  - Configure anything
+  - Learn a tool
+  - See dashboards, graphs, metrics, APIs
+  - Click more than 3 times
+
+  They DO want:
+  - The answer, immediately
+  - Expressed in plain language
+  - Formatted as a brief they recognize
+  - Actionable output
+
+  ---
+  Primary Workflow Design
+
+  ┌────────────────────────────────────────────────────────────────
+  ─┐
+  │                   KENCE Government Edition
+  │
+  │
+  │
+  │  ┌───────────────────────────────────────────────────────────┐
+  │
+  │  │              DROP DOCUMENT HERE                           │
+  │
+  │  │           or click to select file                        │
+  │
+  │  └───────────────────────────────────────────────────────────┘
+  │
+  │
+  │
+  │                         ↓ (automatic — no button needed)
+  │
+  │
+  │
+  │  ANALYSIS COMPLETE
+  │
+  │  ─────────────────────────────────────────────────────────────
+  │
+  │  [Summary] [Risks] [Timeline] [People] [Actions]
+  │
+  │  ─────────────────────────────────────────────────────────────
+  │
+  │
+  │
+  │  SUMMARY ─────────────────────────────────────────────────
+  │
+  │  The document discusses... [2-3 paragraph summary]
+  │
+  │
+  │
+  │  KEY RISKS ──────────────────────────────────────────────     │
+  │  🔴 CRITICAL  Deadline expires 15 June 2026
+  │
+  │  🟡 MEDIUM    Missing signature from Ministry of Finance
+  │
+  │  🟢 LOW       Formatting inconsistency in Section 4
+  │
+  │
+  │
+  │  [Export as PDF Report]         [Ask a question]
+  │
+  └────────────────────────────────────────────────────────────────
+  ─┘
+
+  ---
+  Government Edition — Features Visible vs Hidden
+
+  VISIBLE (renamed):
+
+  ┌────────────────────┬────────────────┬──────────────────────┐
+  │      Feature       │  Enterprise    │   Government Name    │
+  │                    │      Name      │                      │
+  ├────────────────────┼────────────────┼──────────────────────┤
+  │ Document upload    │ Document       │ Upload Document      │
+  │                    │ Upload         │                      │
+  ├────────────────────┼────────────────┼──────────────────────┤
+  │ RAG chat           │ AI Chat        │ Ask a Question       │
+  ├────────────────────┼────────────────┼──────────────────────┤
+  │ Entities           │ Knowledge      │ People &             │
+  │                    │ Graph          │ Organizations        │
+  ├────────────────────┼────────────────┼──────────────────────┤
+  │ Risk extraction    │ — (new)        │ Key Risks            │
+  ├────────────────────┼────────────────┼──────────────────────┤
+  │ Timeline           │ — (new)        │ Timeline of Events   │
+  │ extraction         │                │                      │
+  ├────────────────────┼────────────────┼──────────────────────┤
+  │ Recommendations    │ — (new)        │ Recommended Actions  │
+  ├────────────────────┼────────────────┼──────────────────────┤
+  │ PDF export         │ —              │ Export as Report     │
+  ├────────────────────┼────────────────┼──────────────────────┤
+  │ Document history   │ Document       │ Previous Documents   │
+  │                    │ Library        │                      │
+  ├────────────────────┼────────────────┼──────────────────────┤
+  │ Language selector  │ Translation    │ Language (KZ/RU/EN)  │
+  └────────────────────┴────────────────┴──────────────────────┘
+
+  HIDDEN (backend still runs silently):
+
+  Feature: Knowledge Graph visualization
+  Why Hidden: "Graph" terminology is foreign to gov users; entity
+    extraction STILL RUNS silently to power "People &
+  Organizations"
+     tab
+  Backend Status: Runs, UI hidden
+  ────────────────────────────────────────
+  Feature: Agent Launcher
+  Why Hidden: "Agents" = confusion; AI jargon
+  Backend Status: Disabled
+  ────────────────────────────────────────
+  Feature: Analytics Dashboard
+  Why Hidden: Not relevant to analyst workflow
+  Backend Status: Disabled
+  ────────────────────────────────────────
+  Feature: Presentation Builder
+  Why Hidden: Not part of intelligence workflow
+  Backend Status: Disabled
+  ────────────────────────────────────────
+  Feature: Admin Panel
+  Why Hidden: Government IT admins manage via separate portal
+  Backend Status: Simplified only
+  ────────────────────────────────────────
+  Feature: Technical Settings
+  Why Hidden: No configuration needed
+  Backend Status: Hidden
+  ────────────────────────────────────────
+  Feature: API Keys
+  Why Hidden: Not a gov use case
+  Backend Status: Hidden
+  ────────────────────────────────────────
+  Feature: Comparison (advanced)
+  Why Hidden: Presented as "Compare Documents" single button
+  Backend Status: Simplified
+  ────────────────────────────────────────
+  Feature: Session management
+  Why Hidden: Completely transparent
+  Backend Status: Hidden
+  ────────────────────────────────────────
+  Feature: Workspace sharing UI
+  Why Hidden: Managed by IT admin
+  Backend Status: Hidden from user
+
+  ---
+  Government Edition — Backend Architecture
+
+  The Government Edition requires ONE new backend endpoint that
+  does NOT exist today:
+
+  POST /api/documents/{session_id}/brief
+
+  Purpose: Runs all analysis in parallel and returns a structured
+  "intelligence brief"
+
+  Pipeline (parallel execution):
+    ┌────────────────────────────────────────────────────┐
+    │ async with asyncio.TaskGroup() as tg:              │
+    │   t1 = tg.create_task(generate_summary())         │
+    │   t2 = tg.create_task(extract_risks())            │
+    │   t3 = tg.create_task(extract_timeline())         │
+    │   t4 = tg.create_task(extract_entities())  ←─────── reuses
+  entity_extractor.py
+    │   t5 = tg.create_task(generate_actions())         │
+    └────────────────────────────────────────────────────┘
+
+  Response:
+    {
+      "summary": "...",
+      "risks": [
+        {"level": "critical", "description": "...", "source":
+  "Section 3"},
+        ...
+      ],
+      "timeline": [
+        {"date": "2026-03-15", "event": "Contract signed"},
+        ...
+      ],
+      "entities": {
+        "people": [{"name": "...", "role": "..."}],
+        "organizations": [{"name": "...", "type": "..."}]
+      },
+      "actions": [
+        {"priority": 1, "action": "Submit response by 15 June"},
+        ...
+      ],
+      "language": "ru",
+      "generated_at": "2026-06-06T12:00:00Z"
+    }
+
+  This endpoint:
+  - Uses existing llm_service (no new AI integration)
+  - Uses existing entity_extractor.py (no new extraction logic)
+  - Is gated behind require_feature("document_brief") — only GOV
+  edition
+  - Is simply a new orchestration layer over existing Core services
+
+  ---
+  Government Edition Architecture
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │                    KENCE Government Edition                 │
+  │                  (edition = "gov")                          │
+  ├─────────────────────────────────────────────────────────────┤
+  │  UI Layer                                                   │
+  │  ┌─────────────────────────────────────────────────────┐   │
+  │  │  GovShell.jsx                                       │   │
+  │  │  ├── UploadZone.jsx       (drag & drop, auto-start) │   │
+  │  │  ├── BriefViewer.jsx      (tabs: Summary/Risks/...) │   │
+  │  │  │   ├── SummaryTab.jsx                             │   │
+  │  │  │   ├── RisksTab.jsx     (color-coded severity)    │   │
+  │  │  │   ├── TimelineTab.jsx  (chronological)           │   │
+  │  │  │   ├── PeopleTab.jsx    (entities, no graph)      │   │
+  │  │  │   └── ActionsTab.jsx   (numbered, priority)      │   │
+  │  │  ├── QuestionBar.jsx      (simplified chat)         │   │
+  │  │  └── ExportButton.jsx     (PDF/DOCX report)         │   │
+  │  └─────────────────────────────────────────────────────┘   │
+  ├─────────────────────────────────────────────────────────────┤
+  │  API Layer (new endpoint over Core)                         │
+  │  POST /api/documents/{id}/brief     ← GOV-only             │
+  │  GET  /api/documents/{id}/brief/pdf ← GOV-only             │
+  ├─────────────────────────────────────────────────────────────┤
+  │  Core Platform (shared, unchanged)                          │
+  │  Auth · Document · LLM · RAG · Extraction · Storage        │
+  └─────────────────────────────────────────────────────────────┘
+
+  ---
+  PHASE 3 — ENTERPRISE EDITION
+
+  Target Users
+
+  Corporate teams, compliance analysts, legal teams, executives,
+  product managers.
+
+  Mental model: "I need to analyze, search, compare, track,
+  present, and collaborate on documents across my organization."
+
+  They DO want:
+  - Deep control over their workspace
+  - Knowledge Graph to understand relationships between entities
+  - AI Agents for automated multi-step tasks
+  - Analytics to track usage and trends
+  - Presentation builder for executive decks
+  - Multi-user collaboration
+
+  ---
+  Enterprise Edition Architecture
+
+  ┌────────────────────────────────────────────────────────────────
+  ─┐
+  │                   KENCE Enterprise Edition
+  │
+  │                  (edition = "enterprise")
+  │
+  ├────────────────────────────────────────────────────────────────
+  ─┤
+  │  UI Layer
+  │
+  │  ┌───────────────────────────────────────────────────────────┐
+  │
+  │  │  EnterpriseShell.jsx (full sidebar layout)               │
+  │
+  │  │  ├── LeftRail                                             │
+  │
+  │  │  │   ├── Dashboard         ← Overview metrics            │
+  │
+  │  │  │   ├── Documents         ← Library + upload            │
+  │
+  │  │  │   ├── Knowledge Graph   ← Neo4j visualization         │
+  │
+  │  │  │   ├── Agents            ← Launcher + Monitor          │
+  │
+  │  │  │   ├── Analytics         ← Charts, usage, events       │
+  │
+  │  │  │   ├── Presentations     ← Builder + history           │
+  │
+  │  │  │   ├── Compare           ← Two-document comparison     │
+  │
+  │  │  │   └── Settings          ← Org, branding, AI config    │
+  │
+  │  │  ├── TopCommandBar (Ctrl+K search, lang, org switcher)   │
+  │
+  │  │  └── WorkspaceArea (routing-driven content)              │
+  │
+  │  └───────────────────────────────────────────────────────────┘
+  │
+  ├────────────────────────────────────────────────────────────────
+  ─┤
+  │  API Layer (all 13 routers — full feature set)
+  │
+  │  All existing routes available
+  │
+  ├────────────────────────────────────────────────────────────────
+  ─┤
+  │  Core Platform (shared, unchanged)
+  │
+  │  Auth · Document · LLM · RAG · Extraction · Storage
+  │
+  └────────────────────────────────────────────────────────────────
+  ─┘
+
+  ---
+  PHASE 4 — FEATURE FLAG ARCHITECTURE
+
+  Design
+
+  The feature flag system operates at three layers simultaneously:
+
+  Layer 1 — Edition Defaults (compile-time constants)
+    Defined in: backend/app/services/feature_service.py
+    Source: Organization.edition field
+    Evaluates: Which features are ON/OFF by default for this
+  edition
+
+  Layer 2 — Org Overrides (database table)
+    Defined in: OrganizationFeatureFlags table (new)
+    Source: DB row per (org_id, feature_key)
+    Use case: Sales enables "knowledge_graph" for a specific GOV
+  customer
+              or disables "agents" for a specific ENTERPRISE trial
+  org
+
+  Layer 3 — Role-level (existing)
+    Defined in: require_org_admin(), require_org_member()
+    Source: OrgMembership.org_role
+    Use case: Only org admins can see Admin settings regardless of
+  edition
+
+  ---
+  Data Model — New Tables
+
+  # New column on Organization (migration 0005)
+  class Organization(Base):
+      ...
+      edition = Column(String(32), nullable=False,
+  default="enterprise")
+      # Values: "community" | "enterprise" | "gov"
+
+  # New table: per-org feature overrides (migration 0006)
+  class OrganizationFeatureFlags(Base):
+      __tablename__ = "org_feature_flags"
+      id            = Column(Integer, primary_key=True)
+      org_id        = Column(Integer,
+  ForeignKey("organizations.id"), nullable=False, index=True)
+      feature_key   = Column(String(64), nullable=False)
+      is_enabled    = Column(Boolean, nullable=False)
+      set_by        = Column(String(64), nullable=True)  # admin
+  username who set it
+      created_at    = Column(DateTime(timezone=True),
+  server_default=func.now())
+
+      __table_args__ = (
+          UniqueConstraint("org_id", "feature_key",
+  name="uq_org_feature"),
+      )
+
+  ---
+  Feature Registry — Edition Defaults
+
+  # backend/app/services/feature_service.py (new file)
+
+  FEATURES = {
+      # key                     : description
+      "document_brief"          : "Automatic document brief (GOV
+  workflow)",
+      "rag_chat"                : "RAG-powered question answering",
+      "translation"             : "KZ/RU/EN translation",
+      "document_comparison"     : "Two-document comparison",
+      "presentation_builder"    : "AI presentation generator",
+      "document_library"        : "Org-wide document library",
+      "knowledge_graph"         : "Neo4j entity relationship
+  graph",
+      "graph_nl_query"          : "Natural language graph queries",
+      "ai_agents"               : "Autonomous AI agents",
+      "analytics_dashboard"     : "Usage analytics and charts",
+      "executive_dashboard"     : "KPI snapshots and executive
+  view",
+      "workspace_sharing"       : "Share sessions with org
+  members",
+      "org_branding"            : "Custom logo, colors, CSS",
+      "api_key_access"          : "Programmatic API key access",
+      "admin_panel"             : "Full org admin panel",
+      "gov_admin_panel"         : "Simplified GOV admin panel",
+      "ai_settings"             : "Custom AI prompts and model
+  config",
+      "export_intelligence_report": "Export document brief as PDF",
+      "multi_org"               : "User belongs to multiple orgs",
+      "advanced_search"         : "Org-wide cross-document semantic
+  search",
+  }
+
+  EDITION_DEFAULTS: dict[str, dict[str, bool]] = {
+      "gov": {
+          "document_brief"            : True,
+          "rag_chat"                  : True,   # shown as "Ask a
+  question"
+          "translation"               : True,   # auto-included in
+  brief
+          "document_comparison"       : False,  # hidden from UI
+  (API still works)
+          "presentation_builder"      : False,
+          "document_library"          : True,   # shown as
+  "Previous Documents"
+          "knowledge_graph"           : False,  # backend runs, UI
+  hidden
+          "graph_nl_query"            : False,
+          "ai_agents"                 : False,
+          "analytics_dashboard"       : False,
+          "executive_dashboard"       : False,
+          "workspace_sharing"         : False,
+          "org_branding"              : True,   # logo/name only —
+  no custom CSS
+          "api_key_access"            : False,
+          "admin_panel"               : False,
+          "gov_admin_panel"           : True,
+          "ai_settings"               : False,
+          "export_intelligence_report": True,
+          "multi_org"                 : False,
+          "advanced_search"           : True,   # shown as "Search
+  Documents"
+      },
+      "enterprise": {
+          "document_brief"            : True,   # also available in
+  ENT
+          "rag_chat"                  : True,
+          "translation"               : True,
+          "document_comparison"       : True,
+          "presentation_builder"      : True,
+          "document_library"          : True,
+          "knowledge_graph"           : True,
+          "graph_nl_query"            : True,
+          "ai_agents"                 : True,
+          "analytics_dashboard"       : True,
+          "executive_dashboard"       : True,
+          "workspace_sharing"         : True,
+          "org_branding"              : True,
+          "api_key_access"            : True,
+          "admin_panel"               : True,
+          "gov_admin_panel"           : False,
+          "ai_settings"               : True,
+          "export_intelligence_report": True,
+          "multi_org"                 : True,
+          "advanced_search"           : True,
+      },
+      "community": {
+          "document_brief"            : False,
+          "rag_chat"                  : True,
+          "translation"               : True,
+          "document_comparison"       : True,
+          "presentation_builder"      : True,
+          "document_library"          : False,
+          "knowledge_graph"           : False,
+          "graph_nl_query"            : False,
+          "ai_agents"                 : False,
+          "analytics_dashboard"       : False,
+          "executive_dashboard"       : False,
+          "workspace_sharing"         : False,
+          "org_branding"              : False,
+          "api_key_access"            : False,
+          "admin_panel"               : False,
+          "gov_admin_panel"           : False,
+          "ai_settings"               : False,
+          "export_intelligence_report": False,
+          "multi_org"                 : False,
+          "advanced_search"           : False,
+      },
+  }
+
+  ---
+  Backend Enforcement
+
+  # feature_service.py — evaluation logic
+
+  def get_org_features(org_id: int, edition: str) -> dict[str,
+  bool]:
+      """
+      Returns the effective feature set for an org.
+      Edition defaults are overridden by per-org DB flags.
+      """
+      defaults = EDITION_DEFAULTS.get(edition,
+  EDITION_DEFAULTS["community"]).copy()
+
+      # Apply org-level overrides from OrganizationFeatureFlags
+  table
+      with SessionLocal() as db:
+          overrides =
+  db.query(OrganizationFeatureFlags).filter_by(org_id=org_id).all()
+          for override in overrides:
+              defaults[override.feature_key] = override.is_enabled
+
+      return defaults
+
+
+  def require_feature(feature_key: str):
+      """FastAPI dependency factory — raises 403 if feature is
+  disabled for org."""
+      async def _check(
+          current_user: dict = Depends(get_current_user),
+          org_id: int = None,  # from path param, injected by
+  router
+      ):
+          org = get_org(current_user.get("default_org_id"))
+          if not org:
+              raise HTTPException(status_code=403, detail="No
+  organization context")
+          features = get_org_features(org["id"], org["edition"])
+          if not features.get(feature_key, False):
+              raise HTTPException(
+                  status_code=403,
+                  detail=f"Feature '{feature_key}' is not available
+  in your edition"
+              )
+          return current_user
+      return _check
+
+
+  # Usage on existing routes — backward compatible:
+  @router.post("/orgs/{org_id}/graph/query")
+  async def query_graph(
+      org_id: int,
+      req: GraphQueryRequest,
+      current_user: dict =
+  Depends(require_feature("knowledge_graph")),  # ← add this
+  ):
+      ...
+
+  ---
+  Frontend Enforcement
+
+  // New: frontend/src/contexts/EditionContext.jsx
+
+  const EditionContext = createContext(null);
+
+  export function EditionProvider({ children }) {
+      // GET /api/me/config returns { edition, features, org }
+      const { data: config } = useQuery(['me-config'],
+  fetchMeConfig);
+      return (
+          <EditionContext.Provider value={config}>
+              {children}
+          </EditionContext.Provider>
+      );
+  }
+
+  // Hook — used in every component
+  export function useFeature(key) {
+      const config = useContext(EditionContext);
+      return config?.features?.[key] ?? false;
+  }
+
+  export function useEdition() {
+      const config = useContext(EditionContext);
+      return config?.edition ?? 'community';
+  }
+
+  // Usage in any component:
+  function LeftRail() {
+      const showGraph = useFeature('knowledge_graph');
+      const showAgents = useFeature('ai_agents');
+      return (
+          <nav>
+              <NavItem to="/documents" />
+              {showGraph && <NavItem to="/graph" label="Knowledge
+  Graph" />}
+              {showAgents && <NavItem to="/agents" label="AI
+  Agents" />}
+          </nav>
+      );
+  }
+
+  // Shell router — chooses ENTIRE shell based on edition
+  function AppShell() {
+      const edition = useEdition();
+      if (edition === 'gov') return <GovShell />;
+      return <EnterpriseShell />;
+  }
+
+  ---
+  New API Endpoint — /api/me/config
+
+  GET /api/me/config
+  Authorization: Bearer {token}
+
+  Response:
+  {
+    "username": "alice",
+    "role": "member",
+    "org": {
+      "id": 7,
+      "slug": "mnb-analytics",
+      "display_name": "Ministry of National Security",
+      "edition": "gov",
+      "plan": "contract"
+    },
+    "org_role": "member",
+    "features": {
+      "document_brief": true,
+      "rag_chat": true,
+      "knowledge_graph": false,
+      "ai_agents": false,
+      "analytics_dashboard": false,
+      ...all 20 features...
+    },
+    "ui_labels": {
+      "rag_chat": "Ask a Question",
+      "document_library": "Previous Documents",
+      "advanced_search": "Search Documents"
+    }
+  }
+
+  This is the SINGLE source of truth for the frontend.
+  Cached for 5 minutes. Invalidated on org edition change.
+
+  ---
+  Feature Matrix
+
+  ┌───────────┬─────────┬──────────┬──────────┬───────────────┐
+  │  Feature  │ Communi │ Enterpri │ Governme │ Gov UI Label  │
+  │           │   ty    │    se    │    nt    │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Document  │ ✅      │ ✅       │ ✅       │ "Upload       │
+  │ Upload    │         │          │          │ Document"     │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ RAG Chat  │ ✅      │ ✅       │ ✅       │ "Ask a        │
+  │           │         │          │          │ Question"     │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Translati │ ✅      │ ✅       │ ✅       │ In Brief      │
+  │ on        │         │          │          │ automatically │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Document  │         │          │ 🔒 API   │ "Compare      │
+  │ Compariso │ ✅      │ ✅       │ only     │ Documents"    │
+  │ n         │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Presentat │         │          │          │               │
+  │ ion       │ ✅      │ ✅       │ ❌       │ —             │
+  │ Builder   │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Document  │ ❌      │ ✅       │ ✅       │ "Previous     │
+  │ Library   │         │          │          │ Documents"    │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Knowledge │         │          │          │               │
+  │  Graph    │ ❌      │ ✅       │ ❌       │ —             │
+  │ (UI)      │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Knowledge │         │          │ ✅ runs  │ Powers        │
+  │  Graph    │ ❌      │ ✅       │ silently │ "People" tab  │
+  │ (backend) │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Natural   │         │          │          │               │
+  │ Language  │ ❌      │ ✅       │ ❌       │ —             │
+  │ Graph     │         │          │          │               │
+  │ Query     │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ AI Agents │ ❌      │ ✅       │ ❌       │ —             │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Analytics │         │          │          │               │
+  │           │ ❌      │ ✅       │ ❌       │ —             │
+  │ Dashboard │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Executive │         │          │          │               │
+  │           │ ❌      │ ✅       │ ❌       │ —             │
+  │ Dashboard │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Document  │         │          │          │ "Document     │
+  │ Brief     │ ❌      │ ✅       │ ✅       │ Analysis"     │
+  │ (auto)    │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Risk Extr │ ❌      │ ✅       │ ✅       │ "Key Risks"   │
+  │ action    │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Timeline  │         │          │          │               │
+  │ Extractio │ ❌      │ ✅       │ ✅       │ "Timeline"    │
+  │ n         │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Recommend │         │          │          │ "Recommended  │
+  │ ed        │ ❌      │ ✅       │ ✅       │ Actions"      │
+  │ Actions   │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Intellige │         │          │          │               │
+  │ nce       │ ❌      │ ✅       │ ✅       │ "Export as    │
+  │ Report    │         │          │          │ Report"       │
+  │ PDF       │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Advanced  │ ❌      │ ✅       │ ✅       │ "Search       │
+  │ Search    │         │          │          │ Documents"    │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Workspace │ ❌      │ ✅       │ ❌       │ —             │
+  │  Sharing  │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Org       │         │          │ ✅ logo/ │               │
+  │ Branding  │ ❌      │ ✅       │ name     │ —             │
+  │           │         │          │ only     │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ API Key   │ ❌      │ ✅       │ ❌       │ —             │
+  │ Access    │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Full      │         │          │          │               │
+  │ Admin     │ ❌      │ ✅       │ ❌       │ —             │
+  │ Panel     │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Simplifie │ ❌      │ ❌       │ ✅       │ "Administrati │
+  │ d Admin   │         │          │          │ on"           │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Custom AI │ ❌      │ ✅       │ ❌       │ —             │
+  │  Prompts  │         │          │          │               │
+  ├───────────┼─────────┼──────────┼──────────┼───────────────┤
+  │ Multi-org │         │          │          │               │
+  │  Membersh │ ❌      │ ✅       │ ❌       │ —             │
+  │ ip        │         │          │          │               │
+  └───────────┴─────────┴──────────┴──────────┴───────────────┘
+
+  ---
+  PHASE 5 — UI/UX SEGMENTATION
+
+  Government UX Map
+
+  ENTRY POINT: gov.kence.ai (or same domain, edition from org)
+
+  ─────────────────────────────────────────────────────────────────
+  ─
+  SCREEN 1: Login
+    [Organization Logo]
+    Username: [          ]
+    Password: [          ]
+    [Enter System]
+    (No registration, no "forgot password" link — managed by IT
+  admin)
+  ─────────────────────────────────────────────────────────────────
+  ─
+  SCREEN 2: Main Screen (ONLY screen user ever sees)
+    ┌────────────────────────────────────────────────────────────┐
+    │  [Org Logo]    KENCE Intelligence                 [User ▼] │
+    │  ─────────────────────────────────────────────────────── │
+    │                                                            │
+    │  ┌──────────────────────────────────────────────────────┐  │
+    │  │         ↑  DRAG DOCUMENT HERE                       │  │
+    │  │              or click to select                     │  │
+    │  │    PDF · DOCX · XLSX · PPTX · JPG · PNG            │  │
+    │  └──────────────────────────────────────────────────────┘  │
+    │                                                            │
+    │  Recent Documents:                   [Search Documents]    │
+    │  • contract_2026_05.pdf    yesterday                       │
+    │  • report_q1.docx          3 days ago                      │
+    │  • ministry_order.pdf      1 week ago                      │
+    └────────────────────────────────────────────────────────────┘
+
+  ── After upload (< 3 seconds to show initial results) ──────────
+
+    ┌────────────────────────────────────────────────────────────┐
+    │  ← Back    contract_2026_05.pdf    [Export PDF] [▪▪▪ EN]  │
+    │  ─────────────────────────────────────────────────────── │
+    │  [Summary] [Key Risks] [Timeline] [People] [Actions]      │
+    │  ─────────────────────────────────────────────────────── │
+    │                                                            │
+    │  SUMMARY ─────────────────────────────────────────────   │
+    │  The document is a contract between Ministry of X and     │
+    │  Company Y for the supply of... [3 paragraphs]            │
+    │                                                            │
+    │  ─────────────────────────────────────────────────────── │
+    │  Ask a question about this document:                       │
+    │  [What is the total contract value?    ] [Ask]            │
+    └────────────────────────────────────────────────────────────┘
+
+  ── Key Risks tab ───────────────────────────────────────────────
+
+    KEY RISKS ─────────────────────────────────────────────────
+    ● CRITICAL   Delivery deadline: 20 June 2026 (14 days)
+    ● HIGH       Penalty clause: 0.1% per day of delay
+    ● MEDIUM     Counterparty address differs from registration
+    ● LOW        Document lacks wet signature on page 7
+
+  ── Timeline tab ────────────────────────────────────────────────
+
+    TIMELINE OF EVENTS ────────────────────────────────────────
+    ◎ 15 Jan 2026   Contract signed
+    ◎ 01 Mar 2026   First payment due
+    ◎ 20 Jun 2026   ⚠️ Delivery deadline
+    ◎ 01 Jul 2026   Final payment due
+
+  ── People & Organizations tab ──────────────────────────────────
+
+    PEOPLE & ORGANIZATIONS ────────────────────────────────────
+    👤 Seitkali Nurlanovich   Director General, Ministry of X
+    👤 Aigerim Bekova          CFO, Company Y
+    🏢 Ministry of Finance    Mentioned (budget approval)
+    🏢 National Bank RK       Mentioned (currency regulation)
+
+  ── Recommended Actions tab ─────────────────────────────────────
+
+    RECOMMENDED ACTIONS ────────────────────────────────────────
+    1. [URGENT] Confirm delivery readiness with Company Y
+                 Deadline: 20 June 2026 (14 days remaining)
+    2. Verify counterparty address matches registration
+    3. Obtain wet signature on page 7 before filing
+    4. Schedule payment calendar in accounting system
+
+  ─────────────────────────────────────────────────────────────────
+  ─
+  HIDDEN FROM GOV USER:
+    × Navigation sidebar
+    × Settings
+    × Knowledge Graph
+    × Analytics
+    × Agents
+    × Presentation Builder
+    × Admin Panel (IT admin sees a simplified portal separately)
+    × Any mention of "AI", "LLM", "embeddings", "vectors"
+  ─────────────────────────────────────────────────────────────────
+  ─
+  Total clicks from login to brief: 2 (login → upload)
+  Time to first result: < 30 seconds on 10-page document
+
+  ---
+  Enterprise UX Map
+
+  ENTRY POINT: enterprise.kence.ai (or same domain)
+
+  ─────────────────────────────────────────────────────────────────
+  ─
+  SCREEN 1: Login / Org Selector
+    Standard login → if multi-org, show org picker
+  ─────────────────────────────────────────────────────────────────
+  ─
+  SCREEN 2: Dashboard
+    ┌──────────────────────────────────────────────────────────────
+  ──┐
+    │ ☰ KENCE Enterprise   [Ctrl+K]   [🌐 RU]  [Org ▼]  [User ▼] │
+    ├────────────────┬─────────────────────────────────────────────
+  ──┤
+    │                │  DASHBOARD
+    │
+    │  🏠 Dashboard  │  Sessions: 847  |  Docs: 1,234  |  Users: 47
+   │
+    │  📁 Documents  │
+   │
+    │  🔍 Search     │  Recent Documents          AI Activity
+   │
+    │  🌐 Graph      │  [chart]                   [chart]
+   │
+    │  🤖 Agents     │
+   │
+    │  📊 Analytics  │  Top Entities              Recent Events
+   │
+    │  📽 Presentations│ Ministry of Finance (47)  Upload 2m ago
+  │
+    │  ⚖️  Compare   │  Aigerim Bekova (23)       Chat 5m ago
+  │
+    │  ─────────────  │
+    │
+    │  ⚙️  Settings  │
+   │
+    └────────────────┴─────────────────────────────────────────────
+  ──┘
+
+  ── Document Workspace ──────────────────────────────────────────
+
+    Full RAG chat + translation + brief + graph extraction
+    Right panel: Document context, metadata, actions
+    Command palette: /analyze /translate /compare /present
+
+  ── Knowledge Graph ─────────────────────────────────────────────
+
+    react-force-graph-2d visualization
+    Node type filter chips
+    Neighbor sidebar
+    Natural language query: "Show all organizations related to
+  Ministry of Finance"
+
+  ── Agent Launcher ──────────────────────────────────────────────
+
+    Select agent type: [Document Editor] [Researcher] [Analyst]
+  [Summarizer]
+    Configure: session, question, instructions
+    Monitor: real-time SSE step stream
+    History: all past agent runs with status and output
+
+  ── Analytics ───────────────────────────────────────────────────
+
+    Format breakdown pie | Upload timeline bar
+    Event log | Active sessions | User activity
+    Exportable as CSV
+
+  ── Comparison ──────────────────────────────────────────────────
+
+    Upload two documents | Semantic | Technical | Thematic | Exact
+    DiffViewer component
+
+  ── Settings ────────────────────────────────────────────────────
+
+    Org: Members, Roles, Quotas, API Keys
+    Branding: Logo, Colors, App Name, Custom CSS
+    AI: Custom Prompts per prompt type
+    Profile: Password change
+
+  ─────────────────────────────────────────────────────────────────
+  ─
+  Total navigation items visible: 9 (vs 2 in GOV edition)
+  Full feature exposure — no hidden features
+  Power users use Ctrl+K command palette for everything
+  ─────────────────────────────────────────────────────────────────
+  ─
+
+  ---
+  PHASE 6 — CODEBASE STRATEGY
+
+  Architecture Diagram
+
+  ┌────────────────────────────────────────────────────────────────
+  ─────┐
+  │                        SINGLE REPOSITORY
+      │
+  │                         kence-platform/
+      │
+  ├──────────────────────────┬─────────────────────────────────────
+  ─────┤
+  │        BACKEND           │              FRONTEND
+      │
+  │     (single FastAPI)     │           (single Vite/React)
+      │
+  ├──────────────────────────┼─────────────────────────────────────
+  ─────┤
+  │                          │
+      │
+  │  app/                    │  src/
+      │
+  │  ├── api/                │  ├── contexts/
+      │
+  │  │   ├── routes.py       │  │   └── EditionContext.jsx  ← NEW
+     │
+  │  │   ├── auth_routes.py  │  ├── shells/               ← NEW
+     │
+  │  │   ├── graph_routes.py │  │   ├── GovShell.jsx
+     │
+  │  │   ├── agent_routes.py │  │   └── EnterpriseShell.jsx
+     │
+  │  │   └── ...13 routers   │  ├── pages/
+     │
+  │  ├── services/           │  │   ├── gov/               ← NEW
+     │
+  │  │   ├── feature_service │  │   │   ├── GovUploadPage.jsx
+     │
+  │  │   │   .py      ← NEW  │  │   │   └── BriefViewerPage.jsx
+     │
+  │  │   ├── brief_service   │  │   ├── ChatPage.jsx
+  (shared)   │
+  │  │   │   .py      ← NEW  │  │   ├── KnowledgeGraph...  (ENT
+  only) │
+  │  │   ├── llm.py          │  │   └── ...existing pages
+     │
+  │  │   ├── graph_service   │  ├── components/
+      │
+  │  │   │   .py             │  │   ├── BriefViewer/        ← NEW
+     │
+  │  │   └── ...existing     │  │   ├── RisksTab.jsx        ← NEW
+     │
+  │  ├── models/             │  │   ├── TimelineTab.jsx     ← NEW
+     │
+  │  │   └── models.py       │  │   └── ...existing components
+     │
+  │  │      + edition col    │  ├── hooks/
+      │
+  │  │      + feature_flags  │  │   └── useFeature.js       ← NEW
+     │
+  │  └── core/               │  └── App.jsx
+     │
+  │      └── config.py       │       (edition-aware routing)
+     │
+  │                          │
+      │
+  ├──────────────────────────┴─────────────────────────────────────
+  ─────┤
+  │                       SINGLE DATABASE
+      │
+  │
+      │
+  │  PostgreSQL
+      │
+  │  ├── organizations (+ edition column)
+      │
+  │  ├── org_feature_flags          ← NEW TABLE
+      │
+  │  ├── org_memberships
+      │
+  │  ├── users
+      │
+  │  └── ...all existing tables
+      │
+  │
+      │
+  │  Neo4j / ChromaDB / File Storage — unchanged
+      │
+  ├────────────────────────────────────────────────────────────────
+  ─────┤
+  │                    SINGLE DEPLOYMENT PIPELINE
+      │
+  │
+      │
+  │  git push → CI → build backend:2.1.0 + frontend:2.1.0
+     │
+  │           → docker-compose up (or helm upgrade)
+      │
+  │           → same image serves BOTH editions
+      │
+  │           → edition determined at RUNTIME by org.edition field
+      │
+  │
+      │
+  │  GOV deployment:    docker-compose -f compose.gov.yml up
+      │
+  │    (same image, different .env: DEFAULT_EDITION=gov)
+      │
+  │  ENT deployment:    docker-compose up (default)
+      │
+  │    (same image, default: DEFAULT_EDITION=enterprise)
+      │
+  └────────────────────────────────────────────────────────────────
+  ─────┘
+
+  Edition Selection Flow
+
+  REQUEST LIFECYCLE WITH EDITION:
+
+  1. User logs in
+     POST /api/auth/login
+     → returns JWT {sub: "alice"}  (unchanged)
+
+  2. Frontend calls config endpoint
+     GET /api/me/config
+     → Backend:
+         user = get_user("alice")
+         org = get_user_primary_org("alice")    ← user's
+  default_org_id
+         edition = org["edition"]               ← "gov" or
+  "enterprise"
+         features = get_org_features(org.id, edition)
+     → Returns: {username, org, edition, features, ui_labels}
+
+  3. React mounts EditionProvider
+     EditionContext.value = {edition: "gov", features: {...}}
+
+  4. App.jsx renders:
+     edition === "gov"  → <GovShell />
+     edition !== "gov"  → <EnterpriseShell />
+
+  5. Any API call to gated feature:
+     GET /orgs/7/graph/query
+     → require_feature("knowledge_graph") dependency
+     → org.edition = "gov" → feature disabled → HTTP 403
+     → Frontend already hid the button, but defense-in-depth
+
+  6. Knowledge graph extraction STILL runs on GOV upload:
+     POST /api/documents/upload → session created
+     POST /api/documents/{id}/brief
+     → pipeline includes entity extraction
+     → results shown in "People & Organizations" tab
+     → Neo4j is populated (enables future analytics)
+     → No graph UI is shown, but data is there
+
+  ---
+  FINAL DELIVERABLE
+
+  1. Core Platform Architecture
+
+  KENCE Core Platform Components (shared by all editions):
+    ✅ Authentication (JWT + bcrypt + API keys)
+    ✅ Document Processing (Docling + OCR + Vision)
+    ✅ Chunking + Embedding (ChromaDB + nomic-embed-text)
+    ✅ LLM Orchestration (circuit breaker + queue + semaphore)
+    ✅ Hybrid RAG Retrieval (BM25 + semantic, RRF fusion)
+    ✅ Entity Extraction (runs on ALL editions — UI differs)
+    ✅ Session Management (write-through cache + PostgreSQL)
+    ✅ Multi-tenant Organization Model (roles + quotas + branding)
+    ✅ Analytics Event Logging (data collected always, display
+  varies)
+    ✅ Feature Flag Engine (edition defaults + org overrides)
+    ✅ CypherPolicyEngine (security — all editions)
+    ✅ Alembic Migrations
+
+  2. Government Edition Architecture
+
+  Government Edition = Core + GOV-specific layer:
+
+    NEW backend components:
+      ├── POST /api/documents/{id}/brief     ← parallel
+  orchestration
+      ├── GET  /api/documents/{id}/brief/pdf ← report generation
+      └── backend/app/services/brief_service.py
+
+    NEW frontend components:
+      ├── src/shells/GovShell.jsx
+      ├── src/pages/gov/BriefViewerPage.jsx
+      ├── src/components/BriefViewer/
+      │   ├── SummaryTab.jsx
+      │   ├── RisksTab.jsx
+      │   ├── TimelineTab.jsx
+      │   ├── PeopleTab.jsx
+      │   └── ActionsTab.jsx
+      └── src/components/ExportReportButton.jsx
+
+    Changed in Core:
+      ├── Organization.edition field (migration 0005)
+      ├── OrganizationFeatureFlags table (migration 0006)
+      └── /api/me/config endpoint (new)
+
+    Behavior:
+      - Knowledge Graph extraction RUNS silently (populates People
+  tab)
+      - Entity extraction results surfaced without graph
+  visualization
+      - All AI references removed from UI text
+      - Mobile-first responsive layout
+      - 2 clicks from login to first analysis result
+
+  3. Enterprise Edition Architecture
+
+  Enterprise Edition = Core + full feature set (current platform)
+
+    No components removed. All 13 routers active.
+    All existing pages available.
+    New: also gets document_brief feature (rich analysis view)
+    New: edition-aware shell with full navigation
+
+    Additions vs current:
+      ├── EditionContext integration (reads features from
+  /api/me/config)
+      ├── Feature guards on knowledge_graph, agents, analytics
+  routes
+      └── EnterpriseShell.jsx wrapping existing navigation
+
+  4. Feature Matrix
+
+  (Full matrix in Phase 4 above — 20 features × 3 editions)
+
+  Summary:
+  - Community (13/20): RAG, translation, comparison, presentations,
+  basic upload
+  - Enterprise (20/20): All features enabled
+  - Government (13/20): Different 13 — brief, risks, timeline,
+  people, actions + search + library; no graph UI, agents, or
+  analytics dashboard
+
+  5. Licensing Strategy
+
+  ┌────────────────────────────────────────────────────────────────
+  ─┐
+  │                     LICENSING MODEL
+  │
+  ├─────────────────┬───────────────┬───────────────┬──────────────
+  ┤
+  │ Dimension       │ Community     │ Enterprise    │ Government
+  │
+  ├─────────────────┼───────────────┼───────────────┼──────────────
+  ┤
+  │ org.edition     │ community     │ enterprise    │ gov
+  │
+  │ org.plan        │ free          │ pro / ent     │ contract
+  │
+  │ Pricing model   │ Free / OSS    │ Per-seat/mo   │ Annual govt
+  │
+  │                 │               │               │ procurement
+  │
+  │ Users           │ 1-5           │ 10-10,000     │ 10-10,000
+  │
+  │ Storage         │ 5 GB          │ 1 TB+         │ Custom
+  │
+  │ API access      │ ❌            │ ✅            │ ❌
+  │
+  │ Deployment      │ Self-hosted   │ Cloud/on-prem │ On-prem only
+  │
+  │ SLA             │ None          │ 99.9%         │ Negotiated
+  │
+  │ Support         │ Community     │ Dedicated     │ Dedicated +
+  │
+  │                 │               │               │ security req
+  │
+  │ Air-gap deploy  │ ✅            │ Optional      │ ✅ required
+  │
+  │ Audit log       │ ❌            │ ✅            │ ✅ +
+  extended│
+  │ SSO/SAML        │ ❌            │ ✅            │ ✅ required
+  │
+  └─────────────────┴───────────────┴───────────────┴──────────────
+  ┘
+
+  License key mechanism (design, not implemented yet):
+    Organization.license_key = Column(String(256))
+    License validates: edition, plan, expiry, max_users,
+  max_storage
+    Checked at startup and every 24h (offline-safe: 30-day grace
+  period)
+    Air-gap deployments: offline license file (signed JSON, no
+  callhome)
+
+  6. Deployment Strategy
+
+  SAME IMAGE. DIFFERENT CONFIGURATION.
+
+  Government on-premise (air-gapped):
+    ├── docker-compose.gov.yml
+    │   (same images as enterprise, no external calls)
+    ├── .env.gov:
+    │   DEFAULT_EDITION=gov
+    │   OLLAMA_BASE_URL=http://ollama:11434  (internal GPU server)
+    │   CORS_ORIGINS=https://kence.internal
+    │   DISABLE_TELEMETRY=true
+    │   DISABLE_EXTERNAL_FONTS=true
+    └── Network: fully air-gapped, no internet required
+
+  Enterprise cloud:
+    ├── docker-compose.yml (default)
+    ├── .env.enterprise:
+    │   DEFAULT_EDITION=enterprise
+    │   CORS_ORIGINS=https://kence.company.com
+    └── Optional: Kubernetes (Stage 3 from P7)
+
+  Multi-edition single deployment (hosting multiple customers):
+    ├── One backend instance
+    ├── edition determined by org.edition in database (runtime)
+    ├── Same URL: app.kence.ai
+    └── Different UX per organization at login time
+        (Alice at gov org → GovShell; Bob at enterprise org →
+  EnterpriseShell)
+
+  7. Development Roadmap
+
+  WEEK 1 — Foundation (database + flag engine)
+    1.1  Migration 0005: Organization.edition column
+    1.2  Migration 0006: OrganizationFeatureFlags table
+    1.3  backend/app/services/feature_service.py
+          (EDITION_DEFAULTS dict + get_org_features() +
+  require_feature())
+    1.4  GET /api/me/config endpoint
+    1.5  Update org_service: edition field in create_org(),
+  get_org(), _org_to_dict()
+    1.6  Add require_feature() to: graph_routes, agent_routes,
+  analytics_routes
+    1.7  Tests: unit test all 20 features × 3 editions
+
+  WEEK 2 — Government Backend
+    2.1  backend/app/services/brief_service.py
+          (parallel: summary + risks + timeline + entities +
+  actions)
+    2.2  POST /api/documents/{id}/brief route
+    2.3  GET /api/documents/{id}/brief/pdf (PDF generation using
+  reportlab/weasyprint)
+    2.4  Prompt design for: risk extraction, timeline extraction,
+  action generation
+    2.5  Tests: brief endpoint returns correct structure
+
+  WEEK 3 — Government Frontend
+    3.1  src/contexts/EditionContext.jsx + useFeature() hook
+    3.2  App.jsx edition-aware shell routing
+    3.3  src/shells/GovShell.jsx (layout)
+    3.4  src/pages/gov/BriefViewerPage.jsx
+    3.5  BriefViewer tabs: Summary, Risks, Timeline, People,
+  Actions
+    3.6  ExportReportButton component
+    3.7  GovShell mobile responsiveness
+
+  WEEK 4 — Enterprise Integration
+    4.1  src/shells/EnterpriseShell.jsx (wraps existing navigation)
+    4.2  Feature guards on all nav items (useFeature() hook)
+    4.3  Enterprise also gets BriefViewerPage (document_brief
+  feature = true)
+    4.4  /api/me/config integrated into React Query cache
+    4.5  UI label mapping (ui_labels in config response)
+
+  WEEK 5 — Quality + Testing
+    5.1  E2E test: GOV login → upload → brief rendered in < 30s
+    5.2  E2E test: GOV user cannot access /graph → 403
+    5.3  E2E test: ENT user can access all features
+    5.4  Feature flag override test: GOV org with
+  knowledge_graph=true override
+    5.5  License key validation (if implementing offline licensing)
+    5.6  Accessibility audit on GovShell (government a11y
+  requirements)
+
+  WEEK 6 — Hardening + Documentation
+    6.1  Air-gap deployment verification (no external font/CDN
+  calls)
+    6.2  GOV edition: remove all "AI" language from UI text (i18n
+  keys update)
+    6.3  Security review: GOV shell cannot leak Enterprise features
+  via DevTools
+    6.4  Deployment guide: gov docker-compose.yml
+    6.5  Admin portal for GOV IT admin (simplified user management)
+
+  ---
+  DESIGN INVARIANTS — MUST NEVER VIOLATE
+
+  1. ONE codebase. Branch = feature, not edition.
+     Government Edition is NOT a fork. It is a runtime
+  configuration.
+
+  2. NO edition logic in Core services.
+     llm.py, document.py, entity_extractor.py have ZERO edition
+  checks.
+     Edition logic lives only in:
+       - feature_service.py (backend enforcement)
+       - EditionContext.jsx (frontend rendering)
+       - GovShell.jsx / EnterpriseShell.jsx (layout)
+
+  3. Backend always enforces. Frontend always mirrors.
+     Hiding a button is UX. The API guard is security.
+     Both must be present for every gated feature.
+
+  4. Knowledge Extraction runs on BOTH editions.
+     The GOV edition hides the graph visualization.
+     It does NOT disable extraction — data is collected and shown
+  as "People".
+     This ensures GOV deployments build a knowledge base that can
+  be surfaced later.
+
+  5. No GOV-specific API routes except /brief and /brief/pdf.
+     Everything else uses the same endpoints with feature guards.
+     GOV analysts get the same security, same resilience, same AI
+  quality.
+
+  6. Edition is an org property, not a user property.
+     One user can be a member of a GOV org (sees GovShell) and
+     a member of an ENTERPRISE org (sees EnterpriseShell).
+     Shell switches on org context switch.
+
+  ---
+  END OF ANALYSIS — Platform Segmentation Architecture
+  Awaiting approval to proceed to implementation. Recommended
+  starting point: Week 1 (database + flag engine), as it is the
+  zero-UI prerequisite for everything else.
+

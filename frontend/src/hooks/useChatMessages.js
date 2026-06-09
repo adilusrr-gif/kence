@@ -31,6 +31,12 @@ export function useChatMessages(sessionId, isImageDoc) {
 
   const inputRef       = useRef(null)
   const messagesEndRef = useRef(null)
+  const abortRef       = useRef(null)
+
+  // Cancel any active stream when the component unmounts (user navigates away)
+  useEffect(() => {
+    return () => { abortRef.current?.abort() }
+  }, [])
 
   // Load chat history when session opens
   useEffect(() => {
@@ -71,6 +77,10 @@ export function useChatMessages(sessionId, isImageDoc) {
     setLoading(true)
     setMessages(prev => [...prev, { role: 'assistant', content: '', status: 'typing', streaming: true }])
 
+    // Abort any previous in-flight stream before starting a new one
+    abortRef.current?.abort()
+    abortRef.current = new AbortController()
+
     const streamUrl = chatMode === 'visual' && isImageDoc
       ? `${getBaseUrl()}/api/chat/visual-stream?session_id=${sessionId}&question=${encodeURIComponent(question)}`
       : null
@@ -78,6 +88,7 @@ export function useChatMessages(sessionId, isImageDoc) {
     await streamWithEvents(sessionId, question, {
       mode: chatMode === 'visual' ? 'precise' : chatMode,
       customUrl: streamUrl,
+      signal: abortRef.current.signal,
       ...makeStreamHandlers(),
     })
     setLoading(false)
@@ -87,12 +98,14 @@ export function useChatMessages(sessionId, isImageDoc) {
     if (loading) return
     const prevUser = messages.slice(0, botMsgIndex).reverse().find(m => m.role === 'user')
     if (!prevUser) return
-    // Trim off the old assistant message and re-stream
     setMessages(prev => prev.slice(0, botMsgIndex))
     setLoading(true)
     setMessages(prev => [...prev, { role: 'assistant', content: '', status: 'typing', streaming: true }])
+    abortRef.current?.abort()
+    abortRef.current = new AbortController()
     await streamWithEvents(sessionId, prevUser.content, {
       mode: chatMode === 'visual' ? 'precise' : chatMode,
+      signal: abortRef.current.signal,
       ...makeStreamHandlers(),
     })
     setLoading(false)
@@ -189,8 +202,11 @@ export function useChatMessages(sessionId, isImageDoc) {
     )
     setLoading(true)
     setMessages(prev => [...prev, { role: 'assistant', content: '', status: 'typing', streaming: true, isSimplified: true }])
+    abortRef.current?.abort()
+    abortRef.current = new AbortController()
     await streamWithEvents(sessionId, simplifyPrompt, {
       mode: 'precise',
+      signal: abortRef.current.signal,
       ...makeStreamHandlers(),
       onDone: (full) => setMessages(prev => {
         const m = [...prev]

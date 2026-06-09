@@ -16,6 +16,7 @@ export function streamWithEvents(sessionId, question, handlers = {}) {
   return streamChat(sessionId, question, {
     mode: handlers.mode,
     customUrl: handlers.customUrl,
+    signal: handlers.signal,
     onStatus: handlers.onStatus,
     onChunk: handlers.onChunk,
     onSources: handlers.onSources,

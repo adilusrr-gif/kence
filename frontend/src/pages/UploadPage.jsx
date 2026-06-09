@@ -103,7 +103,7 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
       setUploaded(true)
       ingestEvent({ type: 'DOCUMENT_READY', message: `Document ready: ${file.name}` })
       toast.success(t('upload.success', { name: file.name }))
-      navTimerRef.current = setTimeout(() => navigate('/insights'), 1500)
+      navTimerRef.current = setTimeout(() => navigate('/insights'), 3000)
     } catch (err) {
       const msg = err.message || t('upload.error')
       setError(msg)
@@ -281,7 +281,20 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                 )}
 
                 <Stack gap="sm" className="us-success">
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>
+                    Что делать дальше?
+                  </div>
                   <Inline gap="sm" wrap>
+                    <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} style={{ flex: 1 }}>
+                      <Button
+                        onClick={() => navigate('/insights')}
+                        block
+                        className="us-action us-action--pri"
+                        leadingIcon={<Sparkles size={14} />}
+                      >
+                        Просмотр анализа
+                      </Button>
+                    </motion.div>
                     <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} style={{ flex: 1 }}>
                       <Button
                         onClick={() => navigate('/workspace')}
@@ -296,8 +309,9 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                     <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} style={{ flex: 1 }}>
                       <Button
                         onClick={() => navigate('/presentation')}
+                        variant="secondary"
                         block
-                        className="us-action us-action--pri"
+                        className="us-action us-action--sec"
                         leadingIcon={<BarChart2 size={14} />}
                       >
                         {t('upload.goToPresentation')}
