@@ -5,6 +5,7 @@
     "workspace": "Document",
     "compare": "Compare",
     "presentation": "Presentation",
+    "imageGeneration": "AI Images",
     "convert": "Convert",
     "library": "Library",
     "graph": "Connections",
@@ -304,8 +305,21 @@
       "title": "Title slide",
       "content": "Content (list)",
       "chart": "Chart / Diagram",
+      "aiImage": "AI Image",
       "quote": "Quote",
       "summary": "Summary"
+    },
+    "aiImage": {
+      "promptLabel": "AI image prompt",
+      "promptPlaceholder": "Describe the image for this slide…",
+      "generateBtn": "Generate now",
+      "generatingBtn": "Generating…",
+      "pickFromGallery": "Pick from gallery",
+      "galleryTitle": "Image gallery",
+      "galleryEmpty": "Gallery is empty — generate an image on the AI Images page",
+      "errors": {
+        "generateFailed": "Failed to generate image"
+      }
     },
     "step0": {
       "heading": "Step 1 — Presentation Settings",
@@ -355,6 +369,30 @@
       "connectionFailed": "Connection error: {{msg}}",
       "downloadFailed": "Download failed",
       "preparing": "Preparing…"
+    }
+  },
+  "imageGeneration": {
+    "title": "AI Images",
+    "promptLabel": "Image description",
+    "promptPlaceholder": "Describe what should be in the image…",
+    "aspectRatioLabel": "Aspect ratio",
+    "aspectRatios": {
+      "square": "Square (1:1)",
+      "portrait": "Portrait (3:4)",
+      "landscape": "Landscape (4:3)",
+      "widescreen": "Widescreen (16:9)"
+    },
+    "generateBtn": "Generate",
+    "generatingBtn": "Generating…",
+    "generatingHint": "Generation may take from 30 seconds to a few minutes",
+    "modelLabel": "Model: {{name}}",
+    "unavailable": "Image generation is temporarily unavailable. Please try again later.",
+    "resultHeading": "Result",
+    "galleryHeading": "My gallery",
+    "galleryEmpty": "Your generated images will appear here",
+    "errors": {
+      "generateFailed": "Failed to generate image",
+      "promptRequired": "Enter an image description"
     }
   },
   "common": {

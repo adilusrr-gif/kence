@@ -1,11 +1,15 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   AlertCircle, CheckCircle, ChevronLeft, ChevronRight,
   Download, Loader2, Presentation, RefreshCw, Plus, Trash2, Check,
+  Image as ImageIcon, Wand2, X,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
-import { apiPresentationPlan, apiUpdatePresentationPlan, apiBuildPresentation, apiDownloadPresentation } from '../lib/api'
+import {
+  apiPresentationPlan, apiUpdatePresentationPlan, apiBuildPresentation, apiDownloadPresentation,
+  apiGenerateImage, apiGetImageBlob,
+} from '../lib/api'
 import { useToast } from '@/shared/ui/toast'
 import Skeleton from '@/shared/ui/skeleton/Skeleton'
 import { Badge } from '@/shared/ui/badge'
@@ -13,7 +17,9 @@ import { Button } from '@/shared/ui/button'
 import { Card } from '@/shared/ui/card'
 import { Inline } from '@/shared/ui/inline'
 import { Stack } from '@/shared/ui/stack'
+import { Loader } from '@/shared/ui/loader'
 import { usePresentationBuild } from '../hooks/usePresentationBuild'
+import GalleryPickerModal from '../components/GalleryPickerModal'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -119,6 +125,41 @@ function ThemeCard({ id, theme, selected, onClick }) {
   )
 }
 
+function ImageThumb({ imageId }) {
+  const [url, setUrl] = useState(null)
+
+  useEffect(() => {
+    if (!imageId) { setUrl(null); return }
+    let cancelled = false
+    let objUrl = null
+    apiGetImageBlob(imageId).then(blob => {
+      if (cancelled) return
+      objUrl = URL.createObjectURL(blob)
+      setUrl(objUrl)
+    }).catch(() => {})
+    return () => {
+      cancelled = true
+      if (objUrl) URL.revokeObjectURL(objUrl)
+    }
+  }, [imageId])
+
+  if (!imageId) return null
+  if (!url) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: 'var(--space-3)' }}>
+        <Loader size="sm" />
+      </div>
+    )
+  }
+  return (
+    <img
+      src={url}
+      alt=""
+      style={{ maxWidth: '100%', maxHeight: 160, borderRadius: 8, border: '1px solid var(--border-subtle)', objectFit: 'contain' }}
+    />
+  )
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function PresentationPage({ sessionId }) {
@@ -133,6 +174,8 @@ export default function PresentationPage({ sessionId }) {
   const [built,            setBuilt]            = useState(false)
   const [userInstructions, setUserInstructions] = useState('')
   const [numSlides,        setNumSlides]        = useState(6)
+  const [generatingSlideIdx, setGeneratingSlideIdx] = useState(null)
+  const [galleryPickerIdx,   setGalleryPickerIdx]   = useState(null)
   const toast = useToast()
 
   const { building, buildStatus, handleBuild } = usePresentationBuild({
@@ -144,11 +187,12 @@ export default function PresentationPage({ sessionId }) {
   })
 
   const SLIDE_TYPES = {
-    title:   t('presentation.slideTypes.title'),
-    content: t('presentation.slideTypes.content'),
-    chart:   t('presentation.slideTypes.chart'),
-    quote:   t('presentation.slideTypes.quote'),
-    summary: t('presentation.slideTypes.summary'),
+    title:    t('presentation.slideTypes.title'),
+    content:  t('presentation.slideTypes.content'),
+    chart:    t('presentation.slideTypes.chart'),
+    ai_image: t('presentation.slideTypes.aiImage'),
+    quote:    t('presentation.slideTypes.quote'),
+    summary:  t('presentation.slideTypes.summary'),
   }
 
   const STEP_LABELS = [
@@ -189,6 +233,20 @@ export default function PresentationPage({ sessionId }) {
   const updatePoints = (idx, text) => {
     const points = text.split('\n').map(l => l.trim()).filter(Boolean)
     updateSlide(idx, 'points', points)
+  }
+
+  const handleGenerateSlideImage = async (idx) => {
+    const prompt = (plan.slides[idx].ai_prompt || '').trim()
+    if (!prompt) return
+    setGeneratingSlideIdx(idx)
+    try {
+      const image = await apiGenerateImage({ prompt, aspect_ratio: 'widescreen' })
+      updateSlide(idx, 'image_id', image.id)
+    } catch (err) {
+      toast.error(err.message || t('presentation.aiImage.errors.generateFailed'))
+    } finally {
+      setGeneratingSlideIdx(null)
+    }
   }
 
   const addSlide = () => {
@@ -450,6 +508,51 @@ export default function PresentationPage({ sessionId }) {
                             }}
                           />
                         )}
+
+                        {slide.type === 'ai_image' && (
+                          <Stack gap="xs">
+                            <textarea
+                              value={slide.ai_prompt || ''}
+                              onChange={e => updateSlide(idx, 'ai_prompt', e.target.value)}
+                              placeholder={t('presentation.aiImage.promptPlaceholder')}
+                              rows={2}
+                              style={{
+                                background: 'var(--bg-surface-2)', color: 'var(--text-primary)',
+                                border: '1px solid var(--border-subtle)', borderRadius: 8,
+                                padding: '6px 10px', fontSize: 12, width: '100%', resize: 'vertical',
+                                fontFamily: 'inherit', lineHeight: 1.6,
+                              }}
+                            />
+                            <Inline gap="sm" wrap align="center">
+                              <Button
+                                variant="secondary" size="sm"
+                                onClick={() => handleGenerateSlideImage(idx)}
+                                loading={generatingSlideIdx === idx}
+                                disabled={generatingSlideIdx !== null || !(slide.ai_prompt || '').trim()}
+                                leadingIcon={<Wand2 size={13} />}
+                              >
+                                {generatingSlideIdx === idx ? t('presentation.aiImage.generatingBtn') : t('presentation.aiImage.generateBtn')}
+                              </Button>
+                              <Button
+                                variant="secondary" size="sm"
+                                onClick={() => setGalleryPickerIdx(idx)}
+                                leadingIcon={<ImageIcon size={13} />}
+                              >
+                                {t('presentation.aiImage.pickFromGallery')}
+                              </Button>
+                              {slide.image_id && (
+                                <button
+                                  onClick={() => updateSlide(idx, 'image_id', null)}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}
+                                  aria-label={t('common.delete')}
+                                >
+                                  <X size={13} />
+                                </button>
+                              )}
+                            </Inline>
+                            {slide.image_id && <ImageThumb imageId={slide.image_id} />}
+                          </Stack>
+                        )}
                       </Stack>
                     </Card>
                   ))}
@@ -594,6 +697,15 @@ export default function PresentationPage({ sessionId }) {
         )}
 
       </AnimatePresence>
+
+      <GalleryPickerModal
+        open={galleryPickerIdx !== null}
+        onClose={() => setGalleryPickerIdx(null)}
+        onSelect={(imageId) => {
+          updateSlide(galleryPickerIdx, 'image_id', imageId)
+          setGalleryPickerIdx(null)
+        }}
+      />
     </Stack>
   )
 }

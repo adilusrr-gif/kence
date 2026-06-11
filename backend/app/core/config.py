@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     CHROMA_DIR: str = "./chroma_db"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     LLM_MODEL: str = "qwen2.5:7b"
-    EMBEDDING_MODEL: str = "nomic-embed-text"
+    EMBEDDING_MODEL: str = "bge-m3"
     CHUNK_SIZE: int = 2000
     CHUNK_OVERLAP: int = 400
     SESSION_TIMEOUT: int = 28800  # 8 hours for government work sessions
@@ -29,6 +29,19 @@ class Settings(BaseSettings):
     LLM_QUEUE_MAXSIZE: int = 50
     # LLM call timeout in seconds (reduced from 300 for faster failure detection)
     LLM_TIMEOUT_SEC: int = 60
+
+    # AI Image Generation (ComfyUI + FLUX.1 Dev)
+    IMAGE_GEN_SERVICE_URL: str = "http://localhost:8188"
+    IMAGE_GEN_TIMEOUT_SEC: int = 300
+    IMAGE_GEN_POLL_INTERVAL_SEC: float = 2.0
+    IMAGE_GEN_MAX_CONCURRENT: int = 1
+    IMAGE_GEN_WORKFLOW_TEMPLATE: str = "flux_dev_t2i.json"
+    IMAGE_GEN_MODEL_NAME: str = "flux1-dev.safetensors"
+    IMAGE_GEN_MODEL_VERSION: str = "FLUX.1-dev"
+    IMAGE_GEN_STEPS: int = 25
+    IMAGE_GEN_GUIDANCE: float = 3.5
+    IMAGE_GEN_DEFAULT_WIDTH: int = 1024
+    IMAGE_GEN_DEFAULT_HEIGHT: int = 1024
 
     # JWT Auth — REQUIRED. Generate with: openssl rand -hex 32
     # Server refuses to start if this is missing or weak.

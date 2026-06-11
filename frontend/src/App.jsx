@@ -6,6 +6,7 @@ import DashboardPage from './pages/DashboardPage'
 import UploadPage from './pages/UploadPage'
 import DocumentWorkspacePage from './pages/DocumentWorkspacePage'
 import PresentationPage from './pages/PresentationPage'
+import ImageGenerationPage from './pages/ImageGenerationPage'
 import ComparisonPage from './pages/ComparisonPage'
 import ConvertPage from './pages/ConvertPage'
 import LoginPage from './pages/LoginPage'
@@ -60,6 +61,7 @@ function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, se
               <Route path="/upload"       element={<UploadPage sessionId={sessionId} setSessionId={setSessionId} setDocumentName={setDocumentName} />} />
               <Route path="/workspace"    element={<DocumentWorkspacePage sessionId={sessionId} documentName={documentName} />} />
               <Route path="/presentation" element={<PresentationPage sessionId={sessionId} />} />
+              <Route path="/image-generation" element={<ImageGenerationPage />} />
               <Route path="/compare"      element={<ComparisonPage />} />
               <Route path="/convert"      element={<ConvertPage sessionId={sessionId} />} />
               <Route path="/profile"      element={<ProfilePage currentUser={currentUser} />} />

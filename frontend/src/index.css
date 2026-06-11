@@ -3542,6 +3542,7 @@
 }
 .builder-panel--table { width: min(640px, 95vw); }
 .builder-panel--chart { width: min(880px, 95vw); }
+.builder-panel--gallery { width: min(720px, 95vw); }
 .builder-panel__header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 14px 18px;

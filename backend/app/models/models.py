@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Text, DateTime, Integer, UniqueConstraint, JSON, ForeignKey, Index
+from sqlalchemy import Column, String, Boolean, Text, DateTime, Integer, BigInteger, UniqueConstraint, JSON, ForeignKey, Index
 from sqlalchemy.sql import func
 from app.core.database import Base
 
@@ -195,6 +195,29 @@ class DocumentLibrary(Base):
     tags             = Column(JSON, nullable=True)
     created_at       = Column(DateTime(timezone=True), server_default=func.now())
     last_accessed    = Column(DateTime(timezone=True), nullable=True)
+
+
+class GeneratedImage(Base):
+    __tablename__ = "generated_images"
+
+    id               = Column(Integer, primary_key=True, autoincrement=True)
+    org_id           = Column(Integer, ForeignKey("organizations.id"), nullable=True, index=True)
+    owner_username   = Column(String(64), ForeignKey("users.username"), nullable=False, index=True)
+    session_id       = Column(String(64), nullable=True)
+    prompt           = Column(Text, nullable=False)
+    negative_prompt  = Column(Text, nullable=True)
+    width            = Column(Integer, nullable=False)
+    height           = Column(Integer, nullable=False)
+    seed             = Column(BigInteger, nullable=True)
+    model_name       = Column(String(128), nullable=False)
+    model_version    = Column(String(64), nullable=False)
+    file_path        = Column(String(512), nullable=False)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index("ix_generated_images_owner_created", "owner_username", "created_at"),
+        Index("ix_generated_images_org_created", "org_id", "created_at"),
+    )
 
 
 class WorkspaceShare(Base):

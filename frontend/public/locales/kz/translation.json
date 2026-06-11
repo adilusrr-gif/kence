@@ -5,6 +5,7 @@
     "workspace": "Құжатпен жұмыс",
     "compare": "Салыстыру",
     "presentation": "Презентация",
+    "imageGeneration": "AI-суреттер",
     "convert": "Түрлендіру",
     "library": "Кітапхана",
     "graph": "Байланыстар",
@@ -302,8 +303,21 @@
       "title": "Титулдық",
       "content": "Мазмұн (тізім)",
       "chart": "Диаграмма",
+      "aiImage": "AI-сурет",
       "quote": "Дәйексөз",
       "summary": "Қорытынды"
+    },
+    "aiImage": {
+      "promptLabel": "AI-сурет промпты",
+      "promptPlaceholder": "Бұл слайд үшін суретті сипаттаңыз…",
+      "generateBtn": "Қазір жасау",
+      "generatingBtn": "Жасалуда…",
+      "pickFromGallery": "Галереядан таңдау",
+      "galleryTitle": "Сурет галереясы",
+      "galleryEmpty": "Галерея бос — «AI-суреттер» бетінде сурет жасаңыз",
+      "errors": {
+        "generateFailed": "Суретті жасау сәтсіз аяқталды"
+      }
     },
     "step0": {
       "heading": "1-қадам — Презентация параметрлері",
@@ -353,6 +367,30 @@
       "connectionFailed": "Байланыс қатесі: {{msg}}",
       "downloadFailed": "Жүктеу қатесі",
       "preparing": "Дайындалуда…"
+    }
+  },
+  "imageGeneration": {
+    "title": "AI-суреттер",
+    "promptLabel": "Сурет сипаттамасы",
+    "promptPlaceholder": "Суретте не болу керек екенін сипаттаңыз…",
+    "aspectRatioLabel": "Формат",
+    "aspectRatios": {
+      "square": "Шаршы (1:1)",
+      "portrait": "Тік (3:4)",
+      "landscape": "Альбомдық (4:3)",
+      "widescreen": "Кең форматты (16:9)"
+    },
+    "generateBtn": "Жасау",
+    "generatingBtn": "Жасалуда…",
+    "generatingHint": "Жасалу 30 секундтан бірнеше минутқа дейін созылуы мүмкін",
+    "modelLabel": "Модель: {{name}}",
+    "unavailable": "Сурет генерациясы уақытша қолжетімсіз. Кейінірек қайталап көріңіз.",
+    "resultHeading": "Нәтиже",
+    "galleryHeading": "Менің галереям",
+    "galleryEmpty": "Жасалған суреттер осында пайда болады",
+    "errors": {
+      "generateFailed": "Суретті жасау сәтсіз аяқталды",
+      "promptRequired": "Сурет сипаттамасын енгізіңіз"
     }
   },
   "common": {

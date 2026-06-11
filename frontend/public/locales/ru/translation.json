@@ -5,6 +5,7 @@
     "workspace": "Работа с документом",
     "compare": "Сравнение",
     "presentation": "Презентация",
+    "imageGeneration": "AI-изображения",
     "convert": "Конвертировать",
     "library": "Библиотека",
     "graph": "Связи и сущности",
@@ -305,8 +306,21 @@
       "title": "Титульный",
       "content": "Контент (список)",
       "chart": "График / Диаграмма",
+      "aiImage": "AI-изображение",
       "quote": "Цитата",
       "summary": "Выводы"
+    },
+    "aiImage": {
+      "promptLabel": "Промпт для AI-изображения",
+      "promptPlaceholder": "Опишите изображение для этого слайда…",
+      "generateBtn": "Сгенерировать сейчас",
+      "generatingBtn": "Генерация…",
+      "pickFromGallery": "Выбрать из галереи",
+      "galleryTitle": "Галерея изображений",
+      "galleryEmpty": "Галерея пуста — сгенерируйте изображение на странице «AI-изображения»",
+      "errors": {
+        "generateFailed": "Не удалось сгенерировать изображение"
+      }
     },
     "step0": {
       "heading": "Шаг 1 — Параметры презентации",
@@ -356,6 +370,30 @@
       "connectionFailed": "Ошибка соединения: {{msg}}",
       "downloadFailed": "Ошибка скачивания",
       "preparing": "Подготовка…"
+    }
+  },
+  "imageGeneration": {
+    "title": "AI-изображения",
+    "promptLabel": "Описание изображения",
+    "promptPlaceholder": "Опишите, что должно быть на изображении…",
+    "aspectRatioLabel": "Формат",
+    "aspectRatios": {
+      "square": "Квадрат (1:1)",
+      "portrait": "Портрет (3:4)",
+      "landscape": "Альбом (4:3)",
+      "widescreen": "Широкоформатный (16:9)"
+    },
+    "generateBtn": "Сгенерировать",
+    "generatingBtn": "Генерация…",
+    "generatingHint": "Генерация может занять от 30 секунд до нескольких минут",
+    "modelLabel": "Модель: {{name}}",
+    "unavailable": "Генерация изображений временно недоступна. Попробуйте позже.",
+    "resultHeading": "Результат",
+    "galleryHeading": "Моя галерея",
+    "galleryEmpty": "Здесь появятся ваши сгенерированные изображения",
+    "errors": {
+      "generateFailed": "Не удалось сгенерировать изображение",
+      "promptRequired": "Введите описание изображения"
     }
   },
   "common": {

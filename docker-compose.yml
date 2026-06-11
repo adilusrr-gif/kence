@@ -73,6 +73,34 @@ services:
       retries: 5
       start_period: 30s
 
+  # AI image generation (FLUX.1 Dev via ComfyUI). Optional — backend keeps working
+  # without it, /api/images/* simply report "unavailable" if this is down.
+  comfyui:
+    image: mmartial/comfyui-nvidia-docker:latest
+    container_name: kence-comfyui
+    ports:
+      - "8188:8188"   # ops/diagnostics only — not used by the KENCE frontend
+    volumes:
+      - comfyui_data:/comfy/mnt   # models/, custom_nodes/, output/ — persisted
+    environment:
+      - WANTED_UID=1000
+      - WANTED_GID=1000
+      - SECURITY_LEVEL=normal
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8188/system_stats > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
   backend:
     image: docai-backend:latest
     container_name: kence-backend
@@ -86,7 +114,7 @@ services:
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
       - LLM_MODEL=qwen2.5:7b
-      - EMBEDDING_MODEL=nomic-embed-text
+      - EMBEDDING_MODEL=bge-m3
       - DATABASE_URL=postgresql://kence:${POSTGRES_PASSWORD:-kence2026}@postgres:5432/kenceai
       # REQUIRED — generate with: openssl rand -hex 32  then set JWT_SECRET_KEY in .env
       - JWT_SECRET_KEY=${JWT_SECRET_KEY}
@@ -99,6 +127,8 @@ services:
       - LLM_MAX_CONCURRENT=2
       - LLM_QUEUE_MAXSIZE=50
       - LLM_TIMEOUT_SEC=60
+      # AI image generation (ComfyUI + FLUX.1 Dev) — optional, see comfyui service
+      - IMAGE_GEN_SERVICE_URL=http://comfyui:8188
     depends_on:
       postgres:
         condition: service_healthy
@@ -134,3 +164,4 @@ volumes:
   postgres_data:
   neo4j_data:
   neo4j_logs:
+  comfyui_data:

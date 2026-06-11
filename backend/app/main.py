@@ -40,6 +40,7 @@ from app.api.graph_routes import router as graph_router
 from app.api.agent_routes import router as agent_router
 from app.api.config_routes import router as config_router
 from app.api.insights_routes import router as insights_router
+from app.api.image_routes import router as image_router
 from app.core.session import session_manager
 from app.core.config import get_settings
 from app.services.user_service import create_user, get_user
@@ -275,6 +276,7 @@ app.include_router(graph_router,        prefix="/api")
 app.include_router(agent_router,        prefix="/api")
 app.include_router(config_router,       prefix="/api")
 app.include_router(insights_router,     prefix="/api")
+app.include_router(image_router,        prefix="/api")
 
 @app.exception_handler(FastAPIHTTPException)
 async def http_exception_handler(request: Request, exc: FastAPIHTTPException):

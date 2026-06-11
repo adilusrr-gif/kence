@@ -10,6 +10,7 @@ export const ROUTE_TAB_MAP = {
   '/workspace':     { title: 'Workspace',    icon: 'MessageSquare' },
   '/compare':       { title: 'Compare',      icon: 'GitCompare' },
   '/presentation':  { title: 'Presentation', icon: 'Presentation' },
+  '/image-generation': { title: 'AI Images',  icon: 'ImagePlus' },
   '/convert':       { title: 'Convert',      icon: 'RefreshCw' },
   '/profile':       { title: 'Profile',      icon: 'User' },
   '/admin':         { title: 'Admin',        icon: 'Shield' },

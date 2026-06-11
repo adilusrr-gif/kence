@@ -4,12 +4,13 @@ from typing import Optional
 from app.core.session import session_manager
 
 SLIDE_TYPES = {
-    "title":   "Титульный",
-    "content": "Контент (список)",
-    "chart":   "График / Диаграмма",
-    "image":   "Изображение + текст",
-    "quote":   "Цитата / Выделение",
-    "summary": "Выводы",
+    "title":    "Титульный",
+    "content":  "Контент (список)",
+    "chart":    "График / Диаграмма",
+    "image":    "Изображение + текст",
+    "ai_image": "AI-изображение",
+    "quote":    "Цитата / Выделение",
+    "summary":  "Выводы",
 }
 
 THEMES = {

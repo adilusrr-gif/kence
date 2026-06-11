@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LayoutDashboard, Upload, MessageSquare, GitCompare,
-  Presentation, RefreshCw, BarChart2,
+  Presentation, RefreshCw, BarChart2, ImagePlus,
   ChevronLeft, ChevronRight, Library, TrendingUp, Network, Bot, Sparkles, Settings,
 } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
@@ -30,6 +30,7 @@ const NAV_ITEMS_ENTERPRISE = [
   { icon: MessageSquare,   labelKey: 'nav.workspace',     path: '/workspace' },
   { icon: GitCompare,      labelKey: 'nav.compare',       path: '/compare' },
   { icon: Presentation,    labelKey: 'nav.presentation',  path: '/presentation' },
+  { icon: ImagePlus,       labelKey: 'nav.imageGeneration', path: '/image-generation' },
   { icon: RefreshCw,       labelKey: 'nav.convert',       path: '/convert' },
   { icon: Library,         labelKey: 'nav.library',       path: '/library', featureFlag: 'documentLibrary' },
   { icon: Network,         labelKey: 'nav.graph',         path: '/graph',   featureFlag: 'knowledgeGraph' },
@@ -43,6 +44,7 @@ const NAV_ITEMS_GOV = [
   { icon: Sparkles,        label: 'Анализ',     path: '/insights' },
   { icon: GitCompare,      label: 'Сравнить',   path: '/compare' },
   { icon: Presentation,    label: 'Доклад',     path: '/presentation' },
+  { icon: ImagePlus,       label: 'Изображения', path: '/image-generation' },
 ]
 
 const UTILITY_ITEMS_ENTERPRISE = [

@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List, Optional
 import asyncio
 import json
+import logging
 
 from app.core.session import session_manager
 from app.core.config import get_settings
@@ -15,9 +16,12 @@ from app.services.presentation_plan import (
 from app.services.presentation_builder import build_presentation
 from app.services.llm import llm_service
 from app.services import analytics_service
+from app.services import image_gallery_service
+from app.services.image_generation_service import image_generation_service
 
 router = APIRouter()
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 class PlanRequest(BaseModel):
@@ -62,6 +66,52 @@ async def update_plan(session_id: str, body: PlanUpdateRequest, user: dict = Dep
     return saved
 
 
+async def _resolve_ai_image_slides(plan: dict, selected_ids: list, session_id: str, user: dict, progress_cb=None):
+    """Pre-resolve `ai_image` slides into local file paths before build_presentation() runs.
+
+    Mutates slide dicts in-place (`image_id`, `_ai_image_path`) — since get_plan() returns
+    the same dict stored in the session, a successful resolution is cached for future builds.
+    """
+    username = user.get("username")
+    org_id = analytics_service.resolve_org_id(username)
+
+    for slide in plan.get("slides", []):
+        if slide.get("id") not in selected_ids or slide.get("type") != "ai_image":
+            continue
+        if slide.get("_ai_image_path"):
+            continue
+
+        image_id = slide.get("image_id")
+        if image_id:
+            image = image_gallery_service.get_image(image_id, username)
+            if image:
+                slide["_ai_image_path"] = str(image_gallery_service.get_image_path(image))
+                continue
+
+        prompt = (slide.get("ai_prompt") or "").strip()
+        if not prompt:
+            slide["_ai_image_path"] = None
+            continue
+
+        if progress_cb:
+            progress_cb({"status": f"Генерация AI-изображения: {prompt[:40]}…"})
+
+        try:
+            image_bytes, metadata = await image_generation_service.generate_text_to_image(
+                prompt=prompt, aspect_ratio="widescreen",
+            )
+            saved = image_gallery_service.save_image(
+                owner_username=username, org_id=org_id, session_id=session_id,
+                prompt=prompt, negative_prompt="", image_bytes=image_bytes, metadata=metadata,
+            )
+            slide["image_id"] = saved["id"]
+            image = image_gallery_service.get_image(saved["id"], username)
+            slide["_ai_image_path"] = str(image_gallery_service.get_image_path(image))
+        except Exception as e:
+            logger.error("[presentation] AI image generation failed: %s", e)
+            slide["_ai_image_path"] = None
+
+
 @router.post("/build")
 async def build(session_id: str, body: BuildRequest, user: dict = Depends(get_current_user)):
     session = session_manager.get_session(session_id)
@@ -71,6 +121,7 @@ async def build(session_id: str, body: BuildRequest, user: dict = Depends(get_cu
     if not plan:
         raise HTTPException(status_code=400, detail="No plan found — call POST /plan first")
     try:
+        await _resolve_ai_image_slides(plan, body.slide_ids, session_id, user)
         path = build_presentation(plan, body.theme, body.slide_ids, session_id, llm_service)
         _u = user.get("username")
         asyncio.create_task(asyncio.to_thread(
@@ -112,6 +163,7 @@ async def build_stream(
 
     async def run_build():
         try:
+            await _resolve_ai_image_slides(plan, ids, session_id, user, progress_cb)
             await asyncio.to_thread(
                 build_presentation, plan, theme, ids, session_id, llm_service, progress_cb
             )

@@ -1,0 +1,83 @@
+{
+  "5": {
+    "class_type": "EmptyLatentImage",
+    "_meta": { "title": "Empty Latent Image" },
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "_meta": { "title": "Positive Prompt" },
+    "inputs": {
+      "text": "",
+      "clip": ["11", 0]
+    }
+  },
+  "8": {
+    "class_type": "VAEDecode",
+    "_meta": { "title": "VAE Decode" },
+    "inputs": {
+      "samples": ["3", 0],
+      "vae": ["12", 0]
+    }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "_meta": { "title": "Save Image" },
+    "inputs": {
+      "filename_prefix": "kence_ai_image",
+      "images": ["8", 0]
+    }
+  },
+  "10": {
+    "class_type": "UNETLoader",
+    "_meta": { "title": "Load Diffusion Model" },
+    "inputs": {
+      "unet_name": "flux1-dev.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "11": {
+    "class_type": "DualCLIPLoader",
+    "_meta": { "title": "DualCLIPLoader" },
+    "inputs": {
+      "clip_name1": "t5xxl_fp8_e4m3fn.safetensors",
+      "clip_name2": "clip_l.safetensors",
+      "type": "flux"
+    }
+  },
+  "12": {
+    "class_type": "VAELoader",
+    "_meta": { "title": "Load VAE" },
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    }
+  },
+  "3": {
+    "class_type": "KSampler",
+    "_meta": { "title": "KSampler" },
+    "inputs": {
+      "seed": 0,
+      "steps": 25,
+      "cfg": 1.0,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1.0,
+      "model": ["10", 0],
+      "positive": ["35", 0],
+      "negative": ["6", 0],
+      "latent_image": ["5", 0]
+    }
+  },
+  "35": {
+    "class_type": "FluxGuidance",
+    "_meta": { "title": "FluxGuidance" },
+    "inputs": {
+      "guidance": 3.5,
+      "conditioning": ["6", 0]
+    }
+  }
+}

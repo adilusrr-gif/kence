@@ -115,6 +115,18 @@ def build_presentation(plan: dict, theme_name: str, selected_ids: list, session_
                                   font_size=16, color=text_color)
                     y += Inches(0.65)
 
+        elif stype == "ai_image":
+            _add_text_box(slide, title_text,
+                          Inches(0.5), Inches(0.2), Inches(12), Inches(0.8),
+                          font_size=24, bold=True, color=text_color)
+            img_path = slide_data.get("_ai_image_path")
+            if img_path and Path(img_path).exists():
+                slide.shapes.add_picture(img_path, Inches(1.5), Inches(1.3), width=Inches(10.3))
+            else:
+                _add_text_box(slide, "[AI-изображение недоступно]",
+                              Inches(1.5), Inches(3.5), Inches(10), Inches(1),
+                              font_size=16, color=accent_color, align=PP_ALIGN.CENTER)
+
         elif stype == "quote":
             _add_text_box(slide, "❝",
                           Inches(1), Inches(1.2), Inches(1), Inches(1),
