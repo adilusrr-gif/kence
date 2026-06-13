@@ -134,7 +134,13 @@
       "Bash(cat)",
       "Read(//tmp/**)",
       "Bash(git add *)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(docker-compose ps *)",
+      "Bash(npx eslint *)",
+      "Bash(npx esbuild *)",
+      "Bash(git status *)",
+      "Bash(git checkout *)",
+      "Bash(git commit *)"
     ]
   },
   "prefersReducedMotion": false
