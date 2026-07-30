@@ -83,7 +83,7 @@ async def add_doc_to_library(
     if not session:
         raise HTTPException(status_code=404, detail="Сессия не найдена")
     from app.api.routes import _verify_session_access
-    _verify_session_access(session, current_user)
+    _verify_session_access(req.session_id, session, current_user)
 
     upload_dir = _settings.UPLOAD_DIR
     session_dir = os.path.join(upload_dir, req.session_id)

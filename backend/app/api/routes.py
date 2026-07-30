@@ -27,34 +27,41 @@ from app.services import audit_service
 from app.api.auth_routes import get_current_user
 from app.core.features import get_edition_flags
 from app.services.org_service import get_user_orgs
+from app.services.share_service import check_session_access
 
 router = APIRouter()
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
 
-def _verify_session_access(session: dict, current_user: dict) -> None:
-    """Raises 403 if the user does not own the session. Admins bypass the check.
-    Sessions without an owner (created before ownership tracking) remain accessible."""
+def _verify_session_access(session_id: str, session: dict, current_user: dict) -> None:
+    """Raises 403 if the user does not own the session, isn't an admin, and
+    doesn't hold a share grant for it. Sessions without an owner (created
+    before ownership tracking) remain accessible."""
     if current_user.get("role") == "admin":
         return
     owner = session.get("owner_username")
-    if owner and owner != current_user.get("username"):
-        raise HTTPException(status_code=403, detail="Access denied to this session")
+    username = current_user.get("username")
+    if not owner or owner == username:
+        return
+    if check_session_access(session_id, username) is not None:
+        return
+    raise HTTPException(status_code=403, detail="Access denied to this session")
 
 
 def require_session(session_id: str, current_user: dict) -> dict:
     """Single fetch-and-authorise gate for any session_id route (I-06).
 
     Loads the session (404 if missing) and enforces ownership (403 if not the
-    owner and not an admin). Centralising both steps here means a route that
-    reaches a session through this helper can never accidentally skip the owner
-    check. A freshly created, still-unowned session passes — upload claims it.
+    owner, not an admin, and not a share recipient). Centralising both steps
+    here means a route that reaches a session through this helper can never
+    accidentally skip the owner check. A freshly created, still-unowned
+    session passes — upload claims it.
     """
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    _verify_session_access(session, current_user)
+    _verify_session_access(session_id, session, current_user)
     return session
 
 
@@ -63,7 +70,7 @@ def _require_chat_session(session_id: str, current_user: dict) -> tuple[dict, st
     session = session_manager.get_session(session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
-    _verify_session_access(session, current_user)
+    _verify_session_access(session_id, session, current_user)
     doc_name = session.get("document", "")
     username = current_user.get("username", "")
     doc_context = get_document_context(username, doc_name) if doc_name and username else None
@@ -79,7 +86,7 @@ def _require_image_session(session_id: str, current_user: dict) -> tuple[str, Pa
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=400, detail="No document uploaded")
-    _verify_session_access(session, current_user)
+    _verify_session_access(session_id, session, current_user)
     doc_name = session.get("document", "")
     ext = Path(doc_name).suffix.lower() if doc_name else ""
     if ext not in _IMAGE_EXTS:
@@ -145,7 +152,7 @@ async def delete_session(session_id: str, request: Request, user: dict = Depends
     session = session_manager.get_session(session_id)
     doc_name = (session or {}).get("document")
     if session:
-        _verify_session_access(session, user)
+        _verify_session_access(session_id, session, user)
     session_manager.cleanup_session(session_id)
     memory_service.clear_history(session_id)
     asyncio.create_task(asyncio.to_thread(
@@ -164,7 +171,7 @@ async def get_chat_history(session_id: str, request: Request, limit: int = Query
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    _verify_session_access(session, user)
+    _verify_session_access(session_id, session, user)
     asyncio.create_task(asyncio.to_thread(
         audit_service.log, "view",
         username=user.get("username"),
@@ -179,7 +186,7 @@ async def clear_chat_history(session_id: str, user: dict = Depends(get_current_u
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    _verify_session_access(session, user)
+    _verify_session_access(session_id, session, user)
     session.pop("conversation_summary", None)
     session_manager.save_session(session_id)
     memory_service.clear_history(session_id)
@@ -220,7 +227,7 @@ async def upload_document(request: Request, session_id: str, file: UploadFile = 
         raise HTTPException(status_code=404, detail="Session not found")
     # A user must not upload into another user's session (I-06). An unowned,
     # freshly created session passes and is claimed below (owner_username set).
-    _verify_session_access(session, user)
+    _verify_session_access(session_id, session, user)
 
     # Strip any directory components and enforce max filename length
     safe_name = Path(file.filename or "").name
@@ -660,7 +667,7 @@ async def get_document_content(session_id: str, user: dict = Depends(get_current
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    _verify_session_access(session, user)
+    _verify_session_access(session_id, session, user)
     html = await asyncio.to_thread(session_manager.load_html, session_id)
     return {
         "filename": session.get("document", ""),
@@ -697,7 +704,7 @@ async def translate_document(request: Request, body: TranslateRequest, user: dic
     session = session_manager.get_session(body.session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
-    _verify_session_access(session, user)
+    _verify_session_access(body.session_id, session, user)
     markdown_text = session.get("markdown_text", "")
     if not markdown_text:
         raise HTTPException(status_code=400, detail="Document text not found, please re-upload")
@@ -729,7 +736,7 @@ async def translate_export(request: Request, body: TranslateRequest, target_form
     session = session_manager.get_session(body.session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
-    _verify_session_access(session, user)
+    _verify_session_access(body.session_id, session, user)
 
     markdown_text = session.get("markdown_text", "")
     if not markdown_text:
@@ -771,7 +778,7 @@ async def convert_document(request: Request, session_id: str, target_format: Lit
     session = session_manager.get_session(session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
-    _verify_session_access(session, user)
+    _verify_session_access(session_id, session, user)
     try:
         output_path = converter_service.convert(session_id, target_format)
         _username = user.get("username")
@@ -867,7 +874,7 @@ async def save_document_content(
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    _verify_session_access(session, current_user)
+    _verify_session_access(session_id, session, current_user)
     session["markdown_text"] = body.markdown
     session_manager.save_session(session_id)
     return {"ok": True}

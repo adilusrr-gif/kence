@@ -1,16 +1,17 @@
 import hashlib
 import hmac
 import secrets
-import os
 from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy.orm import Session
+from app.core.config import get_settings
 from app.core.database import SessionLocal
 from app.models.models import APIKey
 from fastapi import HTTPException
 
 
-_PREFIX = os.getenv("API_KEY_PREFIX", "kce_")
+_settings = get_settings()
+_PREFIX = _settings.API_KEY_PREFIX
 
 
 def _db() -> Session:
@@ -19,7 +20,7 @@ def _db() -> Session:
 
 def _hash_key(raw_key: str) -> str:
     """HMAC-SHA256 when API_KEY_HMAC_SECRET is set; plain SHA-256 otherwise."""
-    secret = os.getenv("API_KEY_HMAC_SECRET", "").encode()
+    secret = _settings.API_KEY_HMAC_SECRET.encode()
     if secret:
         return hmac.new(secret, raw_key.encode(), hashlib.sha256).hexdigest()
     return hashlib.sha256(raw_key.encode()).hexdigest()

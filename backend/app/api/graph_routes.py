@@ -39,7 +39,7 @@ async def trigger_extraction(
     if not session:
         raise HTTPException(status_code=404, detail="Сессия не найдена")
     from app.api.routes import _verify_session_access
-    _verify_session_access(session, current_user)
+    _verify_session_access(req.session_id, session, current_user)
 
     markdown_text = session.get("markdown_text", "")
     if not markdown_text:

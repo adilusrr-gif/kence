@@ -42,7 +42,7 @@ async def create_plan(body: PlanRequest, user: dict = Depends(get_current_user))
     session = session_manager.get_session(body.session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
-    _verify_session_access(session, user)
+    _verify_session_access(body.session_id, session, user)
     try:
         plan = await asyncio.to_thread(
             generate_plan, body.session_id, llm_service, body.user_instructions, body.num_slides
@@ -57,7 +57,7 @@ async def update_plan(session_id: str, body: PlanUpdateRequest, user: dict = Dep
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    _verify_session_access(session, user)
+    _verify_session_access(session_id, session, user)
     existing = get_plan(session_id) or {}
     plan = {
         "title": body.title or existing.get("title", ""),
@@ -72,7 +72,7 @@ async def build(session_id: str, body: BuildRequest, user: dict = Depends(get_cu
     session = session_manager.get_session(session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
-    _verify_session_access(session, user)
+    _verify_session_access(session_id, session, user)
     plan = get_plan(session_id)
     if not plan:
         raise HTTPException(status_code=400, detail="No plan found — call POST /plan first")
@@ -106,7 +106,7 @@ async def build_stream(
     session = session_manager.get_session(session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
-    _verify_session_access(session, user)
+    _verify_session_access(session_id, session, user)
     plan = get_plan(session_id)
     if not plan:
         raise HTTPException(status_code=400, detail="No plan found — call POST /plan first")
@@ -161,7 +161,7 @@ async def download(session_id: str, user: dict = Depends(get_current_user)):
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    _verify_session_access(session, user)
+    _verify_session_access(session_id, session, user)
     path = Path(settings.UPLOAD_DIR) / session_id / "presentation_v2.pptx"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Presentation not found. Build it first.")

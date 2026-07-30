@@ -94,7 +94,7 @@ async def create_translation(
 
     # Access check (mirror the rest of the app's session guard).
     from app.api.routes import _verify_session_access
-    _verify_session_access(session, user)
+    _verify_session_access(body.session_id, session, user)
 
     source_text = (session.get("markdown_text") or "").strip()
     if not source_text:

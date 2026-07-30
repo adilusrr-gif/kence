@@ -24,7 +24,7 @@ def _require_comparison_docs(session_id: str, current_user: dict) -> dict:
     session = session_manager.get_session(session_id)
     if not session or "comparison_docs" not in session:
         raise HTTPException(status_code=400, detail="Upload two documents first")
-    _verify_session_access(session, current_user)
+    _verify_session_access(session_id, session, current_user)
     return session["comparison_docs"]
 
 
@@ -50,7 +50,7 @@ async def upload_comparison_documents(
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     from app.api.routes import _verify_session_access
-    _verify_session_access(session, user)
+    _verify_session_access(session_id, session, user)
 
     files = [(file1, "doc1"), (file2, "doc2")]
     saved_paths = {}
@@ -187,7 +187,7 @@ async def comparison_status(session_id: str, user: dict = Depends(get_current_us
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     from app.api.routes import _verify_session_access
-    _verify_session_access(session, user)
+    _verify_session_access(session_id, session, user)
     return {
         "has_comparison_docs": "comparison_docs" in session,
         "docs": session.get("comparison_docs", {}),
