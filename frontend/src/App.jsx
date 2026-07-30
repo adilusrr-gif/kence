@@ -20,7 +20,8 @@ import KnowledgeGraphPage from './pages/KnowledgeGraphPage'
 import AgentLauncherPage from './pages/AgentLauncherPage'
 import AgentTaskMonitorPage from './pages/AgentTaskMonitorPage'
 import AgentTaskHistoryPage from './pages/AgentTaskHistoryPage'
-import { getStoredUser, clearAuth } from './lib/api'
+import DocumentInsightsPage from './pages/DocumentInsightsPage'
+import { getStoredUser, clearAuth, apiRefreshToken, saveAuth, apiCreateSession } from './lib/api'
 import { AppShellLayout } from '@/app/layouts/app-shell'
 import ShellHydrator from '@/app/shell/ShellHydrator'
 import { LeftRail } from '@/widgets/left-rail'
@@ -40,21 +41,21 @@ import useOrgStore from '@/shared/stores/orgStore'
 import { useSessionTabsStore, ROUTE_TAB_MAP } from '@/shared/stores/sessionTabsStore'
 import { useShellStore } from '@/shared/stores/shellStore'
 
-function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, sessionHistory, setDocumentName, setSessionId, onNewSession, onRestoreSession }) {
+function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, sessionHistory, setDocumentName, setSessionId, onNewSession, onRestoreSession, onDeleteSession }) {
   return (
     <LegacyPageCanvasHost>
       <div className="legacy-main-content">
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}
-            className={['/', '/upload', '/workspace'].includes(location.pathname) ? 'page-full' : 'page-container'}
-            initial={{ opacity: 0, y: 10 }}
+            className={['/upload', '/workspace', '/graph'].includes(location.pathname) ? 'page-full' : location.pathname === '/' ? 'page-scrollable' : 'page-container'}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
           >
             <Routes location={location}>
-              <Route path="/"             element={<DashboardPage sessionHistory={sessionHistory} currentUser={currentUser} onNewSession={onNewSession} onRestoreSession={onRestoreSession} />} />
+              <Route path="/"             element={<DashboardPage sessionHistory={sessionHistory} currentUser={currentUser} onNewSession={onNewSession} onRestoreSession={onRestoreSession} onDeleteSession={onDeleteSession} />} />
               <Route path="/home"         element={<LandingPage />} />
               <Route path="/upload"       element={<UploadPage sessionId={sessionId} setSessionId={setSessionId} setDocumentName={setDocumentName} />} />
               <Route path="/workspace"    element={<DocumentWorkspacePage sessionId={sessionId} documentName={documentName} />} />
@@ -64,7 +65,7 @@ function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, se
               <Route path="/profile"      element={<ProfilePage currentUser={currentUser} />} />
               <Route path="/admin"        element={<AdminPage currentUser={currentUser} />} />
               <Route path="/ai-settings"  element={<AISettingsPage currentUser={currentUser} />} />
-              <Route path="/analytics"       element={<AnalyticsPage />} />
+              <Route path="/analytics"       element={<AnalyticsPage currentUser={currentUser} />} />
               <Route path="/library"         element={<DocumentLibraryPage currentUser={currentUser} />} />
               <Route path="/org/settings"    element={<OrgSettingsPage currentUser={currentUser} />} />
               <Route path="/executive"       element={<ExecutiveDashboardPage currentUser={currentUser} />} />
@@ -72,6 +73,7 @@ function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, se
               <Route path="/agents"          element={<AgentLauncherPage currentUser={currentUser} />} />
               <Route path="/agents/tasks/:taskId" element={<AgentTaskMonitorPage currentUser={currentUser} />} />
               <Route path="/agents/history"  element={<AgentTaskHistoryPage currentUser={currentUser} />} />
+              <Route path="/insights"        element={<DocumentInsightsPage sessionId={sessionId} documentName={documentName} />} />
               <Route path="/chat"            element={<Navigate to="/workspace" replace />} />
               <Route path="/vector-base"     element={<Navigate to="/admin" replace />} />
               <Route path="/login"           element={<Navigate to="/" replace />} />
@@ -122,6 +124,9 @@ export default function App() {
     if (currentUser) fetchMyOrgs()
   }, [currentUser])
 
+  // Session lifecycle (auto-refresh + idle/expiry auto-logout) lives below,
+  // after handleLogout is defined — see the effect following handleLogout.
+
   // Sync shadow stores
   useEffect(() => { syncAuthShadow(currentUser) }, [currentUser])
 
@@ -152,14 +157,66 @@ export default function App() {
     }
   }, [location.pathname, currentUser, openTab])
 
+  const handleDeleteSession = useCallback((id) => {
+    setSessionHistory(prev => {
+      const next = prev.filter(s => s.id !== id)
+      localStorage.setItem('kence_session_history', JSON.stringify(next))
+      return next
+    })
+  }, [])
+
   const handleLogout = useCallback(() => {
     clearAuth()
     setCurrentUser(null)
     handleSetSessionId(null)
     handleSetDocumentName('')
+    setSessionHistory([])
+    localStorage.removeItem('kence_session_history')
     useSessionTabsStore.getState().clearSessionTabs()
     navigate('/login', { replace: true })
   }, [navigate, handleSetSessionId, handleSetDocumentName])
+
+  // Session lifecycle: one interval handles (a) JWT auto-refresh for active users,
+  // (b) inactivity auto-logout, and (c) a passive expiry backstop so an IDLE user
+  // whose token expired — and who therefore never triggers a 401 — is still sent
+  // to /login. Placed after handleLogout so it can be referenced safely.
+  useEffect(() => {
+    if (!currentUser) return
+    const IDLE_TIMEOUT_MS = 30 * 60 * 1000   // logout after 30 min with no activity
+    const REFRESH_LEAD_MS = 10 * 60 * 1000   // refresh when <10 min of token life remains
+
+    let lastActivity = Date.now()
+    const bump = () => { lastActivity = Date.now() }
+    const events = ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart']
+    events.forEach((e) => window.addEventListener(e, bump, { passive: true }))
+
+    const interval = setInterval(async () => {
+      const token = localStorage.getItem('kence_token')
+      if (!token) return handleLogout()
+      let exp
+      try {
+        exp = JSON.parse(atob(token.split('.')[1])).exp * 1000
+      } catch {
+        return handleLogout()  // unparseable token → treat as invalid session
+      }
+      const now = Date.now()
+      if (now >= exp) return handleLogout()                          // token expired (idle backstop)
+      if (now - lastActivity >= IDLE_TIMEOUT_MS) return handleLogout()  // inactivity timeout
+      if (exp - now <= REFRESH_LEAD_MS) {                            // active & near expiry → refresh
+        try {
+          const data = await apiRefreshToken()
+          saveAuth(data.access_token, data.username, data.role)
+        } catch {
+          handleLogout()  // refresh failed → don't keep a dead session alive
+        }
+      }
+    }, 30 * 1000)  // check every 30 s
+
+    return () => {
+      clearInterval(interval)
+      events.forEach((e) => window.removeEventListener(e, bump))
+    }
+  }, [currentUser, handleLogout])
 
   const handleRestoreSession = useCallback((entry) => {
     handleSetSessionId(entry.id)
@@ -169,15 +226,12 @@ export default function App() {
 
   const handleNewSession = useCallback(async () => {
     try {
-      const token = localStorage.getItem('kence_token')
-      const res = await fetch('/api/sessions', { method: 'POST', headers: { Authorization: `Bearer ${token}` } })
-      if (!res.ok) throw new Error('Failed to create session')
-      const { session_id } = await res.json()
+      const { session_id } = await apiCreateSession()
       handleSetSessionId(session_id)
       handleSetDocumentName('')
       navigate('/upload')
     } catch (err) {
-      console.error('handleNewSession:', err)
+      if (import.meta.env.DEV) console.error('handleNewSession:', err)
     }
   }, [handleSetSessionId, handleSetDocumentName, navigate])
 
@@ -231,6 +285,7 @@ export default function App() {
             setSessionId={handleSetSessionId}
             onNewSession={handleNewSession}
             onRestoreSession={handleRestoreSession}
+            onDeleteSession={handleDeleteSession}
           />
         )}
         rightPanel={<RightIntelligencePanel />}

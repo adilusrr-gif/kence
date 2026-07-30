@@ -1,21 +1,26 @@
 {
+  "documentViewer": {
+    "askAI": "Ask AI",
+    "loading": "Loading document…"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "upload": "Upload",
-    "workspace": "Workspace",
+    "workspace": "Document",
     "compare": "Compare",
     "presentation": "Presentation",
     "convert": "Convert",
     "library": "Library",
-    "graph": "Graph",
-    "agents": "AI Agents",
+    "graph": "Connections",
+    "agents": "Analysis",
     "analytics": "Analytics",
-    "executive": "Executive",
+    "executive": "Statistics",
     "profile": "Profile",
     "org": "Org Settings",
     "admin": "Admin",
-    "aiSettings": "AI Settings",
-    "collapse": "Collapse"
+    "aiSettings": "Settings",
+    "collapse": "Collapse",
+    "insights": "Document Analysis"
   },
   "topbar": {
     "search": "Search commands…",
@@ -34,7 +39,7 @@
     "logout": "Logout"
   },
   "login": {
-    "subtitle": "Government document analysis system",
+    "subtitle": "Document analysis system",
     "username": "Username",
     "usernamePlaceholder": "username",
     "password": "Password",
@@ -57,14 +62,16 @@
     "chars": "characters",
     "goToChat": "Chat",
     "goToPresentation": "Presentation",
+    "whatNext": "What's next?",
+    "viewAnalysis": "View analysis",
     "uploadBtn": "Upload & process",
     "processing": "Processing…",
     "done": "Done",
     "stages": {
-      "upload": "Upload",
-      "parse": "Parse",
-      "extract": "Extract",
-      "vectorize": "Vectorize"
+      "upload": "Uploading",
+      "parse": "Reading document",
+      "extract": "Analyzing content",
+      "vectorize": "Preparing search"
     }
   },
   "dashboard": {
@@ -97,7 +104,9 @@
       "convert": "Convert",
       "convertDesc": "TXT, Markdown, DOCX",
       "agents": "AI Agents",
-      "agentsDesc": "Autonomous tasks"
+      "agentsDesc": "Autonomous tasks",
+      "insights": "Document Analysis",
+      "insightsDesc": "Summary, risks, timeline"
     },
     "time": {
       "days_one": "{{count}}d ago",
@@ -110,18 +119,18 @@
   },
   "workspace": {
     "translate": "Translate:",
-    "precise": "Precise",
+    "precise": "Precise Answer",
     "consultation": "Consultation",
-    "visual": "Visual",
+    "visual": "Image Description",
     "placeholder": "Ask a question about the document… (Enter to send)",
     "noSession": "Upload a document first",
-    "greeting": "Hello! Select text in the document or ask a question.",
+    "greeting": "Hello! Upload a document and ask any question — I will answer in plain language.",
     "document": "Document",
-    "ai": "AI Assistant",
+    "ai": "Smart Assistant",
     "clearHistory": "Clear history",
     "prevSession": "Previous session",
-    "docContext": "Document context",
-    "contextHint": "Describe the document — AI will use this in responses",
+    "docContext": "About Document",
+    "contextHint": "Describe the document — the assistant will consider this when answering",
     "contextPlaceholder": "E.g.: rental agreement 2025, parties — Almaz LLC and John Doe",
     "saveContext": "Save",
     "saved": "Saved",
@@ -145,10 +154,13 @@
     "extractText": "Extract text",
     "tableData": "Data from table/chart",
     "tips": {
-      "summary": "Document summary",
-      "keyFindings": "Key findings?",
-      "dates": "List all dates and events",
-      "explain": "Explain the main idea in simple terms"
+      "summary": "Briefly summarize this document",
+      "keyFindings": "What is the most important information?",
+      "dates": "What are the key dates and deadlines?",
+      "explain": "Explain the main idea in simple words",
+      "risks": "What risks or issues are described?",
+      "actions": "What actions need to be taken?",
+      "whoIsInvolved": "Who is involved and which organizations are mentioned?"
     },
     "langNames": {
       "kz": "Kazakh",
@@ -166,27 +178,44 @@
     "chars": "chars",
     "download": "Download",
     "contextPrefix": "Context",
-    "preciseTitle": "Strict answer based only on document content",
-    "consultationTitle": "Expanded consultation with interpretation",
-    "visualTitle": "Visual image analysis via VLM",
+    "preciseTitle": "Precise answers strictly from the document",
+    "consultationTitle": "Broad analysis with interpretation and conclusions",
+    "visualTitle": "Detailed image description",
     "saveFailed": "Failed to save document",
     "agentStarting": "Starting agent…",
-    "agentRunning": "Running…",
-    "agentLaunch": "Launch",
+    "agentRunning": "Processing…",
+    "agentLaunch": "Run",
     "agentError": "Error: {{msg}}",
     "agentConnectionError": "Connection error",
     "agentDefaultInstructions": "Improve structure, fix grammar and formatting",
-    "agentEditHeader": "Edit with AI Agent",
-    "agentHint": "Describe what needs to be done with the document. The agent will edit text, tables and can add charts.",
-    "agentPlaceholder": "For example: improve table structure, add a brief summary at the beginning, insert a chart from numeric data",
-    "chartHintBadge": "AI data at export",
+    "agentEditHeader": "Improve Document with AI",
+    "agentHint": "Describe what to improve — AI will make the changes automatically.",
+    "agentPlaceholder": "E.g.: improve structure, fix grammar, add summary",
+    "chartHintBadge": "Chart will be created automatically",
     "chartNoData": "No data for chart «{{title}}»",
     "insertTable": "Insert table",
     "insertChart": "Insert chart",
-    "editWithAgent": "Edit with AI agent",
-    "downloadDocx": "Download as DOCX",
-    "downloadPdf": "Download as PDF",
-    "saving": "Saving…"
+    "editWithAgent": "Improve with AI",
+    "downloadDocx": "Download Word",
+    "downloadPdf": "Download PDF",
+    "saving": "Saving…",
+    "regenerate": "Regenerate answer",
+    "exportChat": "Export chat",
+    "chatExportTitle": "Chat history",
+    "you": "You",
+    "notFoundInDoc": "Not found in document",
+    "stopGeneration": "Stop generation",
+    "generationStopped": "Stopped",
+    "sources": "Sources",
+    "sourcesFmt": "Sources ({{count}})",
+    "sessionExpiryWarning": "Session expires in 5 minutes. Click Extend to keep working.",
+    "sessionExtended": "Session extended by 1 hour",
+    "extendSession": "Extend session",
+    "llmQueueFull": "Server is busy — please try again in a few seconds",
+    "llmCircuitOpen": "AI is temporarily unavailable — recovering",
+    "llmTimeout": "Request timed out — please try again",
+    "exact": "Exact Answer",
+    "exactTitle": "Returns the complete section — lists, articles and definitions are never truncated"
   },
   "convert": {
     "title": "Convert Format",
@@ -357,8 +386,8 @@
     "edit": "Edit"
   },
   "agents": {
-    "title": "AI Agents",
-    "subtitle": "Select an agent for intelligent document analysis",
+    "title": "Document Analysis",
+    "subtitle": "Choose what you want to get from the document",
     "backToAgents": "← Agents",
     "historyTitle": "Task History",
     "task": "Task #{{id}}",
@@ -375,9 +404,9 @@
     "launching": "Launching...",
     "launchError": "Agent launch error",
     "historyLink": "Task history →",
-    "sessionIdLabel": "Session ID (leave empty for current session)",
+    "sessionIdLabel": "Document (leave blank to use current)",
     "noSession": "no active session",
-    "questionLabel": "Question / Task",
+    "questionLabel": "Your question",
     "questionPlaceholder": "What needs to be analyzed?",
     "instructionsLabel": "Instructions (optional)",
     "instructionsPlaceholder": "Special report requirements...",
@@ -386,7 +415,19 @@
     "result": "Result",
     "comparison": "Comparison summary",
     "docsUsed": "Used: {{docs}}",
-    "error": "Error"
+    "error": "Error",
+    "typeTimeline": "Timeline Engine",
+    "typeRiskEngine": "Risk Assessment",
+    "timelineDesc": "Chronological timeline of all dates, events and milestones",
+    "riskEngineDesc": "AI assessment of financial, legal and operational risks (0-100)",
+    "npaMode": "NPA selection",
+    "npaMode_auto": "Auto by direction",
+    "npaMode_manual": "Select manually",
+    "npaDirection": "Direction",
+    "npaAllDirections": "All directions",
+    "npaAutoHint": "NPA will be auto-selected by the chosen direction.",
+    "npaDocs": "NPA documents",
+    "npaNone": "No NPA in the library. Add them in the “NPA” tab."
   },
   "library": {
     "title": "Document Library",
@@ -404,7 +445,43 @@
     "noOrg": "Select an organization",
     "sizeB": "{{n}} B",
     "sizeKB": "{{n}} KB",
-    "sizeMB": "{{n}} MB"
+    "sizeMB": "{{n}} MB",
+    "kindAll": "All",
+    "kindDocument": "Documents",
+    "kindNpa": "NPA",
+    "allDirections": "All directions",
+    "allIssuers": "All issuers",
+    "uploadBtn": "Upload",
+    "manageDicts": "Dictionaries",
+    "edit": "Edit",
+    "notSet": "Not set",
+    "addNew": "Add…",
+    "nameRequired": "Enter a name",
+    "fileRequired": "Choose a file",
+    "noSession": "No active session",
+    "saveSuccess": "Saved",
+    "uploadSuccess": "Document uploaded",
+    "addSuccess": "Added to library",
+    "editTitle": "Edit document",
+    "uploadTitle": "Upload to library",
+    "addSessionTitle": "Add to library",
+    "fileLabel": "File",
+    "nameLabel": "Name",
+    "kindLabel": "Type",
+    "directionLabel": "Direction",
+    "issuerLabel": "Issuer",
+    "docNumberLabel": "Document number",
+    "docDateLabel": "Date",
+    "descriptionLabel": "Description",
+    "tagsLabel": "Tags",
+    "tagsPlaceholder": "comma-separated",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "save": "Save",
+    "upload": "Upload",
+    "add": "Add",
+    "dictEmpty": "Empty",
+    "done": "Done"
   },
   "executive": {
     "title": "Executive Dashboard — {{org}}",
@@ -485,6 +562,18 @@
       "OWNS": "Owns",
       "SIGNED_BY": "Signed by",
       "REGULATED_BY": "Regulated by"
+    },
+    "scope": "Scope",
+    "scopeOrg": "Whole organization",
+    "scopeCurrent": "Current document",
+    "physics": {
+      "title": "Graph physics",
+      "repulsion": "Repulsion",
+      "linkDist": "Link distance",
+      "linkStr": "Link attraction",
+      "center": "Centering",
+      "nodeSize": "Node size",
+      "reset": "Reset"
     }
   },
   "profile": {
@@ -538,7 +627,10 @@
       "4": "Fri",
       "5": "Sat",
       "6": "Sun"
-    }
+    },
+    "myTitle": "My stats",
+    "mySubtitle": "Your personal usage statistics",
+    "myUploads": "Documents uploaded by you"
   },
   "org": {
     "title": "Organization settings — {{name}}",
@@ -603,7 +695,7 @@
   },
   "aiSettings": {
     "title": "AI Settings",
-    "subtitle": "Prompt management — administrators only",
+    "subtitle": "Prompt management — personal settings for every user",
     "resetAll": "Reset all",
     "confirmResetAll": "Confirm reset all",
     "unsaved": "● Unsaved changes",
@@ -620,6 +712,14 @@
         "label": "Chat prompt",
         "hint": "Variables: {context} — document fragments, {question} — user question."
       },
+      "exact_prompt": {
+        "label": "Exact answer (by section)",
+        "hint": "Variables: {context} — whole document sections, {question} — user question. The answer is reproduced verbatim."
+      },
+      "consultation_prompt": {
+        "label": "Document consultation",
+        "hint": "Variables: {context} — document fragments, {question} — user question. Expanded answer with interpretation."
+      },
       "presentation_prompt": {
         "label": "Presentation prompt",
         "hint": "Variables: {context} — document content. JSON response: \"title\" and \"slides\"."
@@ -632,7 +732,12 @@
         "label": "Semantic comparison",
         "hint": "Variables: {text} — document text."
       }
-    }
+    },
+    "personalBadge": "Personal",
+    "globalBadge": "Global (default)",
+    "scopeUser": "My prompts",
+    "scopeGlobal": "Global (admin)",
+    "resetHint": "Reset removes your personal override — the global value applies again"
   },
   "admin": {
     "title": "Admin Panel",
@@ -679,7 +784,17 @@
       "toastCreated": "User «{{name}}» created",
       "errNoLogin": "Enter a login",
       "errShortPassword": "Password: min. 6 characters",
-      "errInvalidLogin": "Login: letters, digits, _, ., - only"
+      "errInvalidLogin": "Login: letters, digits, _, ., - only",
+      "errPasswordMin": "Password: at least {{n}} characters",
+      "errPasswordUpper": "Password must contain an uppercase letter",
+      "errPasswordLower": "Password must contain a lowercase letter",
+      "errPasswordDigit": "Password must contain a digit"
+    },
+    "orgs": {
+      "errNoSlug": "Enter a slug",
+      "errInvalidSlug": "Slug: only a-z, 0-9, hyphen",
+      "errNoName": "Enter a name",
+      "toastCreated": "Organization «{{name}}» created"
     },
     "stats": {
       "loading": "Loading…",
@@ -729,8 +844,8 @@
     "activeSession": "Active session",
     "features": {
       "rag": {
-        "label": "RAG chat with document",
-        "desc": "50+ formats, precise text search"
+        "label": "Ask Questions",
+        "desc": "Ask anything — get precise answers from the document"
       },
       "translate": {
         "label": "Translation KZ / RU / EN",
@@ -769,20 +884,20 @@
     },
     "activity": {
       "rag": {
-        "label": "RAG index ready",
-        "meta": "ChromaDB · active"
+        "label": "Document search ready",
+        "meta": "Fast full-text search"
       },
       "ollama": {
-        "label": "Ollama connected",
-        "meta": "LLM · running"
+        "label": "AI assistant connected",
+        "meta": "Ready to answer questions"
       },
       "pipeline": {
-        "label": "Pipeline started",
-        "meta": "Docling · ready"
+        "label": "Document reading ready",
+        "meta": "All formats supported"
       },
       "local": {
-        "label": "Local mode",
-        "meta": "Isolated environment"
+        "label": "Data stored locally",
+        "meta": "Privacy guaranteed"
       }
     },
     "steps": {
@@ -840,5 +955,27 @@
       "clearAriaLabel": "Clear document context",
       "examples": "Example questions"
     }
+  },
+  "translations": {
+    "title": "Translation",
+    "translateTo": "Translate to:",
+    "queued": "Queued",
+    "processing": "Translating…",
+    "completed": "Done",
+    "failed": "Failed",
+    "empty": "No translations yet",
+    "delete": "Delete",
+    "refresh": "Refresh",
+    "startedToast": "Translation to {{lang}} started",
+    "doneToast": "Translation ready: {{name}} ({{lang}})",
+    "failToast": "Translation failed: {{name}}",
+    "startError": "Could not start translation",
+    "downloadError": "Download error"
+  },
+  "compliance": {
+    "title": "Regulatory compliance",
+    "stats": "Requirements checked: {{total}} · non-compliant: {{failed}} · partial: {{partial}}",
+    "evidence": "Evidence",
+    "recommendation": "Recommendation"
   }
 }

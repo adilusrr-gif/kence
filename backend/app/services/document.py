@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from docling.document_converter import DocumentConverter
 from docling.datamodel.base_models import InputFormat
 try:
@@ -18,6 +19,15 @@ from app.core.config import get_settings
 from app.services.embeddings_service import embeddings_service
 
 settings = get_settings()
+
+
+class DocumentTooLargeError(Exception):
+    """Raised by process_file when extracted text exceeds MAX_DOCUMENT_CHARS, so the
+    upload is rejected BEFORE the full text is chunked, embedded, or stored anywhere."""
+    def __init__(self, chars: int, limit: int):
+        self.chars, self.limit = chars, limit
+        super().__init__(f"document {chars} chars exceeds limit {limit}")
+
 
 _SEPARATORS = ["\n\n", ". ", "! ", "? ", " ", ""]
 
@@ -134,6 +144,11 @@ class DocumentProcessor:
                 else:
                     raise
 
+        # Reject oversized documents here — before chunking, embedding, or any storage —
+        # so the full text is never loaded into memory beyond this transient string.
+        if len(markdown_text) > settings.MAX_DOCUMENT_CHARS:
+            raise DocumentTooLargeError(len(markdown_text), settings.MAX_DOCUMENT_CHARS)
+
         documents = [LCDocument(
             page_content=markdown_text,
             metadata={
@@ -155,21 +170,49 @@ class DocumentProcessor:
         return vector_store, markdown_text, html_text
 
     def get_retriever(self, session_id: str, mode: str = "precise"):
-        """Returns a HybridRetriever. Falls back to pure Chroma on import error."""
+        """Returns a HybridRetriever. Falls back to pure Chroma on import error.
+
+        In "exact" mode more candidate fragments are fetched (EXACT_RETRIEVAL_K)
+        so section-aware expansion can cover every section the answer touches.
+        """
+        # Exact mode behaves like precise for retrieval, just with a wider net;
+        # the section-aware expansion happens afterwards in section_retriever.
+        if mode == "exact":
+            k = settings.EXACT_RETRIEVAL_K
+            retrieval_mode = "precise"
+        elif mode == "consultation":
+            k = 6
+            retrieval_mode = "consultation"
+        else:
+            k = 4
+            retrieval_mode = mode
+
         try:
             from app.services.retriever import HybridRetriever
-            return HybridRetriever(session_id).as_langchain_retriever(k=8, mode=mode)
+            return HybridRetriever(session_id).as_langchain_retriever(k=k, mode=retrieval_mode)
         except Exception:
             vector_store = Chroma(
                 persist_directory=f"{settings.CHROMA_DIR}/{session_id}",
                 embedding_function=self.embeddings,
             )
-            if mode == "consultation":
+            if retrieval_mode == "consultation":
                 return vector_store.as_retriever(
                     search_type="mmr",
-                    search_kwargs={"k": 12, "fetch_k": 30, "lambda_mult": 0.6},
+                    search_kwargs={"k": k, "fetch_k": k * 3, "lambda_mult": 0.6},
                 )
-            return vector_store.as_retriever(search_kwargs={"k": 8})
+            return vector_store.as_retriever(search_kwargs={"k": k})
 
 
 doc_processor = DocumentProcessor()
+
+
+# Dedicated bounded thread pool for document ingest. process_file() does heavy
+# CPU work (Docling parse / OCR) plus blocking embedding calls; running it inline
+# in the async upload handler blocked the single event loop for the whole
+# duration of the upload. Callers offload process_file onto this SEPARATE pool
+# (not the default asyncio.to_thread pool) so ingest never starves the
+# lightweight LLM/analytics/audit calls that also use to_thread. The route passes
+# its own doc_processor.process_file into run_in_executor (keeps it patchable in
+# tests) — see app/api/routes.upload_document.
+_DOC_POOL_SIZE = max(1, int(getattr(settings, "DOC_PROCESS_POOL_SIZE", 4)))
+doc_executor = ThreadPoolExecutor(max_workers=_DOC_POOL_SIZE, thread_name_prefix="doc-ingest")

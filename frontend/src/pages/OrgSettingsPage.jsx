@@ -4,13 +4,13 @@ import useOrgStore from '../shared/stores/orgStore'
 import {
   apiGetOrgMembers, apiAddOrgMember, apiRemoveOrgMember,
   apiGetOrgQuota, apiGetOrgApiKeys, apiCreateOrgApiKey, apiRevokeOrgApiKey,
-  apiGetOrgBranding, apiUpdateOrgBranding,
+  apiGetOrgBranding, apiUpdateOrgBranding, apiUpdateOrg,
 } from '../lib/api'
 import { useToastStore } from '../shared/stores/toastStore'
 
 export default function OrgSettingsPage({ currentUser }) {
   const { t } = useTranslation()
-  const { currentOrgId, currentOrgName } = useOrgStore()
+  const { currentOrgId, currentOrgName, currentOrgPlan, fetchMyOrgs } = useOrgStore()
   const addToast = useToastStore(s => s.addToast)
   const [tab, setTab] = useState(0)
   const [members, setMembers] = useState([])
@@ -20,6 +20,8 @@ export default function OrgSettingsPage({ currentUser }) {
   const [newMember, setNewMember] = useState({ username: '', org_role: 'member' })
   const [newKey, setNewKey] = useState({ name: '' })
   const [rawKey, setRawKey] = useState(null)
+  const [selectedPlan, setSelectedPlan] = useState(currentOrgPlan || 'free')
+  const [planSaving, setPlanSaving] = useState(false)
 
   const TABS = [
     t('org.tabs.general'), t('org.tabs.members'), t('org.tabs.branding'),
@@ -42,6 +44,23 @@ export default function OrgSettingsPage({ currentUser }) {
     apiGetOrgApiKeys(currentOrgId).then(setApiKeys).catch(() => {})
     apiGetOrgBranding(currentOrgId).then(setBranding).catch(() => {})
   }, [currentOrgId])
+
+  useEffect(() => {
+    setSelectedPlan(currentOrgPlan || 'free')
+  }, [currentOrgPlan])
+
+  const handleSavePlan = async () => {
+    setPlanSaving(true)
+    try {
+      await apiUpdateOrg(currentOrgId, { plan: selectedPlan })
+      await fetchMyOrgs()
+      addToast('success', `Тариф обновлён: ${selectedPlan}`)
+    } catch (e) {
+      addToast('error', e.message || 'Ошибка сохранения')
+    } finally {
+      setPlanSaving(false)
+    }
+  }
 
   if (!currentOrgId) return (
     <div style={{ padding: '2rem', color: 'var(--text-secondary)' }}>{t('org.noOrg')}</div>
@@ -96,7 +115,8 @@ export default function OrgSettingsPage({ currentUser }) {
     tab: (active) => ({
       padding: '0.5rem 1rem', cursor: 'pointer', fontSize: 14, fontWeight: active ? 600 : 400,
       borderBottom: active ? '2px solid var(--accent-primary)' : '2px solid transparent',
-      color: active ? 'var(--accent-primary)' : 'var(--text-secondary)', background: 'none', border: 'none',
+      borderTop: 'none', borderLeft: 'none', borderRight: 'none',
+      color: active ? 'var(--accent-primary)' : 'var(--text-secondary)', background: 'none',
     }),
     card: { background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '1.5rem', marginBottom: '1rem' },
     row: { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 },
@@ -128,10 +148,42 @@ export default function OrgSettingsPage({ currentUser }) {
 
       {tab === 0 && (
         <div style={styles.card}>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 14 }}>
+          <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginBottom: 16 }}>
             {t('org.general.orgId')} <strong>{currentOrgId}</strong><br />
             {t('org.general.orgName')} <strong>{currentOrgName}</strong>
           </p>
+          {isAdmin && (
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>Тариф / Edition</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <select
+                  value={selectedPlan}
+                  onChange={e => setSelectedPlan(e.target.value)}
+                  style={{ ...styles.input, flex: '0 0 auto', width: 180 }}
+                >
+                  <option value="free">Free</option>
+                  <option value="pro">Pro</option>
+                  <option value="enterprise">Enterprise</option>
+                  <option value="gov">Gov (Государственный)</option>
+                </select>
+                <button
+                  style={styles.btn()}
+                  onClick={handleSavePlan}
+                  disabled={planSaving || selectedPlan === currentOrgPlan}
+                >
+                  {planSaving ? '…' : 'Сохранить'}
+                </button>
+                {selectedPlan !== currentOrgPlan && (
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    Текущий: <strong>{currentOrgPlan}</strong>
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 6 }}>
+                <strong>gov</strong> — упрощённый интерфейс, гос. терминология, водяной знак на документах
+              </p>
+            </div>
+          )}
         </div>
       )}
 

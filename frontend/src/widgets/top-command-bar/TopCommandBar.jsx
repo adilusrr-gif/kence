@@ -147,8 +147,10 @@ function UserMenu({ user, onLogout, onNavigate }) {
 
   const menuItems = [
     { icon: User,      labelKey: 'userMenu.profile',    action: () => { onNavigate('/profile'); setOpen(false) } },
+    // AI-settings (prompts) is available to every user — each has their own
+    // personal prompts, with admin-only access to the shared global defaults.
+    { icon: Cpu,       labelKey: 'userMenu.aiSettings',  action: () => { onNavigate('/ai-settings'); setOpen(false) } },
     ...(isAdmin ? [
-      { icon: Cpu,       labelKey: 'userMenu.aiSettings',  action: () => { onNavigate('/ai-settings'); setOpen(false) } },
       { icon: Building2, labelKey: 'userMenu.orgSettings', action: () => { onNavigate('/org/settings'); setOpen(false) } },
       { icon: Shield,    labelKey: 'userMenu.adminPanel',  action: () => { onNavigate('/admin'); setOpen(false) } },
     ] : []),

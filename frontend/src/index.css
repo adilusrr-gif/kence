@@ -387,7 +387,7 @@
 /* ═══════════════════════════════════════════
    Main content
 ═══════════════════════════════════════════ */
-.main-content { flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; height: 100vh; }
+.main-content { flex: 1; min-width: 0; overflow-y: auto; scrollbar-gutter: stable; display: flex; flex-direction: column; height: 100vh; }
 
 /* normal pages: constrained width with padding */
 .page-container {
@@ -395,6 +395,12 @@
   margin: 0 auto;
   padding: 2rem 1.75rem;
   flex: 1;
+}
+
+/* Content pages that manage their own padding/layout but need scroll */
+.page-scrollable {
+  flex: 1;
+  min-height: 0;
 }
 
 /* full-screen pages (landing, upload): no constraints */
@@ -3053,6 +3059,11 @@
   color: #fff;
   cursor: pointer;
 }
+.ws-stop-btn {
+  background: var(--status-danger);
+  color: #fff;
+  cursor: pointer;
+}
 .ws-no-session {
   display: flex;
   align-items: center;
@@ -3219,6 +3230,63 @@
   transform: scale(1.06);
 }
 .ws-send-btn--active:active { transform: scale(0.95); }
+.ws-stop-btn:hover {
+  background: color-mix(in srgb, var(--status-danger) 82%, white 18%);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--status-danger) 42%, transparent);
+  transform: scale(1.06);
+}
+.ws-stop-btn:active { transform: scale(0.95); }
+
+/* ── Sources panel ───────────────────────────────────── */
+.ws-sources { margin-top: 8px; padding-top: 4px; border-top: 1px solid var(--border-subtle); }
+.ws-sources__toggle {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--text-faint);
+  cursor: pointer; padding: 3px 0; background: none; border: none;
+  font-family: inherit; transition: color 0.12s;
+}
+.ws-sources__toggle:hover { color: var(--accent-primary); }
+.ws-sources__icon { transition: transform 0.15s; }
+.ws-sources__icon--open { transform: rotate(90deg); }
+.ws-sources__list { display: flex; flex-direction: column; gap: 5px; padding: 6px 0 2px; }
+.ws-source-item {
+  font-size: 11px; padding: 6px 10px;
+  border-radius: var(--radius-md); background: var(--bg-surface-2);
+  border-left: 2px solid var(--accent-primary);
+}
+.ws-source-item__text { color: var(--text-secondary); line-height: 1.5; }
+.ws-source-item__meta { color: var(--text-faint); font-size: 10px; margin-top: 3px; }
+
+/* ── Not-found indicator ─────────────────────────────── */
+.ws-not-found-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 600;
+  padding: 2px 8px; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--status-warning) 12%, transparent);
+  color: var(--status-warning); margin-bottom: 5px;
+}
+
+/* ── Stopped-by-user indicator ───────────────────────── */
+.ws-stopped-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 600;
+  padding: 2px 8px; border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--status-danger) 12%, transparent);
+  color: var(--status-danger); margin-bottom: 5px;
+}
+
+/* ── Regenerate button ───────────────────────────────── */
+.ws-regen-btn {
+  opacity: 0; transition: opacity 0.15s;
+  margin-left: 4px;
+}
+.ws-bubble:hover .ws-regen-btn,
+.ws-msg:hover .ws-regen-btn { opacity: 0.55; }
+.ws-regen-btn:hover { opacity: 1 !important; }
+.ws-explain-btn { opacity: 0; transition: opacity 0.15s; background: color-mix(in srgb, var(--accent-primary) 12%, transparent) !important; color: var(--accent-primary) !important; border: 1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent) !important; }
+.ws-bubble:hover .ws-explain-btn,
+.ws-msg:hover .ws-explain-btn { opacity: 1 !important; }
+.ws-explain-btn:hover { opacity: 1 !important; background: color-mix(in srgb, var(--accent-primary) 20%, transparent) !important; }
 
 /* Tip chips: lift + accent glow */
 .ws-tip {

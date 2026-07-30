@@ -65,13 +65,14 @@ def generate_plan(session_id: str, llm_service, user_instructions: str = "", num
     if not text:
         raise ValueError("No document in session")
 
+    from app.services.pipeline import stratified_sample
     content_slides = max(2, min(num_slides, 12))
-    snippet = text[:4000] + "\n...\n" + text[-4000:] if len(text) > 8000 else text
+    snippet = stratified_sample(text, target_chars=12000, n_parts=5) if len(text) > 12000 else text
     instructions = user_instructions.strip() or "нет особых пожеланий"
     prompt = _PLAN_PROMPT.format(text=snippet, user_instructions=instructions, content_slides=content_slides)
 
     try:
-        raw = llm_service.simple_chat(prompt)
+        raw = llm_service.simple_chat_guarded(prompt)
         raw = raw.strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]

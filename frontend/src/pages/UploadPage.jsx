@@ -16,6 +16,11 @@ import { apiCreateSession, apiUploadDocument } from '../lib/api'
 import { useToast } from '@/shared/ui/toast'
 import { useEventStore } from '@/shared/stores/eventStore'
 
+// Delay before auto-redirecting to the workspace after a successful upload,
+// giving the user a moment to see the success state. Analysis is NOT started
+// automatically — the user opens the document and launches analysis when they want.
+const POST_UPLOAD_REDIRECT_MS = 3000
+
 const FORMAT_ICONS = {
   '.pdf': FileText, '.docx': FileText, '.doc': FileText,
   '.pptx': FileText, '.ppt': FileText, '.xlsx': FileSpreadsheet,
@@ -103,7 +108,7 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
       setUploaded(true)
       ingestEvent({ type: 'DOCUMENT_READY', message: `Document ready: ${file.name}` })
       toast.success(t('upload.success', { name: file.name }))
-      navTimerRef.current = setTimeout(() => navigate('/workspace'), 1500)
+      navTimerRef.current = setTimeout(() => navigate('/workspace'), POST_UPLOAD_REDIRECT_MS)
     } catch (err) {
       const msg = err.message || t('upload.error')
       setError(msg)
@@ -281,7 +286,20 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                 )}
 
                 <Stack gap="sm" className="us-success">
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'center' }}>
+                    {t('upload.whatNext', 'Что делать дальше?')}
+                  </div>
                   <Inline gap="sm" wrap>
+                    <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} style={{ flex: 1 }}>
+                      <Button
+                        onClick={() => navigate('/insights')}
+                        block
+                        className="us-action us-action--pri"
+                        leadingIcon={<Sparkles size={14} />}
+                      >
+                        {t('upload.viewAnalysis', 'Просмотр анализа')}
+                      </Button>
+                    </motion.div>
                     <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} style={{ flex: 1 }}>
                       <Button
                         onClick={() => navigate('/workspace')}
@@ -296,8 +314,9 @@ export default function UploadPage({ sessionId, setSessionId, setDocumentName })
                     <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }} style={{ flex: 1 }}>
                       <Button
                         onClick={() => navigate('/presentation')}
+                        variant="secondary"
                         block
-                        className="us-action us-action--pri"
+                        className="us-action us-action--sec"
                         leadingIcon={<BarChart2 size={14} />}
                       >
                         {t('upload.goToPresentation')}

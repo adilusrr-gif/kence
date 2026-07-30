@@ -35,3 +35,28 @@ def test_delete_nonexistent_session_ok(client):
     # session_manager.cleanup_session is idempotent
     r = client.delete("/api/sessions/00000000-0000-0000-0000-000000000000")
     assert r.status_code == 200
+
+
+def test_html_preview_stored_on_disk_not_in_memory(client):
+    """store_html() must persist to uploads/{session_id}/preview.html and NOT
+    keep the (potentially multi-MB) blob in the in-memory session dict."""
+    from app.core.session import session_manager
+    sid = client.post("/api/sessions").json()["session_id"]
+
+    session_manager.store_html(sid, "<p>hello preview</p>")
+    data = session_manager.get_session(sid)
+    assert "html_text" not in data
+    assert data.get("html_path")
+
+    loaded = session_manager.load_html(sid)
+    assert loaded == "<p>hello preview</p>"
+
+
+def test_html_preview_oversized_is_dropped(client):
+    from app.core.session import session_manager
+    sid = client.post("/api/sessions").json()["session_id"]
+
+    session_manager.store_html(sid, "x" * 20_000_000)  # above the 15 MB cap
+    data = session_manager.get_session(sid)
+    assert data.get("html_path") is None
+    assert session_manager.load_html(sid) == ""

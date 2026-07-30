@@ -1,3 +1,4 @@
+import contextvars
 import logging
 from typing import Optional
 from datetime import datetime
@@ -5,22 +6,60 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.core.database import SessionLocal
-from app.models.models import AIPrompt, DocumentContext
+from app.models.models import AIPrompt, UserPrompt, DocumentContext
+
+# Carries the acting username through the async/thread call tree so get_prompt()
+# can resolve a personal override without threading a `username` parameter
+# through every intermediate call (llm.py's agenerate/chat_astream, comparison.py,
+# presentation_builder.py, agents/orchestrator.py). Mirrors llm._current_language.
+# Set once per request/task at the entry point (see api routes + orchestrator);
+# asyncio.to_thread() and asyncio Tasks both propagate contextvars, so a single
+# .set() at the top of a route handler is visible in everything it calls.
+_current_username: contextvars.ContextVar[Optional[str]] = contextvars.ContextVar(
+    "prompt_username", default=None
+)
+
+
+def set_current_username(username: Optional[str]):
+    """Sets _current_username and returns a reset token (contextvars.Token)."""
+    return _current_username.set(username)
+
+
+def reset_current_username(token) -> None:
+    _current_username.reset(token)
 
 DEFAULT_PROMPTS: dict[str, str] = {
     "chat_prompt": (
-        "Ты — полезный ассистент для работы с документами.\n"
-        "Отвечай ТОЛЬКО на основе предоставленного контекста.\n"
-        "Если ответа нет в контексте, скажи об этом честно.\n"
-        "Форматируй ответ так, чтобы он был максимально понятен:\n"
-        "- Если контекст содержит таблицу или вопрос требует сравнения/перечисления данных — "
-        "используй Markdown-таблицу (| Столбец | Столбец |\\n|---|---|\\n| ... |).\n"
-        "- Если вопрос требует списка — используй маркированный список.\n"
-        "- В остальных случаях пиши связными абзацами.\n"
-        "Не сокращай ответ до голых тезисов. Отвечай развёрнуто.\n\n"
-        "Контекст:\n{context}\n\n"
-        "Вопрос: {question}\n\n"
-        "Ответ (на русском языке):"
+        "You are a document lookup assistant. Your ONLY job is to find and copy text from the document.\n\n"
+        "STRICT RULES:\n"
+        "- Find the part of the document that answers the question\n"
+        "- Copy it EXACTLY, word for word, character for character\n"
+        "- Do NOT rephrase, summarize, or explain anything\n"
+        "- Do NOT add your own words\n"
+        "- If the answer is a definition - copy the entire definition as written\n"
+        "- If not found - say only: \"Не найдено в документе\"\n\n"
+        "Document text:\n{context}\n\n"
+        "Question: {question}\n\n"
+        "Copy the exact matching text from the document above:"
+    ),
+    "exact_prompt": (
+        "You are an EXACT document extraction assistant. The context below contains "
+        "one or more COMPLETE sections of a document.\n\n"
+        "STRICT RULES:\n"
+        "- Identify which section(s) answer the question.\n"
+        "- Reproduce the answering section(s) IN FULL, word for word, character for "
+        "character — from the section heading down to the very last line.\n"
+        "- NEVER truncate, summarize, shorten, or omit any part of a section.\n"
+        "- Reproduce numbered lists, sub-items, definitions, tables, legal articles, "
+        "glossary entries and regulation clauses COMPLETELY — every item, to the end.\n"
+        "- Preserve the original formatting exactly: headings, numbering, list markers, "
+        "tables, indentation and line breaks.\n"
+        "- Do NOT add commentary, explanations or your own words.\n"
+        "- If nothing in the context answers the question, reply only: "
+        "\"Не найдено в документе\".\n\n"
+        "Document sections:\n{context}\n\n"
+        "Question: {question}\n\n"
+        "Reproduce the complete answering section(s) verbatim:"
     ),
     "presentation_prompt": (
         "На основе следующего документа создай структуру презентации.\n\n"
@@ -58,7 +97,7 @@ DEFAULT_PROMPTS: dict[str, str] = {
         "Ты — аналитик документов.\n"
         "Кратко опиши ключевые темы, выводы и структуру документа.\n\n"
         "Документ:\n{text}\n\n"
-        "Ответ на русском языке:"
+        "Ответ:"
     ),
     "consultation_prompt": (
         "Ты — умный консультант по документам. Пользователь хочет обсудить содержание и получить экспертный совет.\n"
@@ -68,7 +107,7 @@ DEFAULT_PROMPTS: dict[str, str] = {
         "Форматируй ответ так, чтобы он был понятен: используй списки, выделения и абзацы по необходимости.\n\n"
         "Контекст:\n{context}\n\n"
         "Вопрос: {question}\n\n"
-        "Ответ (на русском языке):"
+        "Ответ:"
     ),
 }
 
@@ -78,23 +117,22 @@ def _db():
 
 
 def _ensure_defaults(db) -> None:
+    """Seed default prompt rows on first run only — must NOT overwrite admin edits."""
     for prompt_type, content in DEFAULT_PROMPTS.items():
         stmt = (
             pg_insert(AIPrompt)
             .values(prompt_type=prompt_type, content=content)
-            .on_conflict_do_update(
-                index_elements=["prompt_type"],
-                set_={"content": content},
-                where=(AIPrompt.content != content),
-            )
+            .on_conflict_do_nothing(index_elements=["prompt_type"])
         )
         db.execute(stmt)
     db.commit()
 
 
-# ── Prompts ───────────────────────────────────────────────────────────────────
+# ── Prompts (global defaults, admin-editable) ──────────────────────────────────
 
 def get_prompts() -> dict:
+    """Global prompt values (the admin-editable fallback for users with no
+    personal override). Used by the admin 'Global prompts' view."""
     try:
         with _db() as db:
             _ensure_defaults(db)
@@ -107,7 +145,23 @@ def get_prompts() -> dict:
         return dict(DEFAULT_PROMPTS)
 
 
-def get_prompt(prompt_type: str) -> str:
+def get_prompt(prompt_type: str, username: Optional[str] = None) -> str:
+    """Resolves the EFFECTIVE prompt for an LLM call: personal override (if the
+    acting user has one) → global admin default → hardcoded default.
+
+    `username` is optional — most call sites don't have it in scope (e.g. deep
+    inside llm.py/comparison.py), so it falls back to the _current_username
+    contextvar set by the API route/orchestrator entry point.
+    """
+    user = username or _current_username.get()
+    if user:
+        try:
+            with _db() as db:
+                row = db.query(UserPrompt).filter_by(username=user, prompt_type=prompt_type).first()
+                if row:
+                    return row.content
+        except Exception as e:
+            logger.warning("[ai_settings] get_prompt personal lookup failed for %s/%s: %s", user, prompt_type, e)
     try:
         with _db() as db:
             row = db.get(AIPrompt, prompt_type)
@@ -119,6 +173,8 @@ def get_prompt(prompt_type: str) -> str:
 
 
 def update_prompt(prompt_type: str, content: str) -> bool:
+    """Admin-only: updates the GLOBAL default. Users with a personal override
+    are unaffected until they reset it."""
     if prompt_type not in DEFAULT_PROMPTS:
         return False
     with _db() as db:
@@ -137,6 +193,53 @@ def reset_prompt(prompt_type: str) -> Optional[str]:
     content = DEFAULT_PROMPTS[prompt_type]
     update_prompt(prompt_type, content)
     return content
+
+
+# ── Prompts (per-user overrides) ────────────────────────────────────────────
+
+def get_user_prompts(username: str) -> dict:
+    """Effective prompts for a specific user, with per-type metadata so the
+    UI can show whether a value is personal or inherited from the global default."""
+    global_prompts = get_prompts()
+    try:
+        with _db() as db:
+            rows = db.query(UserPrompt).filter_by(username=username).all()
+            personal = {r.prompt_type: r.content for r in rows}
+    except Exception as e:
+        logger.warning("[ai_settings] get_user_prompts failed for %s: %s", username, e)
+        personal = {}
+    return {
+        pt: {
+            "content": personal.get(pt, content),
+            "is_personal": pt in personal,
+            "global_content": content,
+        }
+        for pt, content in global_prompts.items()
+    }
+
+
+def update_user_prompt(username: str, prompt_type: str, content: str) -> bool:
+    if prompt_type not in DEFAULT_PROMPTS:
+        return False
+    with _db() as db:
+        row = db.query(UserPrompt).filter_by(username=username, prompt_type=prompt_type).first()
+        if row:
+            row.content = content
+        else:
+            db.add(UserPrompt(username=username, prompt_type=prompt_type, content=content))
+        db.commit()
+    return True
+
+
+def delete_user_prompt(username: str, prompt_type: str) -> bool:
+    """Removes the user's personal override — they revert to the global default."""
+    with _db() as db:
+        row = db.query(UserPrompt).filter_by(username=username, prompt_type=prompt_type).first()
+        if not row:
+            return False
+        db.delete(row)
+        db.commit()
+        return True
 
 
 def reset_all_prompts() -> None:

@@ -8,7 +8,9 @@ const useOrgStore = create((set, get) => ({
   currentOrgId: null,
   currentOrgSlug: null,
   currentOrgName: null,
+  currentOrgPlan: null,
   orgs: [],
+  orgsLoaded: false,
 
   fetchMyOrgs: async () => {
     try {
@@ -19,23 +21,35 @@ const useOrgStore = create((set, get) => ({
       const savedId = saved ? parseInt(saved, 10) : null
       const found = savedId ? orgs.find(o => o.id === savedId) : orgs[0]
       if (found) {
-        set({ currentOrgId: found.id, currentOrgSlug: found.slug, currentOrgName: found.display_name })
+        set({
+          currentOrgId: found.id,
+          currentOrgSlug: found.slug,
+          currentOrgName: found.display_name,
+          currentOrgPlan: found.plan ?? 'free',
+        })
         localStorage.setItem(LS_SLUG_KEY, found.slug)
       }
     } catch {
       // Non-fatal — user may not belong to any org yet
+    } finally {
+      set({ orgsLoaded: true })
     }
   },
 
   switchOrg: (org) => {
     localStorage.setItem(LS_KEY, String(org.id))
     localStorage.setItem(LS_SLUG_KEY, org.slug)
-    set({ currentOrgId: org.id, currentOrgSlug: org.slug, currentOrgName: org.display_name })
+    set({
+      currentOrgId: org.id,
+      currentOrgSlug: org.slug,
+      currentOrgName: org.display_name,
+      currentOrgPlan: org.plan ?? 'free',
+    })
   },
 
   clearOrg: () => {
     localStorage.removeItem(LS_KEY)
-    set({ currentOrgId: null, currentOrgSlug: null, currentOrgName: null, orgs: [] })
+    set({ currentOrgId: null, currentOrgSlug: null, currentOrgName: null, currentOrgPlan: null, orgs: [] })
   },
 }))
 

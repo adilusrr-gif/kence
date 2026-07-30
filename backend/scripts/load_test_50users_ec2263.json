@@ -1,0 +1,28 @@
+{
+  "run_id": "ec2263",
+  "config": {
+    "users": 50,
+    "max_concurrent": 3,
+    "queue_maxsize": 50
+  },
+  "pre_status": {
+    "detail": "Токен недействителен или истёк"
+  },
+  "post_status": {
+    "detail": "Токен недействителен или истёк"
+  },
+  "final_status": {
+    "detail": "Токен недействителен или истёк"
+  },
+  "stats": {
+    "total": 50,
+    "success": 0,
+    "timeout": 0,
+    "error_503": 0,
+    "error_other": 50,
+    "avg_ms": 15,
+    "min_ms": 6,
+    "max_ms": 33,
+    "total_time_sec": 0.08
+  }
+}

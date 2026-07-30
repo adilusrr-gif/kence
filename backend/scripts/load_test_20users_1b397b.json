@@ -1,0 +1,80 @@
+{
+  "run_id": "1b397b",
+  "config": {
+    "users": 20,
+    "max_concurrent": 3,
+    "queue_maxsize": 50
+  },
+  "pre_status": {
+    "detail": "Токен недействителен или истёк"
+  },
+  "post_status": {
+    "detail": "Токен недействителен или истёк"
+  },
+  "final_status": {
+    "detail": "Токен недействителен или истёк"
+  },
+  "stats": {
+    "total": 20,
+    "success": 0,
+    "timeout": 0,
+    "error_503": 0,
+    "error_other": 20,
+    "avg_ms": 26,
+    "min_ms": 13,
+    "max_ms": 35,
+    "total_time_sec": 0.06
+  },
+  "sample_results": [
+    {
+      "status": 400,
+      "ms": 22,
+      "result": "No document uploaded"
+    },
+    {
+      "status": 400,
+      "ms": 16,
+      "result": "No document uploaded"
+    },
+    {
+      "status": 400,
+      "ms": 13,
+      "result": "No document uploaded"
+    },
+    {
+      "status": 400,
+      "ms": 18,
+      "result": "No document uploaded"
+    },
+    {
+      "status": 400,
+      "ms": 23,
+      "result": "No document uploaded"
+    },
+    {
+      "status": 400,
+      "ms": 22,
+      "result": "No document uploaded"
+    },
+    {
+      "status": 400,
+      "ms": 26,
+      "result": "No document uploaded"
+    },
+    {
+      "status": 400,
+      "ms": 24,
+      "result": "No document uploaded"
+    },
+    {
+      "status": 400,
+      "ms": 25,
+      "result": "No document uploaded"
+    },
+    {
+      "status": 400,
+      "ms": 25,
+      "result": "No document uploaded"
+    }
+  ]
+}

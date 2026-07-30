@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -10,6 +11,7 @@ from app.services.org_service import (
     get_user_orgs, get_effective_quota, update_quota,
 )
 from app.services.api_key_service import create_api_key, revoke_api_key, list_api_keys
+from app.services import analytics_service
 
 router = APIRouter(prefix="/orgs", tags=["organizations"])
 
@@ -57,7 +59,14 @@ async def my_orgs(current_user: dict = Depends(get_current_user)):
 
 @router.post("")
 async def create_organization(req: CreateOrgRequest, admin: dict = Depends(require_admin)):
-    return create_org(req.slug, req.display_name, admin["username"], req.plan)
+    org = create_org(req.slug, req.display_name, admin["username"], req.plan)
+    asyncio.create_task(asyncio.to_thread(
+        analytics_service.log_event, "org_create",
+        username=admin["username"],
+        org_id=org.get("id") if isinstance(org, dict) else None,
+        slug=req.slug,
+    ))
+    return org
 
 
 @router.get("")

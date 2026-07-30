@@ -1,0 +1,29 @@
+ Готово. D:\DocAI\kence-images.tar — 7.4 GB (docker save сжимает
+  лучше чем отображаемые размеры образов).
+
+  ---
+  Перенос и запуск на Ubuntu 22.04:
+
+  # 1. Скопировать архив на сервер
+  scp D:\DocAI\kence-images.tar user@<server-ip>:/opt/kence/
+
+  # 2. Скопировать конфиги
+  scp D:\DocAI\docker-compose.yml user@<server-ip>:/opt/kence/
+  scp D:\DocAI\.env user@<server-ip>:/opt/kence/
+
+  # 3. На сервере — установить Docker если нет
+  curl -fsSL https://get.docker.com | sh
+
+  # 4. Загрузить образы
+  docker load -i /opt/kence/kence-images.tar
+
+  # 5. Запустить стек
+  cd /opt/kence && docker-compose up -d
+
+  # 6. После старта — подтянуть модели Ollama
+  docker exec kence-ollama ollama pull qwen2.5:7b
+  docker exec kence-ollama ollama pull nomic-embed-text
+
+  ▎ Важно: модели Ollama (qwen2.5:7b, nomic-embed-text) не входят в
+  ▎ образ — их нужно скачать отдельно командами выше уже на
+  ▎ сервере. Без них бэкенд не сможет отвечать на запросы.

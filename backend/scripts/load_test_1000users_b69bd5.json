@@ -1,0 +1,80 @@
+{
+  "run_id": "b69bd5",
+  "config": {
+    "users": 1000,
+    "max_concurrent": 3,
+    "queue_maxsize": 50
+  },
+  "pre_status": {
+    "detail": "Токен недействителен или истёк"
+  },
+  "post_status": {
+    "detail": "Токен недействителен или истёк"
+  },
+  "final_status": {
+    "detail": "Токен недействителен или истёк"
+  },
+  "stats": {
+    "total": 1000,
+    "success": 20,
+    "timeout": 0,
+    "error_503": 0,
+    "error_other": 980,
+    "avg_ms": 1121,
+    "min_ms": 415,
+    "max_ms": 4992,
+    "total_time_sec": 5.03
+  },
+  "sample_results": [
+    {
+      "status": 429,
+      "ms": 810,
+      "result": "{\"error\":\"Rate limit exceeded: 20 per 1 minute\"}"
+    },
+    {
+      "status": 429,
+      "ms": 740,
+      "result": "{\"error\":\"Rate limit exceeded: 20 per 1 minute\"}"
+    },
+    {
+      "status": 429,
+      "ms": 535,
+      "result": "{\"error\":\"Rate limit exceeded: 20 per 1 minute\"}"
+    },
+    {
+      "status": 429,
+      "ms": 479,
+      "result": "{\"error\":\"Rate limit exceeded: 20 per 1 minute\"}"
+    },
+    {
+      "status": 429,
+      "ms": 528,
+      "result": "{\"error\":\"Rate limit exceeded: 20 per 1 minute\"}"
+    },
+    {
+      "status": 429,
+      "ms": 736,
+      "result": "{\"error\":\"Rate limit exceeded: 20 per 1 minute\"}"
+    },
+    {
+      "status": 429,
+      "ms": 479,
+      "result": "{\"error\":\"Rate limit exceeded: 20 per 1 minute\"}"
+    },
+    {
+      "status": 429,
+      "ms": 621,
+      "result": "{\"error\":\"Rate limit exceeded: 20 per 1 minute\"}"
+    },
+    {
+      "status": 200,
+      "ms": 1133,
+      "result": "OK"
+    },
+    {
+      "status": 429,
+      "ms": 618,
+      "result": "{\"error\":\"Rate limit exceeded: 20 per 1 minute\"}"
+    }
+  ]
+}

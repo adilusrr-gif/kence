@@ -85,3 +85,24 @@ def test_upload_char_count(client):
         r = _upload(client, sid, b"Hello document content", "test.txt")
     assert r.status_code == 200
     assert r.json()["char_count"] == len(FAKE_MARKDOWN)
+
+
+def test_upload_html_preview_stored_on_disk_and_readable(client):
+    """The HTML preview is no longer kept in RAM/Postgres (see
+    session_manager.store_html) — it's written to uploads/{session_id}/preview.html
+    and must round-trip through GET /documents/{sid}/content."""
+    from pathlib import Path
+    from app.core.config import get_settings
+
+    with patch("app.api.routes.validate_mime", return_value=_GOOD_MIME):
+        sid = _make_session(client)
+        r = _upload(client, sid, b"Hello document content", "test.txt")
+    assert r.status_code == 200
+
+    html_path = Path(get_settings().UPLOAD_DIR) / sid / "preview.html"
+    assert html_path.exists()
+    assert html_path.read_text(encoding="utf-8") == FAKE_HTML
+
+    content = client.get(f"/api/documents/{sid}/content")
+    assert content.status_code == 200
+    assert content.json()["html"] == FAKE_HTML

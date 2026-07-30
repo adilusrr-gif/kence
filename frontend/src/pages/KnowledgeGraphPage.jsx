@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import useOrgStore from '../shared/stores/orgStore'
-import { apiExportGraph, apiTriggerExtraction, apiGetExtractionJob, apiQueryGraph } from '../lib/api'
+import { apiExportGraph, apiTriggerExtraction, apiGetExtractionJob, apiQueryGraph, apiGetGraphDocuments } from '../lib/api'
 import { useToastStore } from '../shared/stores/toastStore'
 
 const ENTITY_COLORS = {
@@ -50,6 +50,23 @@ export default function KnowledgeGraphPage() {
   const [hiddenTypes, setHiddenTypes] = useState(new Set())
   const sessionId = localStorage.getItem('docai_session')
   const [FG, setFG] = useState(null)
+  // Graph scope: '' = whole organization, otherwise a specific document's session_id.
+  // Defaults to the currently open document so the view reflects "this document".
+  const [scope, setScope] = useState(sessionId || '')
+  const [graphDocs, setGraphDocs] = useState([])
+
+  // Force-simulation tuning, user-adjustable from the sidebar.
+  const DEFAULT_PHYSICS = { charge: -300, linkDist: 80, linkStr: 0.6, center: 0.05, nodeScale: 1 }
+  const [physics, setPhysics] = useState(() => {
+    try { return { ...DEFAULT_PHYSICS, ...JSON.parse(localStorage.getItem('kence_graph_physics') || '{}') } }
+    catch { return DEFAULT_PHYSICS }
+  })
+  const [showPhysics, setShowPhysics] = useState(false)
+  const setPhys = (k, v) => setPhysics(p => {
+    const next = { ...p, [k]: v }
+    localStorage.setItem('kence_graph_physics', JSON.stringify(next))
+    return next
+  })
 
   // Clear poll on unmount
   useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current) }, [])
@@ -62,7 +79,7 @@ export default function KnowledgeGraphPage() {
     if (!currentOrgId) return
     setLoading(true)
     try {
-      const data = await apiExportGraph(currentOrgId)
+      const data = await apiExportGraph(currentOrgId, scope || undefined)
       setGraphData(data)
       setSelectedNode(null)
       setHoveredNode(null)
@@ -71,12 +88,20 @@ export default function KnowledgeGraphPage() {
     } finally {
       setLoading(false)
     }
-  }, [currentOrgId, addToast, t])
+  }, [currentOrgId, scope, addToast, t])
 
   useEffect(() => {
     if (!currentOrgId) return
     loadGraph()
   }, [currentOrgId, loadGraph])
+
+  // Load the list of documents that have an extracted graph (for the scope selector).
+  useEffect(() => {
+    if (!currentOrgId) { setGraphDocs([]); return }
+    apiGetGraphDocuments(currentOrgId)
+      .then(res => setGraphDocs(Array.isArray(res) ? res : (res?.documents || [])))
+      .catch(() => setGraphDocs([]))
+  }, [currentOrgId, jobStatus?.status])
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -88,15 +113,16 @@ export default function KnowledgeGraphPage() {
     return () => ro.disconnect()
   }, [])
 
-  // Tune physics after graph mounts / data changes
+  // Tune physics after graph mounts / data changes or when the user adjusts sliders.
   useEffect(() => {
     if (!graphRef.current || !FG) return
     try {
-      graphRef.current.d3Force('charge')?.strength(-280)
-      graphRef.current.d3Force('link')?.distance(90).strength(0.5)
-      graphRef.current.d3Force('center')?.strength(0.05)
+      graphRef.current.d3Force('charge')?.strength(physics.charge)
+      graphRef.current.d3Force('link')?.distance(physics.linkDist).strength(physics.linkStr)
+      graphRef.current.d3Force('center')?.strength(physics.center)
+      graphRef.current.d3ReheatSimulation()
     } catch { }
-  }, [graphData, FG])
+  }, [graphData, FG, physics])
 
   const handleExtract = async () => {
     if (!sessionId) { addToast('error', t('graph.noSession')); return }
@@ -213,7 +239,7 @@ export default function KnowledgeGraphPage() {
     if (!isFinite(node.x) || !isFinite(node.y)) return
     const color = ENTITY_COLORS[node.type] || '#888'
     const degree = degreeMap[node.id] || 1
-    const r = Math.max(5, Math.min(14, 5 + Math.sqrt(degree) * 2))
+    const r = Math.max(5, Math.min(14, 5 + Math.sqrt(degree) * 2)) * physics.nodeScale
     const isSelected = selectedNode?.id === node.id
     const dimmed = hoveredNeighborIds != null && !hoveredNeighborIds.has(node.id)
 
@@ -270,7 +296,7 @@ export default function KnowledgeGraphPage() {
     ctx.fillText(label, node.x, ly)
 
     ctx.globalAlpha = 1
-  }, [degreeMap, hoveredNeighborIds, selectedNode])
+  }, [degreeMap, hoveredNeighborIds, selectedNode, physics.nodeScale])
 
   const handleEngineStop = useCallback(() => {
     graphRef.current?.zoomToFit(500, 40)
@@ -291,7 +317,7 @@ export default function KnowledgeGraphPage() {
     : jobStatus?.status === 'failed' ? 'var(--status-danger)' : 'var(--status-warning)'
 
   const s = {
-    page: { display: 'flex', height: 'calc(100vh - 60px)', color: 'var(--text-primary)', overflow: 'hidden' },
+    page: { display: 'flex', flex: 1, height: '100%', minHeight: 0, color: 'var(--text-primary)', overflow: 'hidden' },
     sidebar: {
       width: 280, flexShrink: 0,
       background: 'var(--bg-surface)', borderRight: '1px solid var(--border)',
@@ -327,6 +353,71 @@ export default function KnowledgeGraphPage() {
           <div style={{ fontSize: 12, color: 'var(--text-faint)' }}>
             {t('graph.nodes', { count: filteredGraph.nodes.length, links: filteredGraph.links.length })}
           </div>
+        </div>
+
+        <div style={s.divider} />
+
+        {/* Scope selector — current document vs. whole organization */}
+        <div>
+          <div style={s.label}>{t('graph.scope')}</div>
+          <select style={s.input} value={scope} onChange={e => setScope(e.target.value)}>
+            <option value="">{t('graph.scopeOrg')}</option>
+            {sessionId && !graphDocs.some(d => d.session_id === sessionId) && (
+              <option value={sessionId}>{t('graph.scopeCurrent')}</option>
+            )}
+            {graphDocs.map(d => (
+              <option key={d.session_id} value={d.session_id}>
+                {(d.session_id === sessionId ? '● ' : '') + (d.document_name || d.session_id)}
+                {d.node_count != null ? ` (${d.node_count})` : ''}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={s.divider} />
+
+        {/* Physics controls */}
+        <div>
+          <button
+            onClick={() => setShowPhysics(v => !v)}
+            style={{ ...s.label, marginBottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--text-faint)' }}
+          >
+            <span>{t('graph.physics.title', 'Физика графа')}</span>
+            <span style={{ fontSize: 12, transform: showPhysics ? 'rotate(90deg)' : 'none', transition: 'transform 120ms' }}>▸</span>
+          </button>
+          {showPhysics && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+              {[
+                { k: 'charge',    label: t('graph.physics.repulsion', 'Отталкивание'),     min: -800, max: -20, step: 10,   fmt: v => Math.round(v) },
+                { k: 'linkDist',  label: t('graph.physics.linkDist', 'Длина связей'),       min: 20,   max: 220, step: 5,    fmt: v => Math.round(v) },
+                { k: 'linkStr',   label: t('graph.physics.linkStr', 'Притяжение связей'),   min: 0,    max: 1,   step: 0.05, fmt: v => v.toFixed(2) },
+                { k: 'center',    label: t('graph.physics.center', 'Центрирование'),        min: 0,    max: 0.4, step: 0.01, fmt: v => v.toFixed(2) },
+                { k: 'nodeScale', label: t('graph.physics.nodeSize', 'Размер узлов'),       min: 0.5,  max: 2.5, step: 0.1,  fmt: v => v.toFixed(1) + '×' },
+              ].map(({ k, label, min, max, step, fmt }) => (
+                <div key={k}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 3 }}>
+                    <span>{label}</span>
+                    <span style={{ color: 'var(--text-faint)', fontVariantNumeric: 'tabular-nums' }}>{fmt(physics[k])}</span>
+                  </div>
+                  <input
+                    type="range" min={min} max={max} step={step} value={physics[k]}
+                    onChange={e => setPhys(k, parseFloat(e.target.value))}
+                    style={{ width: '100%', accentColor: 'var(--accent-primary)', cursor: 'pointer' }}
+                  />
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button style={{ ...s.btn('ghost'), padding: '0.3rem 0.6rem', fontSize: 12 }}
+                  onClick={() => { setPhysics(DEFAULT_PHYSICS); localStorage.setItem('kence_graph_physics', JSON.stringify(DEFAULT_PHYSICS)) }}>
+                  {t('graph.physics.reset', 'Сбросить')}
+                </button>
+                <button style={{ ...s.btn('ghost'), padding: '0.3rem 0.6rem', fontSize: 12 }}
+                  onClick={() => graphRef.current?.zoomToFit(400, 40)}>
+                  {t('graph.zoomFit', 'По размеру')}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={s.divider} />
@@ -521,6 +612,7 @@ export default function KnowledgeGraphPage() {
               hoveredNeighborIds.has(typeof l.source === 'object' ? l.source.id : l.source) ||
               hoveredNeighborIds.has(typeof l.target === 'object' ? l.target.id : l.target)
             ) ? 2.5 : 1}
+            linkCurvature={0.12}
             linkDirectionalArrowLength={5}
             linkDirectionalArrowRelPos={1}
             linkDirectionalArrowColor={l => LINK_COLORS[l.type] || '#475569'}

@@ -7,13 +7,14 @@ import re
 
 settings = get_settings()
 
-SupportedFormat = Literal["txt", "md", "docx", "pdf"]
+SupportedFormat = Literal["txt", "md", "docx", "pdf", "html"]
 
 FORMAT_EXTENSIONS = {
     "txt":  ".txt",
     "md":   ".md",
     "docx": ".docx",
     "pdf":  ".pdf",
+    "html": ".html",
 }
 
 MEDIA_TYPES = {
@@ -21,6 +22,7 @@ MEDIA_TYPES = {
     "md":   "text/markdown",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "pdf":  "application/pdf",
+    "html": "text/html; charset=utf-8",
 }
 
 _CHART_RE = re.compile(
@@ -157,6 +159,14 @@ def _markdown_to_docx(markdown_text: str, output_path: Path, llm_service=None):
 def _text_to_pdf(text: str, output_path: Path, title: str = "Document"):
     """Create PDF from text via fpdf2 with Unicode support."""
     from fpdf import FPDF
+    from fpdf.enums import XPos, YPos
+
+    # fpdf2 >= 2.7 leaves the cursor at the right margin after multi_cell unless
+    # told otherwise; without resetting x to the left margin the *next* multi_cell
+    # has zero usable width and raises "Not enough horizontal space". Reset on
+    # every wrapped line so multi-line documents render correctly.
+    def mcell(h, txt):
+        pdf.multi_cell(0, h, txt, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
 
     class PDF(FPDF):
         def header(self):
@@ -187,33 +197,148 @@ def _text_to_pdf(text: str, output_path: Path, title: str = "Document"):
         if line.startswith("### "):
             safe_font(bold=True)
             pdf.set_font_size(13)
-            pdf.multi_cell(0, 8, line[4:])
+            mcell(8, line[4:])
             pdf.ln(2)
         elif line.startswith("## "):
             safe_font(bold=True)
             pdf.set_font_size(15)
-            pdf.multi_cell(0, 9, line[3:])
+            mcell(9, line[3:])
             pdf.ln(3)
         elif line.startswith("# "):
             safe_font(bold=True)
             pdf.set_font_size(18)
-            pdf.multi_cell(0, 10, line[2:])
+            mcell(10, line[2:])
             pdf.ln(4)
         elif line.startswith(("- ", "* ")):
             safe_font()
-            pdf.multi_cell(0, 7, f"  • {line[2:]}")
+            mcell(7, f"  • {line[2:]}")
         elif line in ("", "---"):
             pdf.ln(4)
         else:
             clean = _strip_markdown(line)
             if clean.strip():
                 safe_font()
-                pdf.multi_cell(0, 7, clean)
+                mcell(7, clean)
 
     pdf.output(str(output_path))
 
 
+def _md_inline_to_html(text: str) -> str:
+    """Escape HTML then re-apply inline markdown (bold, italic, code)."""
+    import html as _html
+    out = _html.escape(text)
+    out = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', out)
+    out = re.sub(r'(?<!\*)\*([^*]+)\*(?!\*)', r'<em>\1</em>', out)
+    out = re.sub(r'`([^`]+)`', r'<code>\1</code>', out)
+    return out
+
+
+def _markdown_to_html(markdown_text: str, output_path: Path, title: str = "Document"):
+    """Convert Markdown to a standalone, structure-preserving HTML document.
+
+    Preserves headings, ordered/unordered lists (with numbering), tables, and
+    inline formatting — so the translated download keeps the original document
+    structure.
+    """
+    import html as _html
+
+    lines = markdown_text.split("\n")
+    body: list[str] = []
+    table_buffer: list[str] = []
+    list_stack: list[str] = []   # "ul" | "ol" currently open
+
+    def close_lists():
+        while list_stack:
+            body.append(f"</{list_stack.pop()}>")
+
+    def flush_table():
+        if not table_buffer:
+            return
+        data_rows = [l for l in table_buffer if not re.match(r'^\|[\s\-:|]+\|$', l)]
+        rows = [[c.strip() for c in l.strip('|').split('|')] for l in data_rows]
+        if rows:
+            body.append('<table border="1" cellspacing="0" cellpadding="4">')
+            for r_idx, row in enumerate(rows):
+                tag = "th" if r_idx == 0 else "td"
+                cells = "".join(f"<{tag}>{_md_inline_to_html(c)}</{tag}>" for c in row)
+                body.append(f"<tr>{cells}</tr>")
+            body.append("</table>")
+        table_buffer.clear()
+
+    i = 0
+    while i < len(lines):
+        line = lines[i].rstrip()
+
+        if line.startswith("|"):
+            close_lists()
+            table_buffer.append(line)
+            i += 1
+            continue
+        if table_buffer:
+            flush_table()
+
+        m_h = re.match(r'^(#{1,6})\s+(.*)$', line)
+        if m_h:
+            close_lists()
+            level = len(m_h.group(1))
+            body.append(f"<h{level}>{_md_inline_to_html(m_h.group(2))}</h{level}>")
+            i += 1
+            continue
+
+        m_ul = re.match(r'^\s*[-*+]\s+(.*)$', line)
+        m_ol = re.match(r'^\s*\d+[.)]\s+(.*)$', line)
+        if m_ul:
+            if not list_stack or list_stack[-1] != "ul":
+                close_lists()
+                list_stack.append("ul")
+                body.append("<ul>")
+            body.append(f"<li>{_md_inline_to_html(m_ul.group(1))}</li>")
+            i += 1
+            continue
+        if m_ol:
+            if not list_stack or list_stack[-1] != "ol":
+                close_lists()
+                list_stack.append("ol")
+                body.append("<ol>")
+            body.append(f"<li>{_md_inline_to_html(m_ol.group(1))}</li>")
+            i += 1
+            continue
+
+        close_lists()
+        if line.strip() in ("", "---"):
+            if line.strip() == "---":
+                body.append("<hr/>")
+        else:
+            body.append(f"<p>{_md_inline_to_html(line)}</p>")
+        i += 1
+
+    flush_table()
+    close_lists()
+
+    html_doc = (
+        "<!DOCTYPE html>\n<html lang=\"ru\">\n<head>\n"
+        "<meta charset=\"utf-8\"/>\n"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>\n"
+        f"<title>{_html.escape(title)}</title>\n"
+        "<style>body{font-family:'DejaVu Sans',Arial,sans-serif;line-height:1.5;"
+        "max-width:900px;margin:2rem auto;padding:0 1rem;color:#1e293b}"
+        "table{border-collapse:collapse;width:100%;margin:1rem 0}"
+        "th{background:#f1f5f9;text-align:left}td,th{border:1px solid #cbd5e1;padding:6px}"
+        "h1,h2,h3{color:#0f172a}code{background:#f1f5f9;padding:1px 4px;border-radius:3px}"
+        "</style>\n</head>\n<body>\n"
+        + "\n".join(body)
+        + "\n</body>\n</html>\n"
+    )
+    output_path.write_text(html_doc, encoding="utf-8")
+    return output_path
+
+
 class ConverterService:
+    # Exposed as instance attributes so callers can do
+    # converter_service.FORMAT_EXTENSIONS / .MEDIA_TYPES.
+    FORMAT_EXTENSIONS = FORMAT_EXTENSIONS
+    MEDIA_TYPES = MEDIA_TYPES
+
     def __init__(self):
         self.converter = DocumentConverter()
 
@@ -254,6 +379,8 @@ class ConverterService:
             _markdown_to_docx(markdown, output_path)
         elif target_format == "pdf":
             _text_to_pdf(markdown, output_path, title=source_path.stem)
+        elif target_format == "html":
+            _markdown_to_html(markdown, output_path, title=source_path.stem)
 
         return output_path
 
@@ -267,13 +394,17 @@ class ConverterService:
     ):
         """Save arbitrary text in the given format (translation or edited export)."""
         if target_format == "txt":
-            output_path.write_text(text, encoding="utf-8")
+            output_path.write_text(_strip_markdown(text), encoding="utf-8")
         elif target_format == "md":
             output_path.write_text(text, encoding="utf-8")
         elif target_format == "docx":
             _markdown_to_docx(text, output_path, llm_service=llm_service)
         elif target_format == "pdf":
             _text_to_pdf(text, output_path, title=title)
+        elif target_format == "html":
+            _markdown_to_html(text, output_path, title=title)
+        else:
+            raise ValueError(f"Unsupported format: {target_format}")
         return output_path
 
 

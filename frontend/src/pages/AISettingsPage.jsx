@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, LayoutTemplate, Settings2, ScanSearch, RotateCcw, Save, AlertTriangle } from 'lucide-react'
+import { MessageSquare, FileSearch, MessagesSquare, LayoutTemplate, Settings2, ScanSearch, RotateCcw, Save, AlertTriangle, User, Globe } from 'lucide-react'
 import { apiGetPrompts, apiUpdatePrompt, apiResetPrompt, apiResetAllPrompts } from '../lib/api'
 
 const TABS = [
@@ -11,6 +10,18 @@ const TABS = [
     Icon: MessageSquare,
     labelKey: 'aiSettings.tabs.chat_prompt.label',
     hintKey: 'aiSettings.tabs.chat_prompt.hint',
+  },
+  {
+    key: 'exact_prompt',
+    Icon: FileSearch,
+    labelKey: 'aiSettings.tabs.exact_prompt.label',
+    hintKey: 'aiSettings.tabs.exact_prompt.hint',
+  },
+  {
+    key: 'consultation_prompt',
+    Icon: MessagesSquare,
+    labelKey: 'aiSettings.tabs.consultation_prompt.label',
+    hintKey: 'aiSettings.tabs.consultation_prompt.hint',
   },
   {
     key: 'presentation_prompt',
@@ -64,11 +75,11 @@ function SkeletonBlock({ h = 20, w = '100%', mb = 0 }) {
 
 export default function AISettingsPage({ currentUser }) {
   const { t } = useTranslation()
+  const isAdmin = currentUser?.role === 'admin'
 
-  if (currentUser?.role !== 'admin') return <Navigate to="/" replace />
-
+  const [scope, setScope]                 = useState('user') // 'user' | 'global' (admin only)
   const [activeTab, setActiveTab]         = useState('chat_prompt')
-  const [prompts, setPrompts]             = useState({})
+  const [prompts, setPrompts]             = useState({})     // { [key]: { content, is_personal } }
   const [editValues, setEditValues]       = useState({})
   const [saving, setSaving]               = useState(null)
   const [resetting, setResetting]         = useState(null)
@@ -82,12 +93,12 @@ export default function AISettingsPage({ currentUser }) {
     setTimeout(() => setToast(null), 3000)
   }
 
-  const loadPrompts = useCallback(async () => {
+  const loadPrompts = useCallback(async (activeScope) => {
     try {
       setLoading(true)
-      const data = await apiGetPrompts()
+      const data = await apiGetPrompts(activeScope)
       setPrompts(data.prompts)
-      setEditValues(data.prompts)
+      setEditValues(Object.fromEntries(Object.entries(data.prompts).map(([k, v]) => [k, v.content])))
     } catch (err) {
       showToast(err.message, false)
     } finally {
@@ -95,13 +106,13 @@ export default function AISettingsPage({ currentUser }) {
     }
   }, [])
 
-  useEffect(() => { loadPrompts() }, [loadPrompts])
+  useEffect(() => { loadPrompts(scope) }, [loadPrompts, scope])
 
   const handleSave = async (key) => {
     setSaving(key)
     try {
-      await apiUpdatePrompt(key, editValues[key])
-      setPrompts(prev => ({ ...prev, [key]: editValues[key] }))
+      await apiUpdatePrompt(key, editValues[key], scope)
+      setPrompts(prev => ({ ...prev, [key]: { ...prev[key], content: editValues[key], is_personal: scope === 'user' ? true : prev[key]?.is_personal } }))
       showToast(t('aiSettings.savedMsg'))
     } catch (err) {
       showToast(err.message, false)
@@ -119,8 +130,8 @@ export default function AISettingsPage({ currentUser }) {
     setConfirmReset(null)
     setResetting(key)
     try {
-      const data = await apiResetPrompt(key)
-      setPrompts(prev => ({ ...prev, [key]: data.content }))
+      const data = await apiResetPrompt(key, scope)
+      setPrompts(prev => ({ ...prev, [key]: { content: data.content, is_personal: scope === 'global' ? false : false } }))
       setEditValues(prev => ({ ...prev, [key]: data.content }))
       showToast(t('aiSettings.resetMsg'))
     } catch (err) {
@@ -139,7 +150,7 @@ export default function AISettingsPage({ currentUser }) {
     setConfirmAllReset(false)
     try {
       await apiResetAllPrompts()
-      await loadPrompts()
+      await loadPrompts(scope)
       showToast(t('aiSettings.resetAllMsg'))
     } catch (err) {
       showToast(err.message, false)
@@ -147,7 +158,9 @@ export default function AISettingsPage({ currentUser }) {
   }
 
   const activeTabInfo = TABS.find(tab => tab.key === activeTab)
-  const isDirty = editValues[activeTab] !== prompts[activeTab]
+  const currentContent = prompts[activeTab]?.content ?? ''
+  const isDirty = editValues[activeTab] !== currentContent
+  const isPersonal = !!prompts[activeTab]?.is_personal
 
   return (
     <div style={{ maxWidth: 940, margin: '0 auto', padding: '2rem 1rem', position: 'relative' }}>
@@ -182,22 +195,46 @@ export default function AISettingsPage({ currentUser }) {
         )}
       </AnimatePresence>
 
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.5rem', gap: 12 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 className="text-gradient-accent" style={{ margin: 0, fontSize: '1.35rem', fontWeight: 800 }}>{t('aiSettings.title')}</h1>
           <p style={{ margin: '0.25rem 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
             {t('aiSettings.subtitle')}
           </p>
         </div>
-        <button
-          onClick={handleResetAll}
-          aria-label={t('aiSettings.confirmResetAll')}
-          style={{ ...s.btn(confirmAllReset ? 'danger' : 'ghost'), flexShrink: 0, gap: 5 }}
-        >
-          <AlertTriangle size={13} style={{ opacity: confirmAllReset ? 1 : 0.6 }} />
-          {confirmAllReset ? t('aiSettings.confirmResetAll') : t('aiSettings.resetAll')}
-        </button>
+        {isAdmin && scope === 'global' && (
+          <button
+            onClick={handleResetAll}
+            aria-label={t('aiSettings.confirmResetAll')}
+            style={{ ...s.btn(confirmAllReset ? 'danger' : 'ghost'), flexShrink: 0, gap: 5 }}
+          >
+            <AlertTriangle size={13} style={{ opacity: confirmAllReset ? 1 : 0.6 }} />
+            {confirmAllReset ? t('aiSettings.confirmResetAll') : t('aiSettings.resetAll')}
+          </button>
+        )}
       </div>
+
+      {isAdmin && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: '1.25rem' }}>
+          {[
+            { key: 'user', label: t('aiSettings.scopeUser'), Icon: User },
+            { key: 'global', label: t('aiSettings.scopeGlobal'), Icon: Globe },
+          ].map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              onClick={() => setScope(key)}
+              aria-pressed={scope === key}
+              style={{
+                ...s.btn(scope === key ? 'primary' : 'ghost'),
+                fontSize: 12.5,
+              }}
+            >
+              <Icon size={12} />
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 16 }}>
@@ -222,8 +259,9 @@ export default function AISettingsPage({ currentUser }) {
         >
           <div style={s.card}>
             {TABS.map(({ key, Icon, labelKey }) => {
-              const dirty = editValues[key] !== prompts[key]
+              const dirty = editValues[key] !== (prompts[key]?.content ?? '')
               const active = activeTab === key
+              const personal = !!prompts[key]?.is_personal
               return (
                 <button
                   key={key}
@@ -242,6 +280,14 @@ export default function AISettingsPage({ currentUser }) {
                 >
                   <Icon size={15} style={{ opacity: active ? 1 : 0.55, flexShrink: 0 }} />
                   <span style={{ flex: 1 }}>{t(labelKey)}</span>
+                  {scope === 'user' && personal && (
+                    <span
+                      title={t('aiSettings.personalBadge')}
+                      style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--accent-primary)', border: '1px solid color-mix(in srgb, var(--accent-primary) 40%, transparent)', borderRadius: 5, padding: '1px 5px', flexShrink: 0 }}
+                    >
+                      {t('aiSettings.personalBadge')}
+                    </span>
+                  )}
                   {dirty && (
                     <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--status-warning)', flexShrink: 0 }} />
                   )}
@@ -257,8 +303,17 @@ export default function AISettingsPage({ currentUser }) {
               display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12,
             }}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 3, color: 'var(--text-base)' }}>
+                <div style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 3, color: 'var(--text-base)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   {activeTabInfo && t(activeTabInfo.labelKey)}
+                  {scope === 'user' && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, borderRadius: 5, padding: '1px 6px',
+                      color: isPersonal ? 'var(--accent-primary)' : 'var(--text-muted)',
+                      border: `1px solid ${isPersonal ? 'color-mix(in srgb, var(--accent-primary) 40%, transparent)' : 'var(--border)'}`,
+                    }}>
+                      {isPersonal ? t('aiSettings.personalBadge') : t('aiSettings.globalBadge')}
+                    </span>
+                  )}
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
                   {activeTabInfo && t(activeTabInfo.hintKey)}
@@ -273,6 +328,7 @@ export default function AISettingsPage({ currentUser }) {
                     <button
                       onClick={() => handleReset(activeTab)}
                       disabled={resetting === activeTab}
+                      title={scope === 'user' ? t('aiSettings.resetHint') : undefined}
                       style={{ ...s.btn('danger'), fontSize: 12 }}
                     >
                       <RotateCcw size={11} />
@@ -280,7 +336,12 @@ export default function AISettingsPage({ currentUser }) {
                     </button>
                   </>
                 ) : (
-                  <button onClick={() => handleReset(activeTab)} disabled={resetting === activeTab} style={{ ...s.btn('ghost'), opacity: 0.8 }}>
+                  <button
+                    onClick={() => handleReset(activeTab)}
+                    disabled={resetting === activeTab || (scope === 'user' && !isPersonal)}
+                    title={scope === 'user' ? t('aiSettings.resetHint') : undefined}
+                    style={{ ...s.btn(scope === 'user' && !isPersonal ? 'disabled' : 'ghost'), opacity: scope === 'user' && !isPersonal ? undefined : 0.8 }}
+                  >
                     <RotateCcw size={12} />
                     {t('aiSettings.reset')}
                   </button>

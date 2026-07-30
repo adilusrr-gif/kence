@@ -16,12 +16,16 @@ class AgentState(TypedDict):
     task_id: int
     question: Optional[str]
     instructions: Optional[str]
+    language: str
     context: Optional[str]
     graph_context: Optional[str]
     history: list
     steps: list
     result: Optional[Any]
     error: Optional[str]
+    # Compliance agent inputs (optional for other agents)
+    library_doc_ids: Optional[list]
+    direction: Optional[str]
 
 
 def emit_step(task_id: int, step_name: str, status: str, detail: str = "", chunk: str = "") -> None:

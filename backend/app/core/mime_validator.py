@@ -43,7 +43,11 @@ def validate_mime(file_path: str | Path) -> tuple[bool, str]:
     if ext in (".tex", ".txt", ".html", ".htm", ".md"):
         return True, EXTENSION_MIME_MAP.get(ext, "text/plain")
 
-    kind = filetype.guess(str(path))
+    try:
+        kind = filetype.guess(str(path))
+    except Exception:
+        return False, "unreadable"
+
     if kind is None:
         # Could be a plain-text file that filetype can't identify
         return True, "application/octet-stream"

@@ -51,6 +51,7 @@ export async function request(method, path, { body, params, form } = {}) {
   }
 
   if (token) headers['Authorization'] = `Bearer ${token}`
+  headers['X-Language'] = localStorage.getItem('kence_lang') || 'ru'
 
   const res = await fetch(url, { method, headers, body: bodyPayload })
 
@@ -61,7 +62,11 @@ export async function request(method, path, { body, params, form } = {}) {
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || 'Ошибка сервера')
+    // 422 Pydantic validation errors return detail as an array
+    const detail = Array.isArray(err.detail)
+      ? err.detail.map(e => e.msg?.replace(/^Value error, /, '') || String(e)).join('; ')
+      : (err.detail || 'Ошибка сервера')
+    throw new Error(detail)
   }
 
   const ct = res.headers.get('content-type') || ''

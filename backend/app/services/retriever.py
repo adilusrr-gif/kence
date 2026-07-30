@@ -68,6 +68,24 @@ class HybridRetriever:
             logger.warning("[retriever] _all_chunks failed: %s", e)
             return []
 
+    def _build_bm25(self):
+        """Fetch all chunks and build the BM25 index. Returns (bm25, chunks) or
+        None when BM25 is unavailable. Cached per session by bm25_cache so this
+        runs once per document, not once per query."""
+        all_chunks = self._all_chunks()
+        if len(all_chunks) < 3:
+            return None
+        try:
+            from rank_bm25 import BM25Okapi
+            tokenized = [c.page_content.lower().split() for c in all_chunks]
+            return (BM25Okapi(tokenized), all_chunks)
+        except ImportError:
+            logger.debug("[retriever] rank_bm25 not installed; skipping BM25")
+            return None
+        except Exception as e:
+            logger.warning("[retriever] BM25 build failed: %s", e)
+            return None
+
     def retrieve(self, query: str, k: int = 8, mode: str = "precise") -> List[LCDocument]:
         fetch_k = k * 2
 
@@ -83,29 +101,30 @@ class HybridRetriever:
             return []
 
         # ── BM25 search ────────────────────────────────────────────────────
-        all_chunks = self._all_chunks()
-        bm25_docs: List[LCDocument] = []
+        # The (query-independent) index is built once per document and cached;
+        # only the per-query scoring below runs each call.
+        from app.services import bm25_cache
 
-        if len(all_chunks) >= 3:
+        bm25_docs: List[LCDocument] = []
+        bundle = bm25_cache.get_or_build(self.session_id, self._build_bm25)
+        if bundle is not None:
             try:
-                from rank_bm25 import BM25Okapi
-                tokenized = [c.page_content.lower().split() for c in all_chunks]
-                bm25 = BM25Okapi(tokenized)
+                bm25, all_chunks = bundle
                 scores = bm25.get_scores(query.lower().split())
                 top_idx = np.argsort(scores)[::-1][:fetch_k]
                 bm25_docs = [all_chunks[i] for i in top_idx]
-            except ImportError:
-                logger.debug("[retriever] rank_bm25 not installed; skipping BM25")
             except Exception as e:
-                logger.warning("[retriever] BM25 failed: %s", e)
+                logger.warning("[retriever] BM25 scoring failed: %s", e)
 
         if not bm25_docs:
             # No BM25 — return semantic results only
             return semantic_docs[:k]
 
         # ── RRF fusion ─────────────────────────────────────────────────────
+        from app.services.pipeline import stable_chunk_id
+
         def _id(doc: LCDocument) -> str:
-            return doc.page_content[:120]
+            return stable_chunk_id(doc.page_content)
 
         id_to_doc = {_id(d): d for d in semantic_docs + bm25_docs}
         semantic_ids = [_id(d) for d in semantic_docs]

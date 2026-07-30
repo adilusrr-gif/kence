@@ -9,3 +9,4 @@ export const apiCompareUpload    = (id, file1, file2) => {
 export const apiCompareSemantic  = id => request('POST', '/api/compare/semantic',  { params: { session_id: id } })
 export const apiCompareTechnical = id => request('POST', '/api/compare/technical', { params: { session_id: id } })
 export const apiCompareExact     = id => request('POST', '/api/compare/exact',     { params: { session_id: id } })
+export const apiCompareThematic  = id => request('POST', '/api/compare/thematic',  { params: { session_id: id } })

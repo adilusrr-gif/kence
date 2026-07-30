@@ -1,18 +1,22 @@
 from fastapi import FastAPI, Request
 from fastapi import HTTPException as FastAPIHTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from fastapi.responses import JSONResponse, Response
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from app.core.limiter import limiter
+from app.core.logging_config import setup_logging
 from contextlib import asynccontextmanager
 import asyncio
+import hmac
 import json
 import logging
 import secrets
 import string
 from pathlib import Path
 
+# Configure structured logging before any logger is used
+setup_logging()
 logger = logging.getLogger(__name__)
 
 try:
@@ -34,33 +38,119 @@ from app.api.branding_routes import router as branding_router
 from app.api.executive_routes import router as executive_router
 from app.api.graph_routes import router as graph_router
 from app.api.agent_routes import router as agent_router
+from app.api.config_routes import router as config_router
+from app.api.insights_routes import router as insights_router
+from app.api.system_routes import router as system_router
+from app.api.translation_routes import router as translation_router
 from app.core.session import session_manager
 from app.core.config import get_settings
 from app.services.user_service import create_user, get_user
 
 settings = get_settings()
 
-limiter = Limiter(key_func=get_remote_address)
-
 
 def _init_db():
     try:
         from app.core.database import create_tables
         create_tables()
-        print("[DB] Tables ready")
+        _ensure_schema_upgrades()
+        logger.info("DB tables ready")
         _migrate_users_from_json()
         _ensure_default_org()
     except Exception as e:
-        print(f"[DB] Warning: {e} — running without persistent DB")
+        logger.warning("DB init failed — running without persistent DB: %s", e)
+
+
+def _ensure_schema_upgrades():
+    """Idempotent column additions for tables that predate new features.
+
+    create_all() never ALTERs existing tables, so additive columns on
+    document_library are applied here via ADD COLUMN IF NOT EXISTS (Postgres).
+    """
+    from sqlalchemy import text
+    from app.core.database import engine
+
+    statements = [
+        "ALTER TABLE document_library ADD COLUMN IF NOT EXISTS doc_kind VARCHAR(32) NOT NULL DEFAULT 'document'",
+        "ALTER TABLE document_library ADD COLUMN IF NOT EXISTS direction VARCHAR(128)",
+        "ALTER TABLE document_library ADD COLUMN IF NOT EXISTS issuer VARCHAR(256)",
+        "ALTER TABLE document_library ADD COLUMN IF NOT EXISTS doc_number VARCHAR(128)",
+        "ALTER TABLE document_library ADD COLUMN IF NOT EXISTS doc_date VARCHAR(32)",
+        "ALTER TABLE document_library ADD COLUMN IF NOT EXISTS session_id VARCHAR(64)",
+        "CREATE INDEX IF NOT EXISTS ix_document_library_direction ON document_library (direction)",
+        "CREATE INDEX IF NOT EXISTS ix_document_library_issuer ON document_library (issuer)",
+        "CREATE INDEX IF NOT EXISTS ix_document_library_session_id ON document_library (session_id)",
+        # Per-document knowledge-graph filtering: tag nodes with the source session.
+        "ALTER TABLE knowledge_graph_nodes ADD COLUMN IF NOT EXISTS session_id VARCHAR(64)",
+        "CREATE INDEX IF NOT EXISTS ix_kg_nodes_session_id ON knowledge_graph_nodes (session_id)",
+        # Denormalized session_id on agent_tasks so tasks_by_session filters in SQL.
+        "ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS session_id VARCHAR(64)",
+        "CREATE INDEX IF NOT EXISTS ix_agent_tasks_session_id ON agent_tasks (session_id)",
+    ]
+    try:
+        with engine.begin() as conn:
+            for stmt in statements:
+                conn.execute(text(stmt))
+        logger.info("Schema upgrades applied")
+    except Exception as e:
+        # SQLite (tests) lacks ADD COLUMN IF NOT EXISTS — create_all already has the columns there.
+        logger.debug("Schema upgrade skipped/failed: %s", e)
+
+    # Recreate the knowledge_graph_nodes → doc_sessions FK with ON DELETE SET NULL so
+    # deleting a document/session doesn't fail on the graph-mirror reference. Runs in its
+    # own transaction (idempotent drop+add) so it can't roll back the column upgrades above.
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE knowledge_graph_nodes "
+                "DROP CONSTRAINT IF EXISTS knowledge_graph_nodes_session_id_fkey"
+            ))
+            conn.execute(text(
+                "ALTER TABLE knowledge_graph_nodes "
+                "ADD CONSTRAINT knowledge_graph_nodes_session_id_fkey "
+                "FOREIGN KEY (session_id) REFERENCES doc_sessions(session_id) ON DELETE SET NULL"
+            ))
+        logger.info("knowledge_graph_nodes session_id FK set to ON DELETE SET NULL")
+    except Exception as e:
+        logger.debug("KG FK upgrade skipped/failed: %s", e)
+
+    # Same fix for graph_extraction_jobs and workspace_shares: both are nullable=False
+    # children of doc_sessions, so cleanup_session()'s DELETE on doc_sessions was failing
+    # with a FK violation and leaving expired sessions stuck forever (never removed from
+    # RAM or DB, retried every cleanup_expired cycle). ON DELETE CASCADE lets the session
+    # delete succeed and take its jobs/shares with it, matching chat_messages' FK above.
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "ALTER TABLE graph_extraction_jobs "
+                "DROP CONSTRAINT IF EXISTS graph_extraction_jobs_session_id_fkey"
+            ))
+            conn.execute(text(
+                "ALTER TABLE graph_extraction_jobs "
+                "ADD CONSTRAINT graph_extraction_jobs_session_id_fkey "
+                "FOREIGN KEY (session_id) REFERENCES doc_sessions(session_id) ON DELETE CASCADE"
+            ))
+            conn.execute(text(
+                "ALTER TABLE workspace_shares "
+                "DROP CONSTRAINT IF EXISTS workspace_shares_session_id_fkey"
+            ))
+            conn.execute(text(
+                "ALTER TABLE workspace_shares "
+                "ADD CONSTRAINT workspace_shares_session_id_fkey "
+                "FOREIGN KEY (session_id) REFERENCES doc_sessions(session_id) ON DELETE CASCADE"
+            ))
+        logger.info("graph_extraction_jobs/workspace_shares session_id FKs set to ON DELETE CASCADE")
+    except Exception as e:
+        logger.debug("graph_extraction_jobs/workspace_shares FK upgrade skipped/failed: %s", e)
 
 
 def _ensure_default_org():
     try:
         from app.services.org_service import ensure_default_org
         org = ensure_default_org()
-        print(f"[ORG] Default org ready: {org['slug']} (id={org['id']})")
+        logger.info("Default org ready: %s (id=%s)", org['slug'], org['id'])
     except Exception as e:
-        print(f"[ORG] Warning: could not ensure default org: {e}")
+        logger.warning("Could not ensure default org: %s", e)
 
 
 def _migrate_users_from_json():
@@ -82,9 +172,9 @@ def _migrate_users_from_json():
                         is_active=data.get("is_active", True),
                     ))
             db.commit()
-        print(f"[DB] Migrated {len(users)} users from {users_file}")
+        logger.info("Migrated %d users from %s", len(users), users_file)
     except Exception as e:
-        print(f"[DB] Migration skipped: {e}")
+        logger.debug("User migration skipped: %s", e)
 
 
 def _ensure_default_admin():
@@ -94,48 +184,252 @@ def _ensure_default_admin():
     if not password:
         alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
         password = "".join(secrets.choice(alphabet) for _ in range(20))
-        print("=" * 60)
-        print("[SECURITY] Default admin created with generated password:")
-        print(f"           username: admin")
-        print(f"           password: {password}")
-        print("  >>> Save this password now — it will NOT be shown again <<<")
-        print("  Set ADMIN_INITIAL_PASSWORD in .env to control this value.")
-        print("=" * 60)
+        # Write to a file readable only by this process — never log credentials
+        try:
+            cred_file = Path(settings.UPLOAD_DIR) / ".admin_initial_password"
+            cred_file.parent.mkdir(parents=True, exist_ok=True)
+            cred_file.write_text(f"username=admin\npassword={password}\n")
+            cred_file.chmod(0o600)
+            logger.warning(
+                "SECURITY: Default admin created with auto-generated password. "
+                "Retrieve it from: %s — delete this file after first login. "
+                "Set ADMIN_INITIAL_PASSWORD in .env to control the value.",
+                cred_file.resolve(),
+            )
+        except Exception as e:
+            logger.critical(
+                "SECURITY: Default admin created but credentials file could not be written (%s). "
+                "Set ADMIN_INITIAL_PASSWORD in .env before restarting.",
+                e,
+            )
     else:
-        print("[OK] Default admin created from ADMIN_INITIAL_PASSWORD")
+        logger.info("Default admin created from ADMIN_INITIAL_PASSWORD")
     create_user("admin", password, role="admin")
+
+
+def _cleanup_stale_generation_state():
+    """Task 4: on startup, find AgentTask/GraphExtractionJob rows left in a
+    non-terminal status by a previous process (killed/restarted mid-run) and
+    mark them failed. In-memory state (generation_registry, _llm_semaphore,
+    circuit breaker, queue guard) is module-level and recreated fresh on every
+    process start — nothing to reconcile there."""
+    from datetime import datetime, timezone
+    try:
+        from app.core.database import SessionLocal
+        from app.models.models import AgentTask, GraphExtractionJob
+        with SessionLocal() as db:
+            n1 = db.query(AgentTask).filter(AgentTask.status.in_(["queued", "running"])).update(
+                {
+                    "status": "failed",
+                    "error": "Прервано перезапуском сервера",
+                    "finished_at": datetime.now(timezone.utc),
+                },
+                synchronize_session=False,
+            )
+            n2 = db.query(GraphExtractionJob).filter(GraphExtractionJob.status.in_(["pending", "running"])).update(
+                {
+                    "status": "failed",
+                    "error": "Прервано перезапуском сервера",
+                    "finished_at": datetime.now(timezone.utc),
+                },
+                synchronize_session=False,
+            )
+            if n1 or n2:
+                db.commit()
+                logger.warning(
+                    "[startup] reconciled stale state: %d agent_tasks + %d graph_jobs marked failed",
+                    n1, n2,
+                )
+    except Exception as e:
+        logger.warning("[startup] cleanup_stale_generation_state failed: %s", e)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _init_db()
     _ensure_default_admin()
-    print(f"[START] {settings.APP_NAME} started")
-    print(f"[LLM] {settings.LLM_MODEL} @ {settings.OLLAMA_BASE_URL}")
-    print(f"[AUTH] JWT / {settings.JWT_ALGORITHM} / {settings.ACCESS_TOKEN_EXPIRE_MINUTES}min")
-    print(f"[DB] {settings.DATABASE_URL.split('@')[-1]}")
-    if "change-in-production" in settings.JWT_SECRET_KEY or "dev-only" in settings.JWT_SECRET_KEY:
-        print("[SECURITY WARNING] JWT_SECRET_KEY is the default dev value — set a strong secret in .env!")
-    if not settings.NEO4J_PASSWORD:
-        print("[SECURITY WARNING] NEO4J_PASSWORD is empty — set it in .env for production")
 
-    # Initialize Neo4j constraints (best-effort — app starts even if Neo4j is down)
+    from app.services.llm import llm_service
+    llm_service.bind_loop(asyncio.get_running_loop())
+
+    _cleanup_stale_generation_state()
+
+    # Re-dispatch agent tasks orphaned by a previous restart (resume instead of
+    # leaving them stuck 'running' until the watchdog ages them out).
+    try:
+        from app.api.agent_routes import requeue_interrupted_agent_tasks
+        requeue_interrupted_agent_tasks()
+    except Exception as e:
+        logger.warning("[startup] agent task requeue failed: %s", e)
+
+    logger.info(
+        "%s started",
+        settings.APP_NAME,
+        extra={
+            "llm_model": settings.LLM_MODEL,
+            "ollama_url": settings.OLLAMA_BASE_URL,
+            "jwt_algorithm": settings.JWT_ALGORITHM,
+            "token_expire_min": settings.ACCESS_TOKEN_EXPIRE_MINUTES,
+            "db": settings.DATABASE_URL.split("@")[-1],
+        },
+    )
+    _weak_jwt_patterns = ("change-in-production", "dev-only", "CHANGE_ME", "insecure")
+    if not settings.JWT_SECRET_KEY or len(settings.JWT_SECRET_KEY) < 32 or any(p in settings.JWT_SECRET_KEY for p in _weak_jwt_patterns):
+        logger.critical(
+            "SECURITY: JWT_SECRET_KEY is missing, too short (< 32 chars), or a known-weak placeholder. "
+            "Generate a secret with:  openssl rand -hex 32  then set JWT_SECRET_KEY in .env. "
+            "Server startup aborted."
+        )
+        raise SystemExit(1)
+    if not settings.METRICS_TOKEN:
+        logger.warning("SECURITY: METRICS_TOKEN not set — /metrics restricted to loopback only")
+    if not settings.API_KEY_HMAC_SECRET:
+        logger.warning("SECURITY: API_KEY_HMAC_SECRET not set — API keys use plain SHA-256; set this and regenerate keys")
+    if not settings.NEO4J_PASSWORD:
+        logger.warning("SECURITY: NEO4J_PASSWORD is empty — set it in .env for production")
+
+    # ── Ollama health check at startup (warning only — never blocks start) ──────
+    try:
+        from app.services.llm import llm_service
+        ollama_status = await llm_service.health_check()
+        if ollama_status.get("status") == "ok":
+            logger.info("Ollama ready: %s", settings.LLM_MODEL)
+        else:
+            logger.warning(
+                "Ollama not reachable (%s) — responses will fail until it recovers",
+                ollama_status.get("error", "?"),
+            )
+    except Exception as e:
+        logger.warning("Ollama health check failed: %s", e)
+
+    # ── Warm the embedding model (bge-m3) into VRAM at startup ───────────────────
+    # The ollama container preloads the chat model itself, but embedding models
+    # can't be loaded via `ollama run` — they need an /api/embeddings call, which
+    # that image can't make (no curl/python3). Do it here, in the background, so
+    # the first document ingest/search isn't paying a cold-load penalty.
+    async def warm_embeddings():
+        try:
+            from app.services.embeddings_service import embeddings_service
+            await embeddings_service.embeddings.aembed_query("warmup")
+            logger.info("Embedding model warmed: %s", settings.EMBEDDING_MODEL)
+        except Exception as e:
+            logger.warning("Embedding model warmup failed: %s", e)
+
+    asyncio.create_task(warm_embeddings())
+
+    # ── Neo4j constraints (best-effort) ──────────────────────────────────────
     try:
         from app.services.graph_service import ensure_constraints
         await ensure_constraints()
-        print("[NEO4J] Constraints ready")
+        logger.info("Neo4j constraints ready")
     except Exception as e:
-        print(f"[NEO4J] Skipped constraints: {e}")
+        logger.warning("Neo4j constraints skipped: %s", e)
 
+    # ── Background tasks ──────────────────────────────────────────────────────
     async def cleanup_task():
+        """Periodically expire old sessions. Runs every 5 minutes."""
         while True:
             await asyncio.sleep(300)
-            session_manager.cleanup_expired(settings.SESSION_TIMEOUT)
+            try:
+                session_manager.cleanup_expired(settings.SESSION_TIMEOUT)
+            except Exception as e:
+                logger.warning("[cleanup_task] error: %s", e)
+
+    async def llm_watchdog_task():
+        """Task 2 safety net: periodically clears generation_registry entries
+        stuck "running" longer than LLM_WATCHDOG_MAX_RUNNING_SEC (task done()
+        but finish() never called), and marks AgentTask/GraphExtractionJob rows
+        that have been queued/running longer than LLM_WATCHDOG_MAX_TASK_AGE_SEC
+        as failed (owning process died without updating status)."""
+        from app.core import generation_registry
+        from datetime import datetime, timedelta, timezone
+
+        while True:
+            await asyncio.sleep(settings.LLM_WATCHDOG_INTERVAL_SEC)
+            try:
+                stale = generation_registry.sweep_stale(settings.LLM_WATCHDOG_MAX_RUNNING_SEC)
+                for sid in stale:
+                    logger.warning("[watchdog] force-cleared stale generation: %s", sid)
+
+                cutoff = datetime.now(timezone.utc) - timedelta(seconds=settings.LLM_WATCHDOG_MAX_TASK_AGE_SEC)
+                from app.core.database import SessionLocal
+                from app.models.models import AgentTask, GraphExtractionJob
+                with SessionLocal() as db:
+                    n1 = db.query(AgentTask).filter(
+                        AgentTask.status.in_(["queued", "running"]),
+                        AgentTask.created_at < cutoff,
+                    ).update(
+                        {
+                            "status": "failed",
+                            "error": "Прервано: превышен лимит времени (watchdog)",
+                            "finished_at": datetime.now(timezone.utc),
+                        },
+                        synchronize_session=False,
+                    )
+                    n2 = db.query(GraphExtractionJob).filter(
+                        GraphExtractionJob.status.in_(["pending", "running"]),
+                        GraphExtractionJob.created_at < cutoff,
+                    ).update(
+                        {
+                            "status": "failed",
+                            "error": "Прервано: превышен лимит времени (watchdog)",
+                            "finished_at": datetime.now(timezone.utc),
+                        },
+                        synchronize_session=False,
+                    )
+                    if n1 or n2:
+                        db.commit()
+                        logger.warning(
+                            "[watchdog] marked %d agent_tasks + %d graph_jobs failed (stale)",
+                            n1, n2,
+                        )
+            except Exception as e:
+                logger.warning("[watchdog] error: %s", e)
+
+    # ── Background translation worker ─────────────────────────────────────────
+    # Resume any job interrupted by a previous process (survives restart), then
+    # start the polling worker that processes queued jobs off the main thread.
+    translation_stop = asyncio.Event()
+    translation_worker_task = None
+    if settings.TRANSLATION_WORKER_ENABLED:
+        try:
+            from app.services import translation_worker
+            translation_worker.requeue_interrupted_jobs()
+            translation_worker_task = asyncio.create_task(
+                translation_worker.worker_loop(translation_stop)
+            )
+        except Exception as e:
+            logger.warning("[startup] translation worker not started: %s", e)
+    else:
+        logger.info("[startup] translation worker disabled (TRANSLATION_WORKER_ENABLED=false)")
 
     task = asyncio.create_task(cleanup_task())
+    watchdog = asyncio.create_task(llm_watchdog_task())
     yield
-    task.cancel()
-    print("[STOP] Shutting down...")
+
+    # ── Graceful shutdown ─────────────────────────────────────────────────────
+    translation_stop.set()
+    shutdown_tasks = [task, watchdog]
+    if translation_worker_task is not None:
+        shutdown_tasks.append(translation_worker_task)
+    for t in shutdown_tasks:
+        t.cancel()
+        try:
+            await t
+        except asyncio.CancelledError:
+            pass
+
+    # Close Neo4j driver
+    try:
+        from app.services.graph_service import get_driver
+        drv = get_driver()
+        if drv:
+            drv.close()
+            logger.info("Neo4j driver closed")
+    except Exception:
+        pass
+
+    logger.info("Shutdown complete")
 
 app = FastAPI(
     title="KENCE.ai",
@@ -149,18 +443,54 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000", "http://127.0.0.1:3000",
-        "http://localhost:5173", "http://127.0.0.1:5173",
-        "http://localhost:5174", "http://127.0.0.1:5174",
-        "http://localhost:5175", "http://127.0.0.1:5175",
-        "http://localhost:5176", "http://127.0.0.1:5176",
-        "http://localhost:5177", "http://127.0.0.1:5177",
-    ],
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "X-API-Key"],
+    allow_headers=["*"],
 )
+
+from app.core.middleware import RequestTracingMiddleware  # noqa: E402
+app.add_middleware(RequestTracingMiddleware)  # pure ASGI — safe with CORSMiddleware
+
+# Prometheus metrics — /metrics endpoint (Prometheus scrape target)
+# Gated by ENABLE_METRICS (default on) so it can be disabled when the installed
+# prometheus-fastapi-instrumentator is incompatible with the FastAPI/Starlette
+# version (e.g. native dev installs that pull bleeding-edge FastAPI).
+import os as _os
+if _os.getenv("ENABLE_METRICS", "true").lower() in ("1", "true", "yes"):
+    try:
+        from prometheus_fastapi_instrumentator import Instrumentator
+        Instrumentator(
+            should_group_status_codes=True,
+            excluded_handlers=["/metrics", "/docs", "/openapi.json", "/redoc"],
+        ).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+        logger.info("Prometheus metrics enabled at /metrics")
+    except ImportError:
+        logger.warning("prometheus-fastapi-instrumentator not installed — /metrics disabled")
+else:
+    logger.info("ENABLE_METRICS disabled — /metrics not mounted")
+
+
+@app.middleware("http")
+async def _guard_metrics_endpoint(request: Request, call_next):
+    """Protect /metrics from unauthenticated scraping."""
+    if request.url.path != "/metrics":
+        return await call_next(request)
+
+    metrics_token = settings.METRICS_TOKEN
+    if metrics_token:
+        auth = request.headers.get("Authorization", "")
+        expected = f"Bearer {metrics_token}"
+        # constant-time comparison prevents timing oracle on the token
+        if not (auth and hmac.compare_digest(auth.encode(), expected.encode())):
+            return Response(status_code=403, content="Forbidden")
+    else:
+        # No token configured — loopback only
+        client_host = getattr(request.client, "host", "") if request.client else ""
+        if client_host not in ("127.0.0.1", "::1"):
+            return Response(status_code=403, content="Forbidden")
+
+    return await call_next(request)
 
 app.include_router(auth_router,         prefix="/api")
 app.include_router(main_router,         prefix="/api")
@@ -176,6 +506,10 @@ app.include_router(branding_router,     prefix="/api")
 app.include_router(executive_router,    prefix="/api")
 app.include_router(graph_router,        prefix="/api")
 app.include_router(agent_router,        prefix="/api")
+app.include_router(config_router,       prefix="/api")
+app.include_router(insights_router,     prefix="/api")
+app.include_router(system_router,       prefix="/api")
+app.include_router(translation_router,   prefix="/api")
 
 @app.exception_handler(FastAPIHTTPException)
 async def http_exception_handler(request: Request, exc: FastAPIHTTPException):

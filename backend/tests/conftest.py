@@ -16,12 +16,15 @@ _TEST_DB.unlink(missing_ok=True)
 
 # ── SQLite override — must come before any app import ─────────────────────────
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test_docai.db")
-os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-ci")
+os.environ.setdefault("JWT_SECRET_KEY", "test-secret-key-for-ci-only-not-for-prod-use-0123456789")
 os.environ.setdefault("OLLAMA_BASE_URL", "http://localhost:11434")
 os.environ.setdefault("LLM_MODEL", "llama3.2")
 os.environ.setdefault("UPLOAD_DIR", "/tmp/docai_test_uploads")
 os.environ.setdefault("CHROMA_PATH", "/tmp/docai_test_chroma")
 os.environ.setdefault("ADMIN_INITIAL_PASSWORD", "kence2026!")
+# Disable the background translation worker in tests so job state is controlled
+# explicitly by each test (worker helpers are tested directly instead).
+os.environ.setdefault("TRANSLATION_WORKER_ENABLED", "false")
 
 from unittest.mock import MagicMock, patch, AsyncMock
 

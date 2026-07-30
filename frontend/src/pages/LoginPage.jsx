@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { AlertCircle, Eye, EyeOff, Lock, User } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff, Lock, User, Shield, HardDrive, WifiOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { apiLogin, saveAuth } from '../lib/api'
 import { Button } from '@/shared/ui/button'
@@ -182,6 +182,25 @@ export default function LoginPage({ onLogin }) {
             </form>
 
             <p className="login-hint">{t('login.hint')}</p>
+
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap', paddingTop: 4 }}>
+              {[
+                { Icon: HardDrive, label: 'Локальная обработка' },
+                { Icon: Shield,    label: 'Шифрование данных' },
+                { Icon: WifiOff,   label: 'Без облака' },
+              ].map(({ Icon, label }) => (
+                <span key={label} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 5,
+                  fontSize: 11, color: 'var(--text-faint)',
+                  padding: '3px 9px', borderRadius: 6,
+                  background: 'var(--bg-surface-2)',
+                  border: '1px solid var(--border-subtle)',
+                }}>
+                  <Icon size={10} style={{ color: 'var(--status-success)' }} />
+                  {label}
+                </span>
+              ))}
+            </div>
           </Stack>
         </Card>
       </motion.div>

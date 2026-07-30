@@ -1,11 +1,30 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, Loader2, GitCompare, Brain, Wrench, CheckCircle, XCircle, AlertTriangle, FileText, ScanText } from 'lucide-react'
+import { ArrowLeft, Upload, Loader2, GitCompare, Brain, Wrench, CheckCircle, XCircle, AlertTriangle, FileText, ScanText, Download, ChevronDown, ChevronRight, Layers } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { apiCreateSession, apiCompareUpload, apiCompareSemantic, apiCompareTechnical, apiCompareExact } from '../lib/api'
+import { apiCreateSession, apiCompareUpload, apiCompareSemantic, apiCompareTechnical, apiCompareExact, apiCompareThematic } from '../lib/api'
 import { useToast } from '@/shared/ui/toast'
 import Skeleton from '@/shared/ui/skeleton/Skeleton'
 import DiffViewer from '@/components/DiffViewer'
+
+// Expandable snippet — click to see full text
+function Snippet({ text, maxLen = 200 }) {
+  const [expanded, setExpanded] = useState(false)
+  const isLong = text && text.length > maxLen
+  return (
+    <span>
+      {expanded || !isLong ? text : text.slice(0, maxLen) + '…'}
+      {isLong && (
+        <button
+          onClick={() => setExpanded(e => !e)}
+          style={{ marginLeft: 6, fontSize: 11, color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer' }}
+        >
+          {expanded ? '↑ свернуть' : '↓ показать полностью'}
+        </button>
+      )}
+    </span>
+  )
+}
 
 function ComparisonPage() {
   const { t } = useTranslation()
@@ -60,11 +79,10 @@ function ComparisonPage() {
     if (!sessionId) return
     setComparing(true); setMode(compareMode); setResult(null); setError('')
     try {
-      const data = compareMode === 'semantic'
-        ? await apiCompareSemantic(sessionId)
-        : compareMode === 'technical'
-        ? await apiCompareTechnical(sessionId)
-        : await apiCompareExact(sessionId)
+      const data = compareMode === 'semantic'  ? await apiCompareSemantic(sessionId)
+                 : compareMode === 'technical' ? await apiCompareTechnical(sessionId)
+                 : compareMode === 'thematic'  ? await apiCompareThematic(sessionId)
+                 : await apiCompareExact(sessionId)
       setResult(data)
     } catch (err) {
       const msg = err.message || t('compare.errorCompare')
@@ -73,6 +91,25 @@ function ComparisonPage() {
     } finally {
       setComparing(false)
     }
+  }
+
+  const handleExport = () => {
+    if (!result) return
+    let md = `# Сравнение документов\n**Режим:** ${mode}\n**Документ 1:** ${result.doc1_name}\n**Документ 2:** ${result.doc2_name}\n\n`
+    if (result.verdict) md += `## Вердикт\n${result.verdict}\n\n`
+    if (result.synthesis) md += `## Тематический синтез\n${result.synthesis}\n\n`
+    if (result.similarities?.length) {
+      md += `## Схожие фрагменты (${result.similarities.length})\n`
+      result.similarities.forEach((s, i) => {
+        md += `\n### ${i+1}. Сходство ${(s.similarity_score*100).toFixed(0)}%\n`
+        md += `**Документ 1:** ${s.doc1_text}\n**Документ 2:** ${s.doc2_text}\n`
+      })
+    }
+    if (result.report_markdown) md += result.report_markdown
+    const blob = new Blob([md], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = Object.assign(document.createElement('a'), { href: url, download: `comparison_${mode}_${Date.now()}.md` })
+    a.click(); URL.revokeObjectURL(url)
   }
 
   return (
@@ -143,11 +180,16 @@ function ComparisonPage() {
           <GitCompare className="w-16 h-16 text-primary mx-auto mb-4" />
           <h3 className="text-xl font-bold mb-2">{t('compare.selectMode')}</h3>
           <p className="text-gray-500 mb-8">{t('compare.selectModeDesc')}</p>
-          <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
+          <div className="grid grid-cols-2 gap-4 max-w-3xl mx-auto" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
             <button onClick={() => handleCompare('semantic')} className="card hover:shadow-lg hover:border-primary transition-all text-left">
               <Brain className="w-10 h-10 text-secondary mb-3" />
               <h4 className="font-bold text-lg mb-1">{t('compare.modeSemantic')}</h4>
               <p className="text-sm text-gray-500">{t('compare.modeSemanticDesc')}</p>
+            </button>
+            <button onClick={() => handleCompare('thematic')} className="card hover:shadow-lg transition-all text-left" style={{ borderColor: 'var(--color-violet-400)' }}>
+              <Layers className="w-10 h-10 mb-3" style={{ color: 'var(--color-violet-400)' }} />
+              <h4 className="font-bold text-lg mb-1">{t('compare.modeThematic', 'Тематический анализ')}</h4>
+              <p className="text-sm text-gray-500">{t('compare.modeThematicDesc', 'Темы, аргументы, позиции и тон каждого документа')}</p>
             </button>
             <button onClick={() => handleCompare('technical')} className="card hover:shadow-lg hover:border-primary transition-all text-left">
               <Wrench className="w-10 h-10 text-accent mb-3" />
@@ -181,6 +223,14 @@ function ComparisonPage() {
         </div>
       )}
 
+      {result && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+          <button onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', background: 'var(--bg-surface-2)', border: '1px solid var(--border-default)', borderRadius: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-primary)' }}>
+            <Download size={14} /> Экспорт в Markdown
+          </button>
+        </div>
+      )}
+
       {result && mode === 'semantic' && (
         <div className="space-y-6">
           <div className="card">
@@ -188,6 +238,18 @@ function ComparisonPage() {
               <Brain className="w-6 h-6 text-secondary" />
               <h3 className="text-xl font-bold">{t('compare.semanticTitle')}</h3>
             </div>
+            {/* Overall similarity bar */}
+            {result.summary?.overall_similarity_pct !== undefined && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 13 }}>Общее смысловое сходство</span>
+                  <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent-primary)' }}>{result.summary.overall_similarity_pct}%</span>
+                </div>
+                <div style={{ background: 'var(--bg-surface-2)', borderRadius: 6, height: 8, overflow: 'hidden' }}>
+                  <div style={{ width: `${result.summary.overall_similarity_pct}%`, height: '100%', background: 'var(--gradient-accent)', transition: 'width 0.5s' }} />
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-green-50 p-4 rounded-lg text-center">
                 <p className="text-2xl font-bold text-green-600">{result.summary?.similar_sections || 0}</p>
@@ -202,6 +264,13 @@ function ComparisonPage() {
                 <p className="text-sm text-gray-600">{t('compare.semanticOnlyDoc2')}</p>
               </div>
             </div>
+            {/* LLM Verdict */}
+            {result.verdict && (
+              <div style={{ padding: '12px 16px', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 10, borderLeft: '3px solid var(--accent-primary)' }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--accent-primary)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>⚡ Вердикт AI</p>
+                <p style={{ fontSize: 13, lineHeight: 1.6, color: 'var(--text-primary)' }}>{result.verdict}</p>
+              </div>
+            )}
           </div>
 
           {result.similarities?.length > 0 && (
@@ -227,7 +296,7 @@ function ComparisonPage() {
             <div className="card">
               <h4 className="font-bold text-blue-700 mb-4 flex items-center gap-2"><AlertTriangle className="w-5 h-5" />{t('compare.semanticUniqueDoc1', { name: result.doc1_name })}</h4>
               <div className="space-y-2">
-                {result.unique_to_doc1.map((text, i) => <p key={i} className="text-sm text-gray-600 bg-blue-50 p-3 rounded">{text}</p>)}
+                {result.unique_to_doc1.map((text, i) => <p key={i} className="text-sm text-gray-600 bg-blue-50 p-3 rounded"><Snippet text={text} /></p>)}
               </div>
             </div>
           )}
@@ -236,10 +305,71 @@ function ComparisonPage() {
             <div className="card">
               <h4 className="font-bold text-orange-700 mb-4 flex items-center gap-2"><AlertTriangle className="w-5 h-5" />{t('compare.semanticUniqueDoc2', { name: result.doc2_name })}</h4>
               <div className="space-y-2">
-                {result.unique_to_doc2.map((text, i) => <p key={i} className="text-sm text-gray-600 bg-orange-50 p-3 rounded">{text}</p>)}
+                {result.unique_to_doc2.map((text, i) => <p key={i} className="text-sm text-gray-600 bg-orange-50 p-3 rounded"><Snippet text={text} /></p>)}
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {result && mode === 'thematic' && (
+        <div className="space-y-6">
+          <div className="card">
+            <div className="flex items-center gap-3 mb-4">
+              <Layers className="w-6 h-6" style={{ color: 'var(--color-violet-400)' }} />
+              <h3 className="text-xl font-bold">Тематический анализ</h3>
+            </div>
+            {/* Doc themes side by side */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              {[['doc1_themes', result.doc1_name], ['doc2_themes', result.doc2_name]].map(([key, name]) => {
+                const th = result[key] || {}
+                return (
+                  <div key={key} style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 10, padding: '14px 16px' }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-faint)', textTransform: 'uppercase', marginBottom: 8 }}>{name}</p>
+                    {th.main_theme && <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>📌 {th.main_theme}</p>}
+                    {th.tone && <p style={{ fontSize: 11, marginBottom: 6 }}>Тон: <strong>{th.tone}</strong></p>}
+                    {th.stance && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 8 }}>{th.stance}</p>}
+                    {th.key_arguments?.length > 0 && (
+                      <div>
+                        <p style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, color: 'var(--text-faint)' }}>Аргументы:</p>
+                        <ul style={{ paddingLeft: 16, margin: 0 }}>
+                          {th.key_arguments.slice(0, 4).map((a, i) => <li key={i} style={{ fontSize: 12, marginBottom: 3 }}>{a}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            {/* Synthesis */}
+            {result.synthesis && (
+              <div style={{ padding: '12px 16px', background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: 10, borderLeft: '3px solid var(--color-violet-400)' }}>
+                <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--color-violet-400)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>⚡ Тематический синтез</p>
+                <p style={{ fontSize: 13, lineHeight: 1.6 }}>{result.synthesis}</p>
+              </div>
+            )}
+          </div>
+          {/* Concepts */}
+          <div className="grid grid-cols-3 gap-4">
+            {result.shared_concepts?.length > 0 && (
+              <div className="card">
+                <h4 className="font-bold text-green-700 mb-3 flex items-center gap-2"><CheckCircle className="w-4 h-4" />Общие концепции ({result.shared_concepts.length})</h4>
+                <div className="flex flex-wrap gap-2">{result.shared_concepts.map((c,i) => <span key={i} style={{ padding: '2px 8px', background: 'color-mix(in srgb, var(--status-success) 12%, transparent)', color: 'var(--status-success)', borderRadius: 999, fontSize: 12 }}>{c}</span>)}</div>
+              </div>
+            )}
+            {result.unique_to_doc1?.length > 0 && (
+              <div className="card">
+                <h4 className="font-bold text-blue-700 mb-3">Только в «{result.doc1_name}»</h4>
+                <div className="flex flex-wrap gap-2">{result.unique_to_doc1.map((c,i) => <span key={i} style={{ padding: '2px 8px', background: 'var(--bg-surface-2)', borderRadius: 999, fontSize: 12 }}>{c}</span>)}</div>
+              </div>
+            )}
+            {result.unique_to_doc2?.length > 0 && (
+              <div className="card">
+                <h4 className="font-bold text-orange-700 mb-3">Только в «{result.doc2_name}»</h4>
+                <div className="flex flex-wrap gap-2">{result.unique_to_doc2.map((c,i) => <span key={i} style={{ padding: '2px 8px', background: 'var(--bg-surface-2)', borderRadius: 999, fontSize: 12 }}>{c}</span>)}</div>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

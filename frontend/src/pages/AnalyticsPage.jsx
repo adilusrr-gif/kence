@@ -10,7 +10,7 @@ import {
   Upload, MessageSquare, Globe, GitCompare, Presentation,
   RefreshCw, Activity, Users, TrendingUp, Eye, Info,
 } from 'lucide-react'
-import { apiAnalyticsOverview, apiAnalyticsTimeline, apiAnalyticsFormats, apiAnalyticsEvents } from '../lib/api'
+import { apiAnalyticsMy, apiAnalyticsOverview, apiAnalyticsTimeline, apiAnalyticsFormats, apiAnalyticsEvents } from '../lib/api'
 
 const EVENT_ICONS = {
   upload: Upload, chat: MessageSquare, translate: Globe,
@@ -60,12 +60,15 @@ function formatTs(iso) {
     ' ' + d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
 }
 
-export default function AnalyticsPage() {
+export default function AnalyticsPage({ currentUser }) {
   const { t } = useTranslation()
+  const isAdmin = currentUser?.role === 'admin'
+
   const [overview, setOverview] = useState(null)
   const [timeline, setTimeline] = useState([])
   const [formats, setFormats] = useState([])
   const [events, setEvents] = useState([])
+  const [myStats, setMyStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -82,6 +85,13 @@ export default function AnalyticsPage() {
   useEffect(() => {
     async function load() {
       try {
+        if (!isAdmin) {
+          // Non-admins only ever see their own upload count — the admin
+          // breakdown endpoints below are 403 for them, so don't call them.
+          const my = await apiAnalyticsMy()
+          setMyStats(my)
+          return
+        }
         const [ov, tl, fmt, ev] = await Promise.all([
           apiAnalyticsOverview(),
           apiAnalyticsTimeline(7),
@@ -99,7 +109,7 @@ export default function AnalyticsPage() {
       }
     }
     load()
-  }, [])
+  }, [isAdmin])
 
   const byType = overview?.by_type || {}
 
@@ -149,6 +159,25 @@ export default function AnalyticsPage() {
       <div className="analytics-page analytics-page--error">
         <Info size={20} />
         <span>{t('analytics.loadError', { msg: error })}</span>
+      </div>
+    )
+  }
+
+  if (!isAdmin) {
+    return (
+      <div className="analytics-page">
+        <div className="analytics-header">
+          <h1 className="analytics-title">{t('analytics.myTitle')}</h1>
+          <span className="analytics-subtitle">{t('analytics.mySubtitle')}</span>
+        </div>
+        <motion.div
+          className="analytics-stats-row"
+          variants={STAT_STAGGER}
+          initial="hidden"
+          animate="visible"
+        >
+          <StatCard icon={Upload} label={t('analytics.myUploads')} value={myStats?.uploads ?? 0} color="var(--status-warning)" />
+        </motion.div>
       </div>
     )
   }

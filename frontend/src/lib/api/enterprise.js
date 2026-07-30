@@ -1,9 +1,11 @@
 import { BASE, request, getToken } from '../http.js'
 
 // ── AI Settings ───────────────────────────────────────────────────────────────
-export const apiGetPrompts          = ()          => request('GET', '/api/ai-settings/prompts')
-export const apiUpdatePrompt        = (t, c)      => request('PUT', `/api/ai-settings/prompts/${t}`, { body: { content: c } })
-export const apiResetPrompt         = t           => request('POST', `/api/ai-settings/prompts/${t}/reset`)
+// scope: 'user' (default) — caller's personal prompts; 'global' — shared admin
+// defaults (admin-only on the backend).
+export const apiGetPrompts          = (scope = 'user') => request('GET', '/api/ai-settings/prompts', { params: { scope } })
+export const apiUpdatePrompt        = (t, c, scope = 'user') => request('PUT', `/api/ai-settings/prompts/${t}`, { body: { content: c }, params: { scope } })
+export const apiResetPrompt         = (t, scope = 'user')    => request('POST', `/api/ai-settings/prompts/${t}/reset`, { params: { scope } })
 export const apiResetAllPrompts     = ()          => request('POST', '/api/ai-settings/prompts/reset-all')
 export const apiGetDocumentContext  = name        => request('GET', '/api/ai-settings/document-context', { params: { document_name: name } })
 export const apiSaveDocumentContext = (name, ctx) => request('POST', '/api/ai-settings/document-context', { body: { document_name: name, context: ctx } })
@@ -11,10 +13,12 @@ export const apiDeleteDocumentContext = name      => request('DELETE', '/api/ai-
 export const apiGetDocumentContexts = ()          => request('GET', '/api/ai-settings/document-contexts')
 
 // ── Organizations ─────────────────────────────────────────────────────────────
+export const apiAdminListOrgs       = ()              => request('GET', '/api/orgs')
 export const apiGetMyOrgs           = ()              => request('GET', '/api/orgs/me')
 export const apiGetOrg              = id              => request('GET', `/api/orgs/${id}`)
 export const apiCreateOrg           = data            => request('POST', '/api/orgs', { body: data })
 export const apiUpdateOrg           = (id, data)      => request('PATCH', `/api/orgs/${id}`, { body: data })
+export const apiAdminDeleteOrg      = id              => request('DELETE', `/api/orgs/${id}`)
 export const apiGetOrgMembers       = id              => request('GET', `/api/orgs/${id}/members`)
 export const apiAddOrgMember        = (id, data)      => request('POST', `/api/orgs/${id}/members`, { body: data })
 export const apiRemoveOrgMember     = (id, u)         => request('DELETE', `/api/orgs/${id}/members/${u}`)
@@ -25,12 +29,25 @@ export const apiCreateOrgApiKey     = (id, data)      => request('POST', `/api/o
 export const apiRevokeOrgApiKey     = (id, key)       => request('DELETE', `/api/orgs/${id}/api-keys/${key}`)
 
 // ── Library ───────────────────────────────────────────────────────────────────
-export const apiGetLibrary          = (id, search, tags) =>
-  request('GET', `/api/orgs/${id}/library`, { params: { ...(search && { search }), ...(tags && { tags }) } })
+export const apiGetLibrary          = (id, filters = {}) =>
+  request('GET', `/api/orgs/${id}/library`, { params: {
+    ...(filters.search && { search: filters.search }),
+    ...(filters.tags && { tags: filters.tags }),
+    ...(filters.doc_kind && { doc_kind: filters.doc_kind }),
+    ...(filters.direction && { direction: filters.direction }),
+    ...(filters.issuer && { issuer: filters.issuer }),
+  } })
 export const apiAddToLibrary        = (id, data)  => request('POST', `/api/orgs/${id}/library`, { body: data })
+export const apiUploadToLibrary     = (id, formData) => request('POST', `/api/orgs/${id}/library/upload`, { form: formData })
+export const apiUpdateLibraryDoc    = (id, doc, data) => request('PUT', `/api/orgs/${id}/library/${doc}`, { body: data })
 export const apiDeleteLibraryDoc    = (id, doc)   => request('DELETE', `/api/orgs/${id}/library/${doc}`)
 export const apiDownloadLibraryDoc  = (id, doc)   => `${BASE}/api/orgs/${id}/library/${doc}/download`
 export const apiOpenLibraryDocInSession = (id, doc) => request('POST', `/api/orgs/${id}/library/${doc}/open-session`)
+
+// ── Library taxonomy (admin dictionaries) ──────────────────────────────────────
+export const apiGetTaxonomy    = (id, kind)   => request('GET', `/api/orgs/${id}/library-taxonomy`, { params: kind ? { kind } : {} })
+export const apiAddTaxonomy    = (id, kind, value) => request('POST', `/api/orgs/${id}/library-taxonomy`, { body: { kind, value } })
+export const apiDeleteTaxonomy = (id, taxId)  => request('DELETE', `/api/orgs/${id}/library-taxonomy/${taxId}`)
 
 // ── Sharing ───────────────────────────────────────────────────────────────────
 export const apiGetSessionShares = id          => request('GET', `/api/sessions/${id}/shares`)
@@ -39,7 +56,7 @@ export const apiRevokeShare      = (id, share) => request('DELETE', `/api/sessio
 export const apiGetSharedWithMe  = orgId       => request('GET', '/api/sessions/shared-with-me', { params: { org_id: orgId } })
 
 // ── Branding ──────────────────────────────────────────────────────────────────
-export const apiGetPublicBranding  = slug        => fetch(`${BASE}/api/branding/${slug}`).then(r => r.json())
+export const apiGetPublicBranding  = slug        => fetch(`${BASE}/api/branding/${slug}`).then(r => r.ok ? r.json() : null)
 export const apiGetOrgBranding     = id          => request('GET', `/api/orgs/${id}/branding`)
 export const apiUpdateOrgBranding  = (id, data)  => request('PUT', `/api/orgs/${id}/branding`, { body: data })
 
@@ -54,15 +71,28 @@ export const apiTriggerExtraction = (orgId, session_id, language = 'ru') =>
   request('POST', `/api/orgs/${orgId}/graph/extract`, { body: { session_id, language } })
 export const apiGetExtractionJob  = (orgId, jobId)    => request('GET', `/api/orgs/${orgId}/graph/jobs/${jobId}`)
 export const apiGetGraphNodes     = (orgId, type)     => request('GET', `/api/orgs/${orgId}/graph/nodes`, { params: type ? { entity_type: type } : {} })
-export const apiExportGraph       = orgId             => request('GET', `/api/orgs/${orgId}/graph/export`)
+export const apiExportGraph       = (orgId, sessionId) => request('GET', `/api/orgs/${orgId}/graph/export`, { params: sessionId ? { session_id: sessionId } : {} })
+export const apiGetGraphDocuments = orgId             => request('GET', `/api/orgs/${orgId}/graph/documents`)
 export const apiQueryGraph        = (orgId, query)    => request('POST', `/api/orgs/${orgId}/graph/query`, { body: { query } })
 export const apiDeleteGraph       = orgId             => request('DELETE', `/api/orgs/${orgId}/graph`)
+
+// ── Insights ──────────────────────────────────────────────────────────────────
+export const apiExportInsightsPdf = (documentName, results, orgName) =>
+  request('POST', '/api/insights/export', {
+    body: { document_name: documentName, results, org_name: orgName },
+  })
+
+export const apiExportGovBriefPdf = (documentName, brief, orgName, classification = 'ДСП') =>
+  request('POST', '/api/insights/export/gov', {
+    body: { document_name: documentName, brief, org_name: orgName, classification },
+  })
 
 // ── Agents ────────────────────────────────────────────────────────────────────
 export const apiGetAgentTypes   = ()        => request('GET', '/api/agents/types')
 export const apiCreateAgentTask = data      => request('POST', '/api/agents/tasks', { body: data })
 export const apiGetAgentTasks   = orgId     => request('GET', '/api/agents/tasks', { params: orgId ? { org_id: orgId } : {} })
 export const apiGetAgentTask    = id        => request('GET', `/api/agents/tasks/${id}`)
+export const apiGetTasksBySession = sessionId => request('GET', '/api/agents/tasks/by-session', { params: { session_id: sessionId } })
 export const apiCancelAgentTask = id        => request('DELETE', `/api/agents/tasks/${id}`)
 export const apiAgentTaskStreamUrl = id => {
   const token = getToken() || ''

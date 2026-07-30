@@ -51,6 +51,10 @@ def test_get_document_content(client):
     body = r.json()
     assert body["filename"] == "test.txt"
     assert body["markdown"] == FAKE_MARKDOWN
+    # Legacy sessions (html_text set directly in the in-memory dict, no
+    # html_path on disk) must still resolve via session_manager.load_html's
+    # fallback — see session.py._from_row / store_html.
+    assert body["html"] == FAKE_HTML
 
 
 def test_get_document_content_missing_session(client):

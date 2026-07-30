@@ -1,20 +1,25 @@
 {
+  "documentViewer": {
+    "askAI": "AI-дан сұрау",
+    "loading": "Құжат жүктелуде…"
+  },
   "nav": {
     "dashboard": "Басты бет",
     "upload": "Жүктеу",
-    "workspace": "Жұмыс кеңістігі",
+    "workspace": "Құжатпен жұмыс",
     "compare": "Салыстыру",
     "presentation": "Презентация",
     "convert": "Түрлендіру",
     "library": "Кітапхана",
-    "graph": "Граф",
-    "agents": "AI Агенттер",
+    "graph": "Байланыстар",
+    "agents": "Талдау",
     "analytics": "Аналитика",
-    "executive": "Басшы",
+    "executive": "Статистика",
     "profile": "Профиль",
     "org": "Ұйым баптаулары",
     "admin": "Әкімші",
-    "aiSettings": "AI баптаулары"
+    "aiSettings": "Параметрлер",
+    "insights": "Құжат талдауы"
   },
   "topbar": {
     "search": "Командаларды іздеу…",
@@ -56,14 +61,16 @@
     "chars": "таңба",
     "goToChat": "Чат",
     "goToPresentation": "Презентация",
+    "whatNext": "Әрі қарай не істеу керек?",
+    "viewAnalysis": "Талдауды қарау",
     "uploadBtn": "Жүктеу және өңдеу",
     "processing": "Өңделуде…",
     "done": "Дайын",
     "stages": {
       "upload": "Жүктеу",
-      "parse": "Талдау",
-      "extract": "Алу",
-      "vectorize": "Векторлау"
+      "parse": "Құжатты оқу",
+      "extract": "Мазмұнды талдау",
+      "vectorize": "Іздеуді дайындау"
     }
   },
   "dashboard": {
@@ -96,7 +103,9 @@
       "convert": "Түрлендіру",
       "convertDesc": "TXT, Markdown, DOCX",
       "agents": "AI Агенттер",
-      "agentsDesc": "Дербес тапсырмалар"
+      "agentsDesc": "Дербес тапсырмалар",
+      "insights": "Құжат талдауы",
+      "insightsDesc": "Түйін, тәуекел, хронология"
     },
     "time": {
       "days_one": "{{count}} күн бұрын",
@@ -109,14 +118,14 @@
   },
   "workspace": {
     "translate": "Аудару:",
-    "precise": "Дәл жауап",
+    "precise": "Нақты жауап",
     "consultation": "Кеңес",
-    "visual": "Визуалды",
+    "visual": "Суретті сипаттау",
     "placeholder": "Құжат бойынша сұрақ қойыңыз… (Enter — жіберу)",
     "noSession": "Алдымен құжат жүктеңіз",
-    "greeting": "Сәлем! Құжатта мәтін таңдаңыз немесе сұрақ қойыңыз.",
+    "greeting": "Сәлем! Кез келген сұрақ қойыңыз — қарапайым тілде жауап беремін.",
     "document": "Құжат",
-    "ai": "AI-ассистент",
+    "ai": "Ақылды көмекші",
     "clearHistory": "Тарихты тазалау",
     "prevSession": "Алдыңғы сессия",
     "docContext": "Құжат контексті",
@@ -144,10 +153,13 @@
     "extractText": "Мәтін алу",
     "tableData": "Кесте/диаграмма деректері",
     "tips": {
-      "summary": "Құжаттың қысқаша мазмұны",
-      "keyFindings": "Негізгі тұжырымдар қандай?",
-      "dates": "Барлық күндер мен оқиғаларды тізімде",
-      "explain": "Негізгі идеяны қарапайым тілмен түсіндір"
+      "summary": "Құжатты қысқаша баяндаңыз",
+      "keyFindings": "Бұл құжаттың ең маңыздысы не?",
+      "dates": "Қандай маңызды күндер мен мерзімдер айтылады?",
+      "explain": "Негізгі идеяны қарапайым тілмен түсіндіріңіз",
+      "risks": "Қандай тәуекелдер немесе мәселелер сипатталған?",
+      "actions": "Не істеу керек?",
+      "whoIsInvolved": "Кімдер қатысады?"
     },
     "langNames": {
       "kz": "Қазақша",
@@ -182,10 +194,27 @@
     "chartNoData": "«{{title}}» графигі үшін деректер жоқ",
     "insertTable": "Кесте енгізу",
     "insertChart": "График енгізу",
-    "editWithAgent": "AI агентімен өңдеу",
-    "downloadDocx": "DOCX ретінде жүктеу",
-    "downloadPdf": "PDF ретінде жүктеу",
-    "saving": "Сақталуда…"
+    "editWithAgent": "ЖИ-мен жақсарту",
+    "downloadDocx": "Word жүктеу",
+    "downloadPdf": "PDF жүктеу",
+    "saving": "Сақталуда…",
+    "regenerate": "Жауапты қайталау",
+    "exportChat": "Чатты жүктеу",
+    "chatExportTitle": "Чат тарихы",
+    "you": "Сіз",
+    "notFoundInDoc": "Құжатта табылмады",
+    "stopGeneration": "Генерацияны тоқтату",
+    "generationStopped": "Тоқтатылды",
+    "sources": "Дереккөздер",
+    "sourcesFmt": "Дереккөздер ({{count}})",
+    "sessionExpiryWarning": "Сеанс 5 минуттан кейін аяқталады. Жұмысты сақтау үшін «Ұзарту» батырмасын басыңыз.",
+    "sessionExtended": "Сеанс 1 сағатқа ұзартылды",
+    "extendSession": "Сеансты ұзарту",
+    "llmQueueFull": "Сервер бос емес — бірнеше секундтан кейін қайталаңыз",
+    "llmCircuitOpen": "AI уақытша қолжетімсіз — қалпына келтірілуде",
+    "llmTimeout": "Сұрау уақыты аяқталды — қайталап көріңіз",
+    "exact": "Дәл жауап",
+    "exactTitle": "Толық бөлімдер: тізімдер, баптар мен анықтамалар қысқартылмайды"
   },
   "convert": {
     "title": "Форматты түрлендіру",
@@ -384,7 +413,19 @@
     "result": "Нәтиже",
     "comparison": "Салыстыру қорытындысы",
     "docsUsed": "Пайдаланылған: {{docs}}",
-    "error": "Қате"
+    "error": "Қате",
+    "typeTimeline": "Хронология оқиғалары",
+    "typeRiskEngine": "Тәуекелдерді бағалау",
+    "timelineDesc": "Барлық күндер мен оқиғалардың хронологиялық шкаласы",
+    "riskEngineDesc": "AI тәуекелді бағалау (0-100)",
+    "npaMode": "НҚА таңдау",
+    "npaMode_auto": "Бағыт бойынша авто",
+    "npaMode_manual": "Қолмен таңдау",
+    "npaDirection": "Бағыты",
+    "npaAllDirections": "Барлық бағыттар",
+    "npaAutoHint": "НҚА таңдалған бағыт бойынша автоматты түрде іріктеледі.",
+    "npaDocs": "НҚА құжаттары",
+    "npaNone": "Кітапханада НҚА жоқ. «НҚА» қойындысында қосыңыз."
   },
   "library": {
     "title": "Құжат кітапханасы",
@@ -402,7 +443,43 @@
     "noOrg": "Ұйымды таңдаңыз",
     "sizeB": "{{n}} Б",
     "sizeKB": "{{n}} КБ",
-    "sizeMB": "{{n}} МБ"
+    "sizeMB": "{{n}} МБ",
+    "kindAll": "Барлығы",
+    "kindDocument": "Құжаттар",
+    "kindNpa": "НҚА",
+    "allDirections": "Барлық бағыттар",
+    "allIssuers": "Барлық дереккөздер",
+    "uploadBtn": "Жүктеу",
+    "manageDicts": "Анықтамалықтар",
+    "edit": "Өзгерту",
+    "notSet": "Көрсетілмеген",
+    "addNew": "Қосу…",
+    "nameRequired": "Атауын көрсетіңіз",
+    "fileRequired": "Файлды таңдаңыз",
+    "noSession": "Белсенді сессия жоқ",
+    "saveSuccess": "Сақталды",
+    "uploadSuccess": "Құжат жүктелді",
+    "addSuccess": "Кітапханаға қосылды",
+    "editTitle": "Құжатты өзгерту",
+    "uploadTitle": "Кітапханаға жүктеу",
+    "addSessionTitle": "Кітапханаға қосу",
+    "fileLabel": "Файл",
+    "nameLabel": "Атауы",
+    "kindLabel": "Түрі",
+    "directionLabel": "Бағыты",
+    "issuerLabel": "Дереккөз",
+    "docNumberLabel": "Құжат нөмірі",
+    "docDateLabel": "Күні",
+    "descriptionLabel": "Сипаттама",
+    "tagsLabel": "Тегтер",
+    "tagsPlaceholder": "үтір арқылы",
+    "cancel": "Бас тарту",
+    "saving": "Сақталуда…",
+    "save": "Сақтау",
+    "upload": "Жүктеу",
+    "add": "Қосу",
+    "dictEmpty": "Бос",
+    "done": "Дайын"
   },
   "executive": {
     "title": "Executive Dashboard — {{org}}",
@@ -483,6 +560,18 @@
       "OWNS": "Иеленеді",
       "SIGNED_BY": "Қол қойған",
       "REGULATED_BY": "Реттелген"
+    },
+    "scope": "Аумақ",
+    "scopeOrg": "Бүкіл ұйым",
+    "scopeCurrent": "Ағымдағы құжат",
+    "physics": {
+      "title": "Граф физикасы",
+      "repulsion": "Тебу",
+      "linkDist": "Байланыс ұзындығы",
+      "linkStr": "Байланыс тартылысы",
+      "center": "Орталықтандыру",
+      "nodeSize": "Түйін өлшемі",
+      "reset": "Қалпына келтіру"
     }
   },
   "profile": {
@@ -536,7 +625,10 @@
       "4": "Жм",
       "5": "Сб",
       "6": "Жк"
-    }
+    },
+    "myTitle": "Менің статистикам",
+    "mySubtitle": "Жеке пайдалану статистикасы",
+    "myUploads": "Сіз жүктеген құжаттар"
   },
   "org": {
     "title": "Ұйым параметрлері — {{name}}",
@@ -601,7 +693,7 @@
   },
   "aiSettings": {
     "title": "ИИ параметрлері",
-    "subtitle": "Генерация промпттарын басқару — тек әкімшілерге арналған",
+    "subtitle": "Промпттарды басқару — әр пайдаланушыға жеке параметрлер",
     "resetAll": "Барлығын қалпына келтіру",
     "confirmResetAll": "Барлығын қалпына келтіруді растау",
     "unsaved": "● Сақталмаған өзгерістер",
@@ -618,6 +710,14 @@
         "label": "Чат промпты",
         "hint": "Айнымалылар: {context} — құжат үзінділері, {question} — пайдаланушы сұрағы."
       },
+      "exact_prompt": {
+        "label": "Дәл жауап (бөлім бойынша)",
+        "hint": "Айнымалылар: {context} — құжаттың бүтін бөлімдері, {question} — сұрақ. Жауап сөзбе-сөз қайталанады."
+      },
+      "consultation_prompt": {
+        "label": "Құжат бойынша кеңес",
+        "hint": "Айнымалылар: {context} — құжат үзінділері, {question} — сұрақ. Түсіндірмесі бар кеңейтілген жауап."
+      },
       "presentation_prompt": {
         "label": "Презентация промпты",
         "hint": "Айнымалылар: {context} — құжат мазмұны. JSON жауап: \"title\" және \"slides\"."
@@ -630,7 +730,12 @@
         "label": "Семантик. салыстыру",
         "hint": "Айнымалылар: {text} — құжат мәтіні."
       }
-    }
+    },
+    "personalBadge": "Жеке",
+    "globalBadge": "Жалпы (әдепкі)",
+    "scopeUser": "Менің промпттарым",
+    "scopeGlobal": "Жалпы (әкімші)",
+    "resetHint": "Қалпына келтіру жеке нұсқаңызды өшіреді — жалпы мән қолданылады"
   },
   "admin": {
     "title": "Әкімші панелі",
@@ -677,7 +782,17 @@
       "toastCreated": "Пайдаланушы «{{name}}» жасалды",
       "errNoLogin": "Кіру атын енгізіңіз",
       "errShortPassword": "Құпия сөз: кемінде 6 таңба",
-      "errInvalidLogin": "Кіру аты: тек әріптер, цифрлар, _, ., -"
+      "errInvalidLogin": "Кіру аты: тек әріптер, цифрлар, _, ., -",
+      "errPasswordMin": "Құпия сөз: кемінде {{n}} таңба",
+      "errPasswordUpper": "Құпия сөзде бас әріп болуы керек",
+      "errPasswordLower": "Құпия сөзде кіші әріп болуы керек",
+      "errPasswordDigit": "Құпия сөзде сан болуы керек"
+    },
+    "orgs": {
+      "errNoSlug": "slug енгізіңіз",
+      "errInvalidSlug": "Slug: тек a-z, 0-9, сызықша",
+      "errNoName": "Атауын енгізіңіз",
+      "toastCreated": "«{{name}}» ұйымы жасалды"
     },
     "stats": {
       "loading": "Жүктелуде…",
@@ -838,5 +953,27 @@
       "clearAriaLabel": "Құжат контекстін тазалау",
       "examples": "Сұрақ үлгілері"
     }
+  },
+  "translations": {
+    "title": "Аударма",
+    "translateTo": "Аудару:",
+    "queued": "Кезекте",
+    "processing": "Аударылуда…",
+    "completed": "Дайын",
+    "failed": "Қате",
+    "empty": "Әзірге аударма жоқ",
+    "delete": "Жою",
+    "refresh": "Жаңарту",
+    "startedToast": "{{lang}} тіліне аударма басталды",
+    "doneToast": "Аударма дайын: {{name}} ({{lang}})",
+    "failToast": "Аудару сәтсіз: {{name}}",
+    "startError": "Аударманы бастау мүмкін болмады",
+    "downloadError": "Жүктеу қатесі"
+  },
+  "compliance": {
+    "title": "НҚА сәйкестігі",
+    "stats": "Тексерілген талаптар: {{total}} · сәйкес емес: {{failed}} · ішінара: {{partial}}",
+    "evidence": "Негіздеме",
+    "recommendation": "Ұсыным"
   }
 }

@@ -312,6 +312,9 @@
   min-height: 0;
   height: 100%;
   overflow-y: auto;
+  /* Reserve the scrollbar gutter on every page so centered content doesn't shift
+     horizontally when the scrollbar appears/disappears between short and long routes. */
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
 }

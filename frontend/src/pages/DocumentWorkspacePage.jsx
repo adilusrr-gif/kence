@@ -6,9 +6,9 @@ import { FlagIcon } from '@/shared/ui/flag-icon/FlagIcon'
 import {
   Send, Bot, User, Loader2, Copy, FileText, Check, Trash2,
   Languages, FileDown, BarChart2, GitCompare, RefreshCw,
-  BookOpen, SlidersHorizontal, ChevronUp, ChevronDown,
+  BookOpen, SlidersHorizontal, ChevronUp, ChevronDown, ChevronRight,
   List, AlertTriangle, Upload, Eye, Scan, Pencil,
-  Table2, LineChart, Download,
+  Table2, LineChart, Download, Square, BookMarked,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -22,19 +22,28 @@ import { Badge } from '@/shared/ui/badge'
 import Skeleton from '@/shared/ui/skeleton/Skeleton'
 import DocumentViewer from '@/widgets/document-viewer'
 import {
-  apiDocumentImageUrl,
+  apiFetchDocumentImage,
+  apiGetDocumentContent,
   apiSaveMarkdown,
   apiExportMarkdown,
 } from '../lib/api'
 import { apiCreateAgentTask, apiGetAgentTask } from '../lib/api/enterprise.js'
 import { useDocumentContent } from '../hooks/useDocumentContent'
-import { useChatMessages } from '../hooks/useChatMessages'
+import { useChatMessages, detectNotFound } from '../hooks/useChatMessages'
 import { useDocContext } from '../hooks/useDocContext'
 import { useToastStore } from '../shared/stores/toastStore'
+import useOrgStore from '../shared/stores/orgStore'
+import useLibraryStore from '../shared/stores/libraryStore'
+import LibraryDocModal from '../components/LibraryDocModal'
+import TranslationJobsPanel from '../components/TranslationJobsPanel'
 
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.tiff', '.bmp', '.webp', '.heic'])
 
-// ── Chart directive utilities ─────────────────────────────────────────────────
+const LANGS = [
+  { code: 'kz', label: 'KZ' },
+  { code: 'ru', label: 'RU' },
+  { code: 'en', label: 'EN' },
+]
 
 const CHART_COLORS = [
   'var(--color-cyan-400)', 'var(--color-blue-400)', 'var(--color-violet-400)',
@@ -182,12 +191,54 @@ function InlineChartRenderer({ type, title, data: dataStr, hint, raw, onEdit, on
   )
 }
 
-const TIP_KEYS = ['workspace.tips.summary', 'workspace.tips.keyFindings', 'workspace.tips.dates', 'workspace.tips.explain']
+// ── Sources panel ─────────────────────────────────────────────────────────────
 
-const LANGS = [
-  { code: 'kz', label: 'KZ' },
-  { code: 'ru', label: 'RU' },
-  { code: 'en', label: 'EN' },
+function SourcesPanel({ sources }) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  if (!sources?.length) return null
+  return (
+    <div className="ws-sources">
+      <button className="ws-sources__toggle" onClick={() => setOpen(o => !o)}>
+        <ChevronRight size={11} className={`ws-sources__icon${open ? ' ws-sources__icon--open' : ''}`} />
+        {t('workspace.sourcesFmt', { count: sources.length })}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            className="ws-sources__list"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            style={{ overflow: 'hidden' }}
+          >
+            {sources.map((src, i) => (
+              <div key={i} className="ws-source-item">
+                <div className="ws-source-item__text">«{src.text.trim()}»</div>
+                {(src.source || src.page != null) && (
+                  <div className="ws-source-item__meta">
+                    {src.source && <span>{src.source}</span>}
+                    {src.page != null && <span style={{ marginLeft: 6 }}>стр. {src.page}</span>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+const TIP_KEYS = [
+  'workspace.tips.summary',
+  'workspace.tips.keyFindings',
+  'workspace.tips.dates',
+  'workspace.tips.explain',
+  'workspace.tips.risks',
+  'workspace.tips.actions',
+  'workspace.tips.whoIsInvolved',
 ]
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -201,10 +252,19 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 }
 
-function ChatMessage({ msg, i, copied, onCopy }) {
+// Memoized so an in-progress SSE stream — which replaces only the LAST message
+// object on every chunk (see useChatMessages.makeStreamHandlers) — doesn't force
+// every earlier message to re-run its ReactMarkdown parse on every token. Only
+// `copied` is shared across all rows (bumps every row once per copy-click,
+// harmless); msg/i/callbacks are otherwise stable per row.
+const ChatMessage = React.memo(function ChatMessage({ msg, i, copied, onCopy, onRegenerate, onExplainSimply }) {
+  const { t } = useTranslation()
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }}
+      // Skip the enter animation while streaming — it would replay on every
+      // chunk-triggered re-render (initial/animate re-evaluate each render;
+      // only the mount transition should ever run).
+      initial={msg.streaming ? false : { opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.18 }}
       className={`ws-msg${msg.role === 'user' ? ' ws-msg--user' : ''}`}
@@ -213,6 +273,18 @@ function ChatMessage({ msg, i, copied, onCopy }) {
         {msg.role === 'user' ? <User size={13} color="#fff" /> : <Bot size={13} style={{ color: 'var(--accent-primary)' }} />}
       </div>
       <div className={`ws-bubble${msg.role === 'user' ? ' ws-bubble--user' : ' ws-bubble--bot'}${msg.isError ? ' ws-bubble--error' : ''}`}>
+        {/* Not-found indicator */}
+        {msg.role === 'assistant' && msg.notFound && !msg.streaming && (
+          <div className="ws-not-found-chip">
+            <AlertTriangle size={10} /> {t('workspace.notFoundInDoc')}
+          </div>
+        )}
+        {/* Stopped-by-user indicator */}
+        {msg.role === 'assistant' && msg.stopped && (
+          <div className="ws-stopped-chip">
+            <Square size={9} /> {t('workspace.generationStopped')}
+          </div>
+        )}
         {msg.status === 'typing' && !msg.content
           ? <TypingDots />
           : msg.status && !msg.content
@@ -223,17 +295,47 @@ function ChatMessage({ msg, i, copied, onCopy }) {
         }
         {msg.streaming && msg.content && <span className="ws-stream-cursor" aria-hidden="true" />}
         {msg.role === 'assistant' && msg.content && !msg.streaming && (
-          <button className="ws-copy-btn ws-bubble__copy" onClick={() => onCopy(i, msg.content)}>
-            {copied === i ? <Check size={10} /> : <Copy size={10} />}
-          </button>
+          <>
+            <button className="ws-copy-btn ws-bubble__copy" onClick={() => onCopy(i, msg.content)}>
+              {copied === i ? <Check size={10} /> : <Copy size={10} />}
+            </button>
+            {onRegenerate && (
+              <button
+                className="ws-action-btn ws-regen-btn"
+                onClick={() => onRegenerate(i)}
+                title={t('workspace.regenerate')}
+                aria-label={t('workspace.regenerate')}
+              >
+                <RefreshCw size={11} />
+              </button>
+            )}
+            {/* Phase 5: Explain Simply button */}
+            {onExplainSimply && !msg.isSimplified && (
+              <button
+                className="ws-action-btn ws-explain-btn"
+                onClick={() => onExplainSimply(i, msg.content)}
+                title="Объяснить проще"
+                style={{ opacity: 0, transition: 'opacity 0.15s', fontSize: 10, padding: '2px 6px', borderRadius: 6 }}
+              >
+                💡 Проще
+              </button>
+            )}
+            {msg.isSimplified && (
+              <span style={{ fontSize: 10, color: 'var(--accent-primary)', marginLeft: 6 }}>💡 Упрощено</span>
+            )}
+          </>
         )}
         {msg.ts && !msg.historical && (
           <div className="ws-msg-time">{formatTime(msg.ts)}</div>
         )}
+        {/* Sources panel */}
+        {msg.role === 'assistant' && !msg.streaming && (
+          <SourcesPanel sources={msg.sources} />
+        )}
       </div>
     </motion.div>
   )
-}
+})
 
 function DocContextPanel({ t, docContext, setDocContext, ctxSaving, ctxSaved, onSave, onClear }) {
   return (
@@ -274,6 +376,17 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
 
   const [showToc, setShowToc] = useState(false)
 
+  // ── Add-to-library state ─────────────────────────────────────────────────────
+  const { currentOrgId } = useOrgStore()
+  const libTaxonomy = useLibraryStore(s => s.taxonomy)
+  const fetchTaxonomy = useLibraryStore(s => s.fetchTaxonomy)
+  const [showAddLibrary, setShowAddLibrary] = useState(false)
+  const openAddLibrary = useCallback(() => {
+    if (!currentOrgId) { addToast('error', t('library.noOrg')); return }
+    fetchTaxonomy(currentOrgId)
+    setShowAddLibrary(true)
+  }, [currentOrgId, fetchTaxonomy, addToast, t])
+
   // ── Edit mode state ────────────────────────────────────────────────────────
   const [isEditMode,       setIsEditMode]       = useState(false)
   const [editedMarkdown,   setEditedMarkdown]   = useState('')
@@ -286,6 +399,7 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
   const [agentInstructions,setAgentInstructions]= useState('')
   const [agentRunning,     setAgentRunning]     = useState(false)
   const [agentStatus,      setAgentStatus]      = useState('')
+  const [imageObjectUrl,   setImageObjectUrl]   = useState(null)
 
   const isImageDoc = documentName
     ? IMAGE_EXTS.has('.' + documentName.split('.').pop().toLowerCase())
@@ -293,15 +407,47 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
 
   const { markdown, htmlDoc, loadingDoc, headings } = useDocumentContent(sessionId)
 
+  // ── Session expiry warning ─────────────────────────────────────────────────
+  // Touch last_activity by fetching content; warn 5 min before 1-hour expiry.
+  useEffect(() => {
+    if (!sessionId) return
+    const SESSION_TTL_MS = 60 * 60 * 1000       // 1 hour (matches backend SESSION_TIMEOUT)
+    const WARN_BEFORE_MS = 5  * 60 * 1000       // warn 5 min before expiry
+    const WARN_AT_MS     = SESSION_TTL_MS - WARN_BEFORE_MS  // 55 min
+
+    const warnTimer = setTimeout(() => {
+      addToast('warning', t('workspace.sessionExpiryWarning', 'Сессия истекает через 5 минут. Нажмите «Продлить» для сохранения работы.'))
+    }, WARN_AT_MS)
+
+    return () => clearTimeout(warnTimer)
+  }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load image preview as a blob so the auth token travels in the
+  // Authorization header instead of a ?token= query param.
+  useEffect(() => {
+    if (!sessionId || !isImageDoc) { setImageObjectUrl(null); return }
+    let cancelled = false
+    let objUrl = null
+    apiFetchDocumentImage(sessionId)
+      .then((url) => {
+        if (cancelled) { URL.revokeObjectURL(url); return }
+        objUrl = url
+        setImageObjectUrl(url)
+      })
+      .catch(() => setImageObjectUrl(null))
+    return () => { cancelled = true; if (objUrl) URL.revokeObjectURL(objUrl) }
+  }, [sessionId, isImageDoc])
+
   // Pre-process [CHART ...] directives for view-mode rendering
   const displayMarkdown = useMemo(() => preprocessChartDirectives(markdown), [markdown])
 
   const {
     messages, input, setInput, loading, copied,
     chatMode, setChatMode, visualizing, translating,
-    inputRef, messagesEndRef,
-    handleSend, handleClearHistory, handleVisualDescribe,
+    inputRef, messagesEndRef, messagesScrollRef,
+    handleSend, handleStop, handleClearHistory, handleVisualDescribe,
     handleTranslate, handleExport, handleCopy,
+    handleRegenerate, handleExportChat, handleExplainSimply,
   } = useChatMessages(sessionId, isImageDoc)
 
   const {
@@ -309,11 +455,13 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
     handleSave: handleCtxSave, handleClear: handleCtxClear,
   } = useDocContext(documentName)
 
-  const handleSelection = (text) => {
+  // useCallback (stable identity) so it doesn't defeat DocumentViewer's memo —
+  // see the customComponents useMemo below for the same reasoning.
+  const handleSelection = useCallback((text) => {
     const snippet = text.slice(0, 120) + (text.length > 120 ? '…' : '')
     setInput(`[${t('workspace.contextPrefix')}: "${snippet}"]\n`)
     inputRef.current?.focus()
-  }
+  }, [t, setInput])
 
   const scrollToHeading = (idx) => {
     setShowToc(false)
@@ -408,6 +556,15 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
     return <code className={className}>{children}</code>
   }, [openChartEditor, deleteChart])
 
+  // Stable object identity — an inline `{{ code: chartCodeComponent }}` literal
+  // at the DocumentViewer call site would be a new object every render and
+  // defeat React.memo(DocumentViewer) even though chartCodeComponent itself
+  // is useCallback-stable.
+  const documentViewerComponents = useMemo(
+    () => ({ code: chartCodeComponent }),
+    [chartCodeComponent]
+  )
+
   const autoSave = useCallback(async () => {
     if (!sessionId || !isEditMode) return
     setIsSaving(true)
@@ -435,7 +592,7 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
       a.remove()
       URL.revokeObjectURL(url)
     } catch (e) {
-      console.error('Export failed:', e)
+      if (import.meta.env.DEV) console.error('Export failed:', e)
     } finally {
       setIsExporting(false)
     }
@@ -541,6 +698,31 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
                 <button className="ws-doc-nav-btn" onClick={() => scrollDocBy(1)} title={t('workspace.scrollDown')}><ChevronDown size={13} /></button>
               </>
             )}
+            {/* Extend session button — refreshes last_activity on backend */}
+            {sessionId && (
+              <button
+                className="ws-doc-nav-btn"
+                onClick={() => {
+                  // Touch the session by fetching content (updates last_activity server-side)
+                  apiGetDocumentContent(sessionId)
+                    .then(() => addToast('success', t('workspace.sessionExtended', 'Сессия продлена на 1 час')))
+                    .catch(() => addToast('error', t('workspace.sessionExtendFailed', 'Не удалось продлить сессию')))
+                }}
+                title={t('workspace.extendSession', 'Продлить сессию')}
+              >
+                <RefreshCw size={13} />
+              </button>
+            )}
+            {/* Add current document to library */}
+            {sessionId && currentOrgId && (
+              <button
+                className="ws-doc-nav-btn"
+                onClick={openAddLibrary}
+                title={t('library.addSessionTitle')}
+              >
+                <BookMarked size={13} />
+              </button>
+            )}
             {/* Edit mode toggle */}
             {!isImageDoc && !loadingDoc && markdown && (
               <button
@@ -623,9 +805,9 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
                 </div>
               : isImageDoc
                 ? <div className="ws-image-preview">
-                    <img src={apiDocumentImageUrl(sessionId)} alt={documentName}
+                    {imageObjectUrl && <img src={imageObjectUrl} alt={documentName}
                       className="ws-image-preview__img"
-                      onError={(e) => { e.target.style.display = 'none' }} />
+                      onError={(e) => { e.target.style.display = 'none' }} />}
                     {markdown && (
                       <details className="ws-image-preview__ocr">
                         <summary>{t('workspace.extractedText')}</summary>
@@ -642,7 +824,7 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
                       onBlur={autoSave}
                       spellCheck={false}
                     />
-                  : <DocumentViewer ref={docViewerRef} markdown={displayMarkdown} html={htmlDoc} onSelection={handleSelection} customComponents={{ code: chartCodeComponent }} />
+                  : <DocumentViewer ref={docViewerRef} markdown={displayMarkdown} html={htmlDoc} onSelection={handleSelection} customComponents={documentViewerComponents} />
           }
         </div>
       </motion.div>
@@ -660,9 +842,14 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
           <span className="ws-panel-title">{t('workspace.ai')}</span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
             {messages.length > 1 && (
-              <button className="ws-action-btn" onClick={handleClearHistory} title={t('workspace.clearHistory')}>
-                <Trash2 size={11} />
-              </button>
+              <>
+                <button className="ws-action-btn" onClick={handleExportChat} title={t('workspace.exportChat')}>
+                  <FileDown size={11} />
+                </button>
+                <button className="ws-action-btn" onClick={handleClearHistory} title={t('workspace.clearHistory')}>
+                  <Trash2 size={11} />
+                </button>
+              </>
             )}
             <button className="ws-action-btn" onClick={() => navigate('/compare')} title={t('workspace.compare')}><GitCompare size={11} /></button>
             <button className="ws-action-btn" onClick={() => navigate('/convert')} title={t('workspace.convert')}><RefreshCw size={11} /></button>
@@ -675,40 +862,16 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
           </div>
         </div>
 
-        {/* Translation bar */}
-        <div className="ws-translate-bar">
-          <Languages size={12} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-          <span className="ws-translate-label">{t('workspace.translate')}</span>
-          {LANGS.map(l => (
-            <div key={l.code} className="ws-lang-group">
-              <button
-                className={`ws-lang-btn${translating === l.code ? ' ws-lang-btn--active' : ''}`}
-                onClick={() => handleTranslate(l.code)}
-                disabled={!!translating || loading || !sessionId}
-              >
-                {translating === l.code ? <Loader2 size={10} className="animate-spin" /> : <FlagIcon lang={l.code} size={13} />} {l.label}
-              </button>
-              <div className="ws-export-wrap">
-                <button className="ws-export-btn" disabled={!sessionId || loading} title={t('workspace.download')}><FileDown size={11} /></button>
-                <div className="ws-export-menu">
-                  {['txt','md','docx'].map(fmt => (
-                    <button key={fmt} className="ws-export-item" onClick={() => handleExport(l.code, fmt)}>
-                      {fmt.toUpperCase()}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+        {/* Background translation jobs (async, survives refresh) */}
+        <TranslationJobsPanel sessionId={sessionId} disabled={loading} />
 
         {/* Messages */}
-        <div className="ws-messages">
+        <div className="ws-messages" ref={messagesScrollRef}>
           <div className="ws-messages-inner">
             {messages.map((msg, i) =>
               msg.role === 'divider'
                 ? <div key={i} className="ws-history-divider">{t('workspace.prevSession')}</div>
-                : <ChatMessage key={i} msg={msg} i={i} copied={copied} onCopy={handleCopy} />
+                : <ChatMessage key={i} msg={msg} i={i} copied={copied} onCopy={handleCopy} onRegenerate={handleRegenerate} onExplainSimply={handleExplainSimply} />
             )}
             <div ref={messagesEndRef} />
           </div>
@@ -725,7 +888,7 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
               {/* Mode toggle + Tips */}
               <div className="ws-tips-row">
                 <div className="ws-mode-toggle">
-                  {['precise', 'consultation'].map(mode => (
+                  {['exact', 'consultation'].map(mode => (
                     <div key={mode} className="ws-mode-btn-wrap">
                       {chatMode === mode && (
                         <motion.div className="ws-mode-pill" layoutId="ws-mode-pill"
@@ -786,13 +949,24 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
                   className="ws-textarea"
                   disabled={loading}
                 />
-                <button
-                  onClick={handleSend}
-                  disabled={!input.trim() || loading}
-                  className={`ws-send-btn${input.trim() && !loading ? ' ws-send-btn--active' : ''}`}
-                >
-                  {loading ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
-                </button>
+                {loading ? (
+                  <button
+                    onClick={handleStop}
+                    className="ws-send-btn ws-stop-btn"
+                    title={t('workspace.stopGeneration')}
+                    aria-label={t('workspace.stopGeneration')}
+                  >
+                    <Square size={13} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handleSend()}
+                    disabled={!input.trim()}
+                    className={`ws-send-btn${input.trim() ? ' ws-send-btn--active' : ''}`}
+                  >
+                    <Send size={15} />
+                  </button>
+                )}
               </div>
 
               {/* Doc context (collapsible) */}
@@ -898,6 +1072,18 @@ export default function DocumentWorkspacePage({ sessionId, documentName }) {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* ══════════ Add to Library ══════════ */}
+      {showAddLibrary && (
+        <LibraryDocModal
+          mode="session"
+          orgId={currentOrgId}
+          sessionId={sessionId}
+          taxonomy={libTaxonomy}
+          doc={{ name: documentName || '' }}
+          onClose={() => setShowAddLibrary(false)}
+        />
+      )}
     </div>
   )
 }

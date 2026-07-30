@@ -8,9 +8,7 @@ build/
 __pycache__/
 *.pyc
 .venv/
-.env/
 
-backend/chroma_db/
 # Logs
 *.log
 
@@ -52,10 +50,6 @@ backend/*.db
 backend/chroma_db/
 chroma_db/
 
-# Ollama models and Docker tarballs
-.ollama/
-*.tar
-
 # E2E / Playwright artifacts
 test-results/
 playwright-report/
@@ -66,19 +60,10 @@ e2e/fixtures/*.pdf
 .claude/settings.local.json
 
 # Secrets
+.env
 backend/.env
-
-# E2E / Playwright artifacts
-test-results/
-playwright-report/
-e2e/screenshots/
-e2e/fixtures/*.pdf
-
-# Claude Code local settings
-.claude/settings.local.json
-
-# Secrets
-backend/.env
+*.env
+!*.env.example
 
 # Root package (only needed for playwright dev dep)
 package-lock.json

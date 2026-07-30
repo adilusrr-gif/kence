@@ -17,7 +17,7 @@ export const apiSaveMarkdown = (sessionId, markdown) =>
 
 export async function apiExportMarkdown(sessionId, markdown, format) {
   const token = getToken()
-  const res = await fetch('/api/documents/export-markdown', {
+  const res = await fetch(BASE + '/api/documents/export-markdown', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -29,7 +29,14 @@ export async function apiExportMarkdown(sessionId, markdown, format) {
   return res.blob()
 }
 
-export function apiDocumentImageUrl(sessionId) {
-  const token = getToken() || ''
-  return `${BASE}/api/documents/${sessionId}/image?token=${encodeURIComponent(token)}`
+// Fetches the document image with the auth token in the Authorization header
+// (instead of a ?token= query param, which leaks into history/logs/referer).
+// Returns an object URL — the caller is responsible for URL.revokeObjectURL.
+export async function apiFetchDocumentImage(sessionId) {
+  const token = getToken()
+  const res = await fetch(`${BASE}/api/documents/${sessionId}/image`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!res.ok) throw new Error('Failed to load image')
+  return URL.createObjectURL(await res.blob())
 }

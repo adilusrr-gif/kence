@@ -33,7 +33,7 @@ def _get_data(chart_type, title, data_hint, llm_service):
     if llm_service:
         try:
             prompt = _CHART_PROMPT.format(chart_type=chart_type, title=title, data_hint=data_hint or title)
-            raw = llm_service.simple_chat(prompt).strip()
+            raw = llm_service.simple_chat_guarded(prompt).strip()
             if raw.startswith("```"):
                 raw = raw.split("```")[1]
                 if raw.startswith("json"):

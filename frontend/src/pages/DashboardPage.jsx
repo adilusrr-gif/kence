@@ -4,13 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
 import {
   Upload, MessageSquare, GitCompare, Presentation, Plus, FileText,
-  Trash2, RefreshCw, Bot, Activity, TrendingUp, Search, FolderOpen, ArrowRight,
+  Trash2, RefreshCw, Bot, Activity, TrendingUp, Search, FolderOpen, ArrowRight, Brain,
 } from 'lucide-react'
 import { BarChart, Bar, ResponsiveContainer, Tooltip as RTooltip } from 'recharts'
 import { Button } from '@/shared/ui/button'
 import { Stack } from '@/shared/ui/stack'
 import { useToast } from '@/shared/ui/toast'
-import { apiDeleteSession, apiAnalyticsOverview, apiAnalyticsTimeline } from '../lib/api'
+import { apiDeleteSession, apiListSessions, apiAnalyticsOverview, apiAnalyticsTimeline } from '../lib/api'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -64,6 +64,16 @@ const ITEM_VARIANTS = {
     transition: { type: 'spring', stiffness: 400, damping: 28 } },
 }
 
+// Same motion as ITEM_VARIANTS, but self-driven instead of inherited from a
+// variant parent — required for blocks whose data arrives async, since children
+// mounting after the parent finished staggering stay stuck in `hidden`
+// (opacity: 0 — invisible, yet still clickable).
+const riseIn = (i = 0) => ({
+  initial: { opacity: 0, y: 12, scale: 0.94 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  transition: { type: 'spring', stiffness: 400, damping: 28, delay: Math.min(i, 8) * 0.055 },
+})
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function MiniStat({ icon: Icon, label, value, color }) {
@@ -109,13 +119,14 @@ const SparkTip = ({ active, payload, label }) => {
   )
 }
 
-function SessionCard({ entry, onContinue, onDelete, index, t }) {
+function SessionCard({ entry, index = 0, onContinue, onDelete, isDeleting, t }) {
   const ext = entry.name?.includes('.') ? entry.name.split('.').pop().toUpperCase() : null
   const fmtStyle = ext && FMT_COLORS[ext] ? FMT_COLORS[ext] : { bg: 'var(--color-fmt-other-bg)', color: 'var(--color-fmt-other)' }
   return (
     <motion.div
       className="dashboard-session-card"
-      variants={ITEM_VARIANTS}
+      {...riseIn(index)}
+      exit={{ opacity: 0, x: 20, transition: { duration: 0.18 } }}
       whileHover={{ x: 3, transition: { duration: 0.12 } }}
       onClick={() => onContinue(entry)}
       role="button"
@@ -140,7 +151,9 @@ function SessionCard({ entry, onContinue, onDelete, index, t }) {
         type="button"
         className="dashboard-session-card__delete"
         aria-label={t('dashboard.delete')}
+        disabled={isDeleting}
         onClick={(e) => { e.stopPropagation(); onDelete(entry.id) }}
+        style={{ opacity: isDeleting ? 0.4 : undefined }}
       >
         <Trash2 size={13} />
       </button>
@@ -150,12 +163,13 @@ function SessionCard({ entry, onContinue, onDelete, index, t }) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-export default function DashboardPage({ sessionHistory = [], currentUser, onNewSession, onRestoreSession }) {
+export default function DashboardPage({ sessionHistory = [], currentUser, onNewSession, onRestoreSession, onDeleteSession }) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const toast = useToast()
   const [serverSessions, setServerSessions] = useState([])
   const [deletedIds, setDeletedIds] = useState(new Set())
+  const [deletingIds, setDeletingIds] = useState(new Set())
   const [overview, setOverview] = useState(null)
   const [timeline, setTimeline] = useState([])
   const [search, setSearch] = useState('')
@@ -168,15 +182,14 @@ export default function DashboardPage({ sessionHistory = [], currentUser, onNewS
     { icon: GitCompare,   label: t('dashboard.features.compare'),       desc: t('dashboard.features.compareDesc'),       path: '/compare'                      },
     { icon: Presentation, label: t('dashboard.features.presentation'),  desc: t('dashboard.features.presentationDesc'),  path: '/presentation'                 },
     { icon: RefreshCw,    label: t('dashboard.features.convert'),       desc: t('dashboard.features.convertDesc'),       path: '/convert'                      },
-    { icon: Bot,          label: t('dashboard.features.agents'),        desc: t('dashboard.features.agentsDesc'),        path: '/agents'                       },
+    { icon: Brain,        label: t('dashboard.features.insights'),       desc: t('dashboard.features.insightsDesc'),      path: '/insights'                     },
   ]
 
   useEffect(() => {
     const token = localStorage.getItem('kence_token')
     if (!token) return
 
-    fetch('/api/sessions', { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : [])
+    apiListSessions()
       .then(data => Array.isArray(data) && setServerSessions(data))
       .catch(() => toast.error(t('common.loadError')))
 
@@ -189,8 +202,13 @@ export default function DashboardPage({ sessionHistory = [], currentUser, onNewS
   }, [])
 
   const handleDelete = async (id) => {
+    if (deletingIds.has(id)) return
+    setDeletingIds(prev => new Set([...prev, id]))
     setDeletedIds(prev => new Set([...prev, id]))
+    setServerSessions(prev => prev.filter(s => s.session_id !== id))
+    onDeleteSession?.(id)
     await apiDeleteSession(id).catch(() => {})
+    setDeletingIds(prev => { const n = new Set(prev); n.delete(id); return n })
   }
 
   const mergedHistory = useMemo(() => {
@@ -245,31 +263,26 @@ export default function DashboardPage({ sessionHistory = [], currentUser, onNewS
       </motion.div>
 
       {/* Bento grid: stats + sparkline */}
-      <motion.div
-        className="dashboard-bento"
-        variants={CONTAINER_VARIANTS}
-        initial="hidden"
-        animate="visible"
-      >
+      <div className="dashboard-bento">
         {overview && (
           <>
-            <motion.div className="dashboard-bento__stat" variants={ITEM_VARIANTS}>
+            <motion.div className="dashboard-bento__stat" {...riseIn(0)}>
               <MiniStat icon={Activity}      label={t('dashboard.stats.totalEvents')} value={overview.total_events} color="var(--accent-primary)" />
             </motion.div>
-            <motion.div className="dashboard-bento__stat" variants={ITEM_VARIANTS}>
+            <motion.div className="dashboard-bento__stat" {...riseIn(1)}>
               <MiniStat icon={TrendingUp}    label={t('dashboard.stats.week')}        value={overview.week_events}  color="#6366f1" />
             </motion.div>
-            <motion.div className="dashboard-bento__stat" variants={ITEM_VARIANTS}>
+            <motion.div className="dashboard-bento__stat" {...riseIn(2)}>
               <MiniStat icon={Upload}        label={t('dashboard.stats.uploads')}     value={byType.upload || 0}    color="var(--color-fmt-pptx)" />
             </motion.div>
-            <motion.div className="dashboard-bento__stat" variants={ITEM_VARIANTS}>
+            <motion.div className="dashboard-bento__stat" {...riseIn(3)}>
               <MiniStat icon={MessageSquare} label={t('dashboard.stats.chats')}       value={byType.chat   || 0}    color="var(--color-fmt-xlsx)" />
             </motion.div>
           </>
         )}
 
         {timeline.length > 0 && (
-          <motion.div className="dashboard-bento__spark" variants={ITEM_VARIANTS}>
+          <motion.div className="dashboard-bento__spark" {...riseIn(4)}>
             <div className="dashboard-sparkline">
               <div className="dashboard-sparkline__header">
                 <span className="dashboard-page__section-title">{t('dashboard.activity')}</span>
@@ -286,7 +299,7 @@ export default function DashboardPage({ sessionHistory = [], currentUser, onNewS
             </div>
           </motion.div>
         )}
-      </motion.div>
+      </div>
 
       {/* Feature grid */}
       <Stack gap="sm">
@@ -335,31 +348,24 @@ export default function DashboardPage({ sessionHistory = [], currentUser, onNewS
             </Button>
           </motion.div>
         ) : (
-          <motion.div
-            className="dashboard-page__sessions"
-            variants={CONTAINER_VARIANTS}
-            initial="hidden"
-            animate="visible"
-          >
+          <div className="dashboard-page__sessions">
             <AnimatePresence>
-              {filteredHistory.map((entry) => (
-                <motion.div
+              {filteredHistory.map((entry, i) => (
+                <SessionCard
                   key={entry.id}
-                  exit={{ opacity: 0, x: 20, transition: { duration: 0.18 } }}
-                >
-                  <SessionCard
-                    entry={entry}
-                    t={t}
-                    onContinue={e => { if (onRestoreSession) onRestoreSession(e); else navigate('/workspace') }}
-                    onDelete={handleDelete}
-                  />
-                </motion.div>
+                  entry={entry}
+                  index={i}
+                  t={t}
+                  onContinue={e => { if (onRestoreSession) onRestoreSession(e); else navigate('/workspace') }}
+                  onDelete={handleDelete}
+                  isDeleting={deletingIds.has(entry.id)}
+                />
               ))}
             </AnimatePresence>
             {filteredHistory.length === 0 && search && (
               <p className="dashboard-empty-search">{t('dashboard.noResults', { query: search })}</p>
             )}
-          </motion.div>
+          </div>
         )}
       </Stack>
 

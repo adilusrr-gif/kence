@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useToast } from '@/shared/ui/toast'
-import { getToken } from '../lib/api'
+import { getToken, BASE } from '../lib/api'
 
 export function usePresentationBuild({ sessionId, theme, selectedIds, onSuccess, onError }) {
   const { t } = useTranslation()
@@ -16,7 +16,7 @@ export function usePresentationBuild({ sessionId, theme, selectedIds, onSuccess,
     setBuildStatus(t('presentation.errors.preparing'))
 
     const token = getToken()
-    const url = `/api/presentations/build/stream?${new URLSearchParams({
+    const url = `${BASE}/api/presentations/build/stream?${new URLSearchParams({
       session_id: sessionId,
       theme,
       slide_ids: selectedIds.join(','),
@@ -55,19 +55,20 @@ export function usePresentationBuild({ sessionId, theme, selectedIds, onSuccess,
           if (!line.startsWith('data: ')) continue
           const raw = line.slice(6).trim()
           if (raw === '[DONE]') { setBuilding(false); setBuildStatus(''); return }
+          let payload
           try {
-            const payload = JSON.parse(raw)
-            if (payload.error) {
-              throw new Error(payload.error)
-            } else if (payload.done) {
-              setBuilding(false); setBuildStatus('')
-              onSuccess()
-              return
-            } else if (payload.status) {
-              setBuildStatus(payload.status)
-            }
-          } catch (parseErr) {
-            if (parseErr.message !== 'Unexpected end') throw parseErr
+            payload = JSON.parse(raw)
+          } catch {
+            continue  // skip malformed/partial SSE event
+          }
+          if (payload.error) {
+            throw new Error(payload.error)
+          } else if (payload.done) {
+            setBuilding(false); setBuildStatus('')
+            onSuccess()
+            return
+          } else if (payload.status) {
+            setBuildStatus(payload.status)
           }
         }
       }

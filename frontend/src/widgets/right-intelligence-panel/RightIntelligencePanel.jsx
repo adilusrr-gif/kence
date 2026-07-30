@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import { useShellStore } from '@/shared/stores/shellStore'
 import { useWorkspaceStore } from '@/shared/stores/workspaceStore'
-import { apiGetChatHistory, apiClearChatHistory, copyToClipboard } from '@/lib/api'
+import { apiGetChatHistory, apiClearChatHistory, apiGetDocumentContent, copyToClipboard } from '@/lib/api'
 
 function formatBytes(n) {
   if (!n) return '—'
@@ -98,11 +98,7 @@ function DocTab({ sessionId, documentName }) {
   useEffect(() => {
     if (!sessionId) { setMeta(null); return }
     setLoading(true)
-    const token = localStorage.getItem('kence_token')
-    fetch(`/api/documents/${sessionId}/content`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((r) => r.ok ? r.json() : null)
+    apiGetDocumentContent(sessionId)
       .then((data) => data && setMeta(data))
       .catch(() => {})
       .finally(() => setLoading(false))

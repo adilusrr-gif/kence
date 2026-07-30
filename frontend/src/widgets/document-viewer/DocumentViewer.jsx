@@ -1,9 +1,11 @@
-import React, { forwardRef, useEffect, useRef, useState } from 'react'
+import React, { forwardRef, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { MessageSquare } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import DOMPurify from 'dompurify'
 
 const DocumentViewer = forwardRef(function DocumentViewer({ markdown = '', html = '', onSelection, customComponents = {} }, outerRef) {
+  const { t } = useTranslation()
   const [MD, setMD] = useState(null)
   const [remarkGfm, setRemarkGfm] = useState(null)
   const [pill, setPill] = useState(null)
@@ -51,6 +53,21 @@ const DocumentViewer = forwardRef(function DocumentViewer({ markdown = '', html 
   const hasHtml = html && html.trim().length > 0
   const hasContent = hasHtml || (markdown && markdown.trim().length > 0)
 
+  // The document HTML can be several MB (Docling embeds images as data URIs).
+  // DocumentViewer sits next to the chat panel in the same component tree, so
+  // it re-renders on every streamed chat token; without memoizing this, the
+  // (expensive) sanitize pass reran on every single token instead of only
+  // when the document itself changes — the dominant cause of stream-time jank.
+  const sanitizedHtml = useMemo(() => {
+    if (!hasHtml) return ''
+    return DOMPurify.sanitize(html, {
+      ADD_TAGS: ['style'],
+      ADD_ATTR: ['style'],
+      // Allow data:image URIs so embedded base64 images from Docling render
+      ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+    })
+  }, [html, hasHtml])
+
   return (
     <div
       ref={containerRef}
@@ -87,14 +104,14 @@ const DocumentViewer = forwardRef(function DocumentViewer({ markdown = '', html 
             }}
           >
             <MessageSquare size={12} />
-            Спросить AI
+            {t('documentViewer.askAI', 'Спросить AI')}
           </motion.button>
         )}
       </AnimatePresence>
 
       {!hasContent && (
         <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '3rem', fontSize: 14 }}>
-          Документ загружается…
+          {t('documentViewer.loading', 'Документ загружается…')}
         </div>
       )}
 
@@ -102,14 +119,7 @@ const DocumentViewer = forwardRef(function DocumentViewer({ markdown = '', html 
       {hasHtml && (
         <div
           className="dv-html-content"
-          dangerouslySetInnerHTML={{
-            __html: DOMPurify.sanitize(html, {
-              ADD_TAGS: ['style'],
-              ADD_ATTR: ['style'],
-              // Allow data:image URIs so embedded base64 images from Docling render
-              ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|cid|xmpp|data):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
-            })
-          }}
+          dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
         />
       )}
 
@@ -146,4 +156,9 @@ const DocumentViewer = forwardRef(function DocumentViewer({ markdown = '', html 
   )
 })
 
-export default DocumentViewer
+// Memoized so this component — a sibling of the chat panel that holds a
+// potentially multi-MB document — doesn't re-render (and re-run the sanitize/
+// markdown-parse work above) on every chat-streaming re-render of its parent.
+// Effective only because the caller now passes stable refs for `onSelection`
+// and `customComponents` (see DocumentWorkspacePage's useCallback/useMemo).
+export default React.memo(DocumentViewer)

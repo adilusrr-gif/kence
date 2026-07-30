@@ -9,6 +9,7 @@ import json
 from app.core.session import session_manager
 from app.core.config import get_settings
 from app.api.auth_routes import get_current_user
+from app.api.routes import _verify_session_access
 from app.services.presentation_plan import (
     generate_plan, save_plan, get_plan, THEMES, SLIDE_TYPES
 )
@@ -41,8 +42,11 @@ async def create_plan(body: PlanRequest, user: dict = Depends(get_current_user))
     session = session_manager.get_session(body.session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
+    _verify_session_access(session, user)
     try:
-        plan = generate_plan(body.session_id, llm_service, body.user_instructions, body.num_slides)
+        plan = await asyncio.to_thread(
+            generate_plan, body.session_id, llm_service, body.user_instructions, body.num_slides
+        )
         return plan
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -53,6 +57,7 @@ async def update_plan(session_id: str, body: PlanUpdateRequest, user: dict = Dep
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+    _verify_session_access(session, user)
     existing = get_plan(session_id) or {}
     plan = {
         "title": body.title or existing.get("title", ""),
@@ -67,12 +72,20 @@ async def build(session_id: str, body: BuildRequest, user: dict = Depends(get_cu
     session = session_manager.get_session(session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
+    _verify_session_access(session, user)
     plan = get_plan(session_id)
     if not plan:
         raise HTTPException(status_code=400, detail="No plan found — call POST /plan first")
     try:
-        path = build_presentation(plan, body.theme, body.slide_ids, session_id, llm_service)
-        analytics_service.log_event("presentation", username=user.get("sub"), session_id=session_id, theme=body.theme)
+        path = await asyncio.to_thread(
+            build_presentation, plan, body.theme, body.slide_ids, session_id, llm_service
+        )
+        _u = user.get("username")
+        asyncio.create_task(asyncio.to_thread(
+            analytics_service.log_event, "presentation",
+            username=_u, session_id=session_id, theme=body.theme,
+            org_id=analytics_service.resolve_org_id(_u),
+        ))
         return {
             "status": "built",
             "download_url": f"/api/presentations/download/{session_id}",
@@ -93,6 +106,7 @@ async def build_stream(
     session = session_manager.get_session(session_id)
     if not session or not session.get("vector_store"):
         raise HTTPException(status_code=400, detail="No document uploaded")
+    _verify_session_access(session, user)
     plan = get_plan(session_id)
     if not plan:
         raise HTTPException(status_code=400, detail="No plan found — call POST /plan first")
@@ -144,6 +158,10 @@ async def build_stream(
 
 @router.get("/download/{session_id}")
 async def download(session_id: str, user: dict = Depends(get_current_user)):
+    session = session_manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    _verify_session_access(session, user)
     path = Path(settings.UPLOAD_DIR) / session_id / "presentation_v2.pptx"
     if not path.exists():
         raise HTTPException(status_code=404, detail="Presentation not found. Build it first.")

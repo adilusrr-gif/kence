@@ -25,4 +25,11 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def decode_token(token: str) -> dict:
-    return jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+    """Decode a JWT, falling back to JWT_SECRET_KEY_PREVIOUS during key rotation."""
+    try:
+        return jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+    except JWTError:
+        prev = settings.JWT_SECRET_KEY_PREVIOUS
+        if prev:
+            return jwt.decode(token, prev, algorithms=[settings.JWT_ALGORITHM])
+        raise

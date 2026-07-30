@@ -1,0 +1,55 @@
+{
+  "run_id": "d80ded",
+  "config": {
+    "users": 5,
+    "max_concurrent": 3,
+    "queue_maxsize": 50
+  },
+  "pre_status": {
+    "detail": "Токен недействителен или истёк"
+  },
+  "post_status": {
+    "detail": "Токен недействителен или истёк"
+  },
+  "final_status": {
+    "detail": "Токен недействителен или истёк"
+  },
+  "stats": {
+    "total": 5,
+    "success": 5,
+    "timeout": 0,
+    "error_503": 0,
+    "error_other": 0,
+    "avg_ms": 1735,
+    "min_ms": 1407,
+    "max_ms": 2107,
+    "total_time_sec": 2.11
+  },
+  "sample_results": [
+    {
+      "status": 200,
+      "ms": 1407,
+      "result": "OK"
+    },
+    {
+      "status": 200,
+      "ms": 1530,
+      "result": "OK"
+    },
+    {
+      "status": 200,
+      "ms": 1652,
+      "result": "OK"
+    },
+    {
+      "status": 200,
+      "ms": 1981,
+      "result": "OK"
+    },
+    {
+      "status": 200,
+      "ms": 2107,
+      "result": "OK"
+    }
+  ]
+}

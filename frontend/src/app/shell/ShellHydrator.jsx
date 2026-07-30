@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { getStoredUser } from '@/lib/api'
+import { getStoredUser, apiGetPublicBranding } from '@/lib/api'
 import { useAuthStore } from '@/shared/stores/authStore'
 import { useShellStore } from '@/shared/stores/shellStore'
 
@@ -39,8 +39,7 @@ export default function ShellHydrator({ children }) {
 
     // Hydrate org branding (best-effort, non-blocking)
     const orgSlug = localStorage.getItem('kence_current_org_slug') || 'default'
-    fetch(`/api/branding/${orgSlug}`)
-      .then((r) => r.ok ? r.json() : null)
+    apiGetPublicBranding(orgSlug)
       .then((b) => {
         if (!b) return
         if (b.accent_color) document.documentElement.style.setProperty('--accent-primary', b.accent_color)

@@ -12,6 +12,11 @@ PROMPT_META = {
         "variables": ["{context}", "{question}"],
         "description": "Строгий режим — ответ только по контексту документа. Используйте {context} и {question}.",
     },
+    "exact_prompt": {
+        "label": "Дословный ответ (по разделам)",
+        "variables": ["{context}", "{question}"],
+        "description": "Режим 'exact' — воспроизводит целиком найденный раздел документа без сокращений. Используйте {context} и {question}.",
+    },
     "consultation_prompt": {
         "label": "Консультация по документу",
         "variables": ["{context}", "{question}"],
@@ -44,13 +49,26 @@ class DocumentContextRequest(BaseModel):
     context: str
 
 
-# ── Admin: Prompts ─────────────────────────────────────────────────────────
+# ── Prompts ──────────────────────────────────────────────────────────────
+#
+# Every user has their own prompts (personal override → global admin default →
+# hardcoded default). scope="user" (default) reads/writes the caller's personal
+# copy; scope="global" reads/writes the shared admin default and is admin-only.
 
 @router.get("/prompts")
-async def get_prompts(admin: dict = Depends(require_admin)):
+async def get_prompts(scope: str = "user", user: dict = Depends(get_current_user)):
+    if scope == "global":
+        if user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Только администратор может просматривать глобальные промпты")
+        return {
+            "prompts": {pt: {"content": c, "is_personal": False} for pt, c in ai_settings_service.get_prompts().items()},
+            "meta": PROMPT_META,
+            "scope": "global",
+        }
     return {
-        "prompts": ai_settings_service.get_prompts(),
+        "prompts": ai_settings_service.get_user_prompts(user["username"]),
         "meta": PROMPT_META,
+        "scope": "user",
     }
 
 
@@ -58,17 +76,25 @@ async def get_prompts(admin: dict = Depends(require_admin)):
 async def update_prompt(
     prompt_type: str,
     request: UpdatePromptRequest,
-    admin: dict = Depends(require_admin),
+    scope: str = "user",
+    user: dict = Depends(get_current_user),
 ):
     if prompt_type not in PROMPT_META:
         raise HTTPException(status_code=404, detail="Тип промпта не найден")
-    if not ai_settings_service.update_prompt(prompt_type, request.content):
+    if scope == "global":
+        if user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Только администратор может изменять глобальные промпты")
+        if not ai_settings_service.update_prompt(prompt_type, request.content):
+            raise HTTPException(status_code=400, detail="Не удалось обновить промпт")
+        return {"status": "updated", "prompt_type": prompt_type, "scope": "global"}
+    if not ai_settings_service.update_user_prompt(user["username"], prompt_type, request.content):
         raise HTTPException(status_code=400, detail="Не удалось обновить промпт")
-    return {"status": "updated", "prompt_type": prompt_type}
+    return {"status": "updated", "prompt_type": prompt_type, "scope": "user"}
 
 
 @router.post("/prompts/reset-all")
 async def reset_all_prompts(admin: dict = Depends(require_admin)):
+    """Admin-only: resets the GLOBAL defaults. Does not touch personal overrides."""
     ai_settings_service.reset_all_prompts()
     return {"status": "all_reset"}
 
@@ -76,12 +102,20 @@ async def reset_all_prompts(admin: dict = Depends(require_admin)):
 @router.post("/prompts/{prompt_type}/reset")
 async def reset_prompt(
     prompt_type: str,
-    admin: dict = Depends(require_admin),
+    scope: str = "user",
+    user: dict = Depends(get_current_user),
 ):
     if prompt_type not in PROMPT_META:
         raise HTTPException(status_code=404, detail="Тип промпта не найден")
-    content = ai_settings_service.reset_prompt(prompt_type)
-    return {"status": "reset", "prompt_type": prompt_type, "content": content}
+    if scope == "global":
+        if user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Только администратор может сбрасывать глобальные промпты")
+        content = ai_settings_service.reset_prompt(prompt_type)
+        return {"status": "reset", "prompt_type": prompt_type, "content": content, "scope": "global"}
+    # Personal reset = drop the override, revert to the (possibly admin-edited) global default.
+    ai_settings_service.delete_user_prompt(user["username"], prompt_type)
+    content = ai_settings_service.get_prompt(prompt_type)
+    return {"status": "reset", "prompt_type": prompt_type, "content": content, "scope": "user"}
 
 
 # ── Users: Document Contexts ───────────────────────────────────────────────

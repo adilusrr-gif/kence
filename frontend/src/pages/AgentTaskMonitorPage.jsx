@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Download } from 'lucide-react'
 import useAgentStore from '../shared/stores/agentStore'
+import ComplianceReport from '../components/ComplianceReport'
 import { apiGetAgentTask, apiAgentTaskStreamUrl, apiCancelAgentTask, getToken } from '../lib/api'
 
 const STATUS_COLORS = { running: 'var(--status-warning)', done: 'var(--status-success)', failed: 'var(--status-danger)', cancelled: 'var(--color-neutral-500)', queued: 'var(--color-violet-500)' }
@@ -113,9 +114,17 @@ export default function AgentTaskMonitorPage() {
       {finalResult && (
         <div style={s.result}>
           <div style={s.resultTitle}>{t('agents.result')}</div>
-          {finalResult.report_markdown && <div style={s.markdown}>{finalResult.report_markdown}</div>}
-          {finalResult.answer && <div style={s.markdown}>{finalResult.answer}</div>}
-          {finalResult.summary && <div style={s.markdown}>{finalResult.summary}</div>}
+          {/* Compliance returns structured findings — render them instead of the
+              bare summary string, which is all the generic branches below show. */}
+          {finalResult.findings ? (
+            <ComplianceReport result={finalResult} />
+          ) : (
+            <>
+              {finalResult.report_markdown && <div style={s.markdown}>{finalResult.report_markdown}</div>}
+              {finalResult.answer && <div style={s.markdown}>{finalResult.answer}</div>}
+              {finalResult.summary && <div style={s.markdown}>{finalResult.summary}</div>}
+            </>
+          )}
           {finalResult.synthesis && (
             <>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>{t('agents.comparison')}</div>

@@ -1,0 +1,67 @@
+{
+  "run_id": "729b5d",
+  "config": {
+    "users": 100,
+    "max_concurrent": 3,
+    "queue_maxsize": 50
+  },
+  "pre_status": {
+    "active_generations": 0,
+    "queued_generations": 0,
+    "generation_registry_size": 0,
+    "semaphore_usage": "0/3",
+    "queue_depth": 0,
+    "queue_maxsize": 50,
+    "ollama_available": true,
+    "ollama_status": "ok",
+    "circuit_breaker_state": "closed",
+    "circuit_breaker_failures": 0
+  },
+  "mid_status": {
+    "active_generations": 0,
+    "queued_generations": 0,
+    "generation_registry_size": 0,
+    "semaphore_usage": "0/3",
+    "queue_depth": 0,
+    "queue_maxsize": 50,
+    "ollama_available": true,
+    "ollama_status": "ok",
+    "circuit_breaker_state": "closed",
+    "circuit_breaker_failures": 0
+  },
+  "post_status": {
+    "active_generations": 0,
+    "queued_generations": 0,
+    "generation_registry_size": 0,
+    "semaphore_usage": "0/3",
+    "queue_depth": 0,
+    "queue_maxsize": 50,
+    "ollama_available": true,
+    "ollama_status": "ok",
+    "circuit_breaker_state": "closed",
+    "circuit_breaker_failures": 0
+  },
+  "final_status": {
+    "active_generations": 0,
+    "queued_generations": 0,
+    "generation_registry_size": 0,
+    "semaphore_usage": "0/3",
+    "queue_depth": 0,
+    "queue_maxsize": 50,
+    "ollama_available": true,
+    "ollama_status": "ok",
+    "circuit_breaker_state": "closed",
+    "circuit_breaker_failures": 0
+  },
+  "stats": {
+    "total": 2,
+    "success": 0,
+    "timeout": 0,
+    "error_503": 0,
+    "error_other": 2,
+    "avg_ms": 6,
+    "min_ms": 5,
+    "max_ms": 6,
+    "total_time_sec": 0.01
+  }
+}

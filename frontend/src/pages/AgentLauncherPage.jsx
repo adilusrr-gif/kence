@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import useOrgStore from '../shared/stores/orgStore'
 import useAgentStore from '../shared/stores/agentStore'
 import { useToastStore } from '../shared/stores/toastStore'
-import { apiGetAgentTypes } from '../lib/api'
+import { apiGetAgentTypes, apiGetLibrary, apiGetTaxonomy } from '../lib/api'
 import { SkeletonCard } from '../shared/ui/skeleton/Skeleton'
 
 export default function AgentLauncherPage() {
@@ -18,6 +18,10 @@ export default function AgentLauncherPage() {
   const [selected, setSelected] = useState(null)
   const [form, setForm] = useState({})
   const [launching, setLaunching] = useState(false)
+  // Compliance agent: NPA picking — 'auto' (by direction) or 'manual' (pick NPA docs).
+  const [npaMode, setNpaMode] = useState('auto')
+  const [npaDocs, setNpaDocs] = useState([])
+  const [directions, setDirections] = useState([])
 
   const sessionId = localStorage.getItem('docai_session')
 
@@ -26,6 +30,17 @@ export default function AgentLauncherPage() {
       .then(data => setAgentTypes(data))
       .catch(() => { setAgentTypes({}); setAgentTypesError(true) })
   }, [])
+
+  // Load NPA library docs + directions when the compliance agent is selected.
+  useEffect(() => {
+    if (selected !== 'compliance' || !currentOrgId) return
+    apiGetLibrary(currentOrgId, { doc_kind: 'npa' })
+      .then(docs => setNpaDocs(Array.isArray(docs) ? docs : []))
+      .catch(() => setNpaDocs([]))
+    apiGetTaxonomy(currentOrgId)
+      .then(tax => setDirections(tax.direction || []))
+      .catch(() => setDirections([]))
+  }, [selected, currentOrgId])
 
   const handleLaunch = async () => {
     if (!selected) return
@@ -37,6 +52,13 @@ export default function AgentLauncherPage() {
         session_id: form.session_id || sessionId,
         question: form.question || '',
         instructions: form.instructions || '',
+      }
+      if (selected === 'compliance') {
+        if (npaMode === 'manual') {
+          payload.library_doc_ids = form.library_doc_ids || []
+        } else {
+          payload.direction = form.direction || ''
+        }
       }
       const taskId = await createTask(payload)
       nav(`/agents/tasks/${taskId}`)
@@ -115,6 +137,69 @@ export default function AgentLauncherPage() {
                 value={form.instructions || ''}
                 onChange={e => setForm(p => ({ ...p, instructions: e.target.value }))}
               />
+            </div>
+          )}
+
+          {selected === 'compliance' && (
+            <div>
+              <label className="agents-label">{t('agents.npaMode')}</label>
+              <div style={{ display: 'flex', gap: 14, margin: '0.3rem 0 0.6rem' }}>
+                {['auto', 'manual'].map(m => (
+                  <label key={m} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, cursor: 'pointer' }}>
+                    <input type="radio" name="npaMode" checked={npaMode === m} onChange={() => setNpaMode(m)} />
+                    {t(`agents.npaMode_${m}`)}
+                  </label>
+                ))}
+              </div>
+
+              {npaMode === 'auto' && (
+                <>
+                  <label className="agents-label">{t('agents.npaDirection')}</label>
+                  <select
+                    className="agents-input"
+                    value={form.direction || ''}
+                    onChange={e => setForm(p => ({ ...p, direction: e.target.value }))}
+                  >
+                    <option value="">{t('agents.npaAllDirections')}</option>
+                    {directions.map(d => <option key={d.id} value={d.value}>{d.value}</option>)}
+                  </select>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-faint)', marginTop: 4 }}>
+                    {t('agents.npaAutoHint')}
+                  </div>
+                </>
+              )}
+
+              {npaMode === 'manual' && (
+                <>
+                  <label className="agents-label">{t('agents.npaDocs')}</label>
+                  {npaDocs.length === 0 ? (
+                    <div style={{ fontSize: 12.5, color: 'var(--text-faint)', padding: '0.3rem 0' }}>
+                      {t('agents.npaNone')}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 180, overflowY: 'auto' }}>
+                      {npaDocs.map(d => {
+                        const ids = form.library_doc_ids || []
+                        const checked = ids.includes(d.id)
+                        return (
+                          <label key={d.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer', padding: '0.25rem 0' }}>
+                            <input
+                              type="checkbox" checked={checked}
+                              onChange={() => setForm(p => {
+                                const cur = p.library_doc_ids || []
+                                return { ...p, library_doc_ids: checked ? cur.filter(x => x !== d.id) : [...cur, d.id] }
+                              })}
+                            />
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {d.name}{d.direction ? ` · ${d.direction}` : ''}
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
 

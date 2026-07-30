@@ -9,30 +9,35 @@ services:
     environment:
       POSTGRES_DB: kenceai
       POSTGRES_USER: kence
-      POSTGRES_PASSWORD: kence2026
+      # REQUIRED — set POSTGRES_PASSWORD in .env (no insecure default)
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      # Loopback only — the DB must not be reachable from outside the host
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U kence -d kenceai"]
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 10s
 
   neo4j:
     image: neo4j:5.18-community
     container_name: kence-neo4j
     restart: unless-stopped
     environment:
-      NEO4J_AUTH: neo4j/kence_neo4j_2026
+      # REQUIRED — set NEO4J_PASSWORD in .env (no insecure default)
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
       NEO4J_PLUGINS: '["apoc"]'
       NEO4J_dbms_security_procedures_unrestricted: "apoc.*"
       NEO4J_dbms_memory_heap_initial__size: "512m"
       NEO4J_dbms_memory_heap_max__size: "2G"
     ports:
-      - "7474:7474"
-      - "7687:7687"
+      # Loopback only — Neo4j must not be reachable from outside the host
+      - "127.0.0.1:7474:7474"
+      - "127.0.0.1:7687:7687"
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
@@ -41,27 +46,54 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
+      start_period: 30s
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.30.8
     container_name: kence-ollama
     volumes:
-      - C:/Users/Admin/.ollama:/root/.ollama
-    ports:
-      - "11434:11434"
+      # Reuse models already pulled by the host's systemd ollama service (read-only,
+      # avoids re-downloading qwen3.5:122b/bge-m3/etc.)
+      - /usr/share/.ollama/models:/root/.ollama/models:ro
     environment:
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_GPU_OVERHEAD=536870912
-      - OLLAMA_MAX_LOADED_MODELS=1
-      - OLLAMA_NUM_PARALLEL=1
+      - OLLAMA_MAX_LOADED_MODELS=2   # allow 2 models in memory for parallel requests
+      - OLLAMA_NUM_PARALLEL=6        # 6 concurrent requests: 3 reserved for chat + 3 agent lane (VRAM headroom ~136GB allows the extra KV cache)
+      - OLLAMA_KEEP_ALIVE=-1         # keep models resident permanently (warmed at startup, never unload)
+      - OLLAMA_FLASH_ATTENTION=true  # faster attention, esp. with large context
+      - OLLAMA_CONTEXT_LENGTH=65536  # cap default context (was auto 262144 from VRAM)
+      - LLM_MODEL=qwen3.5:122b       # warmed into VRAM at container startup (see entrypoint)
+    # On startup: launch the server, wait until it answers, then preload the chat
+    # model so the very first user request is already warm. The embedding model
+    # (bge-m3) is warmed from the backend lifespan, since it needs an HTTP
+    # /api/embeddings call and this image has no curl/python3.
+    # ($$ escapes compose interpolation so the shell sees a literal $.)
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        /bin/ollama serve &
+        spid=$$!
+        echo "[warmup] waiting for ollama to come up..."
+        until ollama list >/dev/null 2>&1; do sleep 2; done
+        echo "[warmup] loading chat model $$LLM_MODEL"
+        ollama run "$$LLM_MODEL" "ok" >/dev/null 2>&1 && echo "[warmup] $$LLM_MODEL ready" || echo "[warmup] $$LLM_MODEL FAILED"
+        wait $$spid
     deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
-              count: 1
+              count: all   # qwen3.5:122b (~81GB) needs to span multiple L20 (46GB) GPUs
               capabilities: [gpu]
     restart: unless-stopped
+    # Ollama healthcheck: verify the API is responding (curl isn't in this image)
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   backend:
     image: docai-backend:latest
@@ -75,24 +107,44 @@ services:
       - ./backend/org_storage:/app/org_storage
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
-      - LLM_MODEL=qwen2.5:7b
-      - EMBEDDING_MODEL=nomic-embed-text
-      - DATABASE_URL=postgresql://kence:kence2026@postgres:5432/kenceai
-      # Set a strong random value in production (e.g. openssl rand -hex 32)
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-dev-only-insecure-change-in-production}
+      - LLM_MODEL=qwen3.5:122b
+      - EMBEDDING_MODEL=bge-m3
+      - DATABASE_URL=postgresql://kence:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/kenceai
+      # REQUIRED — generate with: openssl rand -hex 32  then set JWT_SECRET_KEY in .env
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
-      - NEO4J_PASSWORD=kence_neo4j_2026
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?set NEO4J_PASSWORD in .env}
       - DEFAULT_ORG_SLUG=default
       - API_KEY_PREFIX=kce_
+      # Load tuning for 100 concurrent users.
+      # Total Ollama budget = 6 (matches OLLAMA_NUM_PARALLEL); background agents are
+      # capped to 3 slots so interactive chat always keeps the other 3 reserved.
+      - LLM_MAX_CONCURRENT=6
+      # 3 background slots → analysis agents' map fan-out runs in parallel while
+      # 3 slots stay reserved for interactive chat.
+      - LLM_AGENT_MAX_CONCURRENT=3
+      - LLM_QUEUE_MAXSIZE=50
+      # qwen3.5:122b cold-load (multi-GPU) + thinking-mode generation takes well over 60s
+      - LLM_TIMEOUT_SEC=300
+      # Background document-translation worker. Runs inside this backend container.
+      # Set to "false" on web-only replicas if you ever run a dedicated worker node.
+      - TRANSLATION_WORKER_ENABLED=true
     depends_on:
       postgres:
         condition: service_healthy
       ollama:
-        condition: service_started
+        condition: service_healthy   # now waits for Ollama healthcheck (was service_started)
       neo4j:
         condition: service_healthy
     restart: unless-stopped
+    # Backend healthcheck using the new /api/health endpoint (curl isn't in this image, use python3)
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/api/health').status==200 else 1)\""]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
 
   frontend:
     image: docai-frontend:latest
@@ -100,8 +152,14 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy   # wait for backend to be ready
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:80/ > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   postgres_data:

@@ -8,8 +8,13 @@ from app.api.auth_routes import get_current_user, require_org_member, require_or
 from app.core.database import SessionLocal
 from app.models.models import GraphExtractionJob, KnowledgeGraphNode
 from app.services import graph_service
+from app.services.llm import llm_service
 
 router = APIRouter(tags=["knowledge-graph"])
+
+# Keeps strong references to running extraction asyncio.Tasks so CPython GC cannot
+# collect them before they finish. Cleaned up via add_done_callback.
+_extraction_task_registry: dict[int, asyncio.Task] = {}
 
 
 class ExtractRequest(BaseModel):
@@ -33,6 +38,8 @@ async def trigger_extraction(
     session = session_manager.get_session(req.session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Сессия не найдена")
+    from app.api.routes import _verify_session_access
+    _verify_session_access(session, current_user)
 
     markdown_text = session.get("markdown_text", "")
     if not markdown_text:
@@ -49,12 +56,10 @@ async def trigger_extraction(
         db.refresh(job)
         job_id = job.id
 
-    # Run extraction as background task
-    from app.services.llm import LLMService
     from app.services.entity_extractor import run_extraction_job
-    llm = LLMService()
-
-    asyncio.create_task(run_extraction_job(job_id, req.session_id, org_id, markdown_text, llm, req.language))
+    t = asyncio.create_task(run_extraction_job(job_id, req.session_id, org_id, markdown_text, llm_service, req.language))
+    _extraction_task_registry[job_id] = t
+    t.add_done_callback(lambda _: _extraction_task_registry.pop(job_id, None))
 
     return {"job_id": job_id, "status": "pending"}
 
@@ -115,9 +120,40 @@ async def node_neighbors(
 
 
 @router.get("/orgs/{org_id}/graph/export")
-async def export_graph(org_id: int, current_user: dict = Depends(get_current_user)):
+async def export_graph(
+    org_id: int,
+    session_id: Optional[str] = Query(None),
+    current_user: dict = Depends(get_current_user),
+):
     require_org_member(org_id, current_user)
-    return await graph_service.export_graph_for_d3(org_id)
+    return await graph_service.export_graph_for_d3(org_id, doc_id=session_id)
+
+
+@router.get("/orgs/{org_id}/graph/documents")
+async def list_graph_documents(org_id: int, current_user: dict = Depends(get_current_user)):
+    """Documents (sessions) that have entities in the graph — for the doc selector."""
+    require_org_member(org_id, current_user)
+    from app.models.models import DocSession
+    from sqlalchemy import func as sqlfunc
+    with SessionLocal() as db:
+        rows = (
+            db.query(
+                KnowledgeGraphNode.session_id,
+                sqlfunc.count(KnowledgeGraphNode.id).label("node_count"),
+            )
+            .filter(KnowledgeGraphNode.org_id == org_id, KnowledgeGraphNode.session_id.isnot(None))
+            .group_by(KnowledgeGraphNode.session_id)
+            .all()
+        )
+        result = []
+        for session_id, node_count in rows:
+            doc = db.query(DocSession).filter_by(session_id=session_id).first()
+            result.append({
+                "session_id": session_id,
+                "document_name": doc.document_name if doc else None,
+                "node_count": node_count,
+            })
+    return {"documents": result}
 
 
 @router.post("/orgs/{org_id}/graph/query")
@@ -127,9 +163,7 @@ async def query_graph(
     current_user: dict = Depends(get_current_user),
 ):
     require_org_member(org_id, current_user)
-    from app.services.llm import LLMService
-    llm = LLMService()
-    result = await graph_service.natural_language_query(req.query, llm)
+    result = await graph_service.natural_language_query(req.query, llm_service, org_id=org_id)
     return {"query": req.query, "result": result}
 
 

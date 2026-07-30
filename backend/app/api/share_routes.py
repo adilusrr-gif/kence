@@ -20,6 +20,10 @@ class ShareSessionRequest(BaseModel):
 
 @router.get("/sessions/{session_id}/shares")
 async def list_session_shares(session_id: str, current_user: dict = Depends(get_current_user)):
+    # Only the session owner (or an admin) may see who a session is shared with —
+    # otherwise any authenticated user could enumerate shares/usernames (I-01).
+    from app.api.routes import require_session
+    require_session(session_id, current_user)
     return get_session_shares(session_id)
 
 
@@ -32,6 +36,12 @@ async def share_session_endpoint(
     allowed_permissions = {"view", "edit", "comment"}
     if req.permission not in allowed_permissions:
         raise HTTPException(status_code=400, detail=f"Допустимые права: {', '.join(allowed_permissions)}")
+    # A user may only share a session they own (or admin) — never someone else's (I-01)
+    # — and only into an organisation they belong to (no sharing to a foreign org).
+    from app.api.routes import require_session
+    from app.api.auth_routes import require_org_member
+    require_session(session_id, current_user)
+    require_org_member(req.org_id, current_user)
     return share_session(
         session_id=session_id,
         shared_by=current_user["username"],
