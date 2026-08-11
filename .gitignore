@@ -46,6 +46,10 @@ temp/
 # Test databases
 backend/*.db
 
+# Coverage artifacts
+.coverage
+backend/.coverage
+
 # ChromaDB vector storage
 backend/chroma_db/
 chroma_db/
