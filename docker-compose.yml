@@ -95,6 +95,31 @@ services:
       retries: 5
       start_period: 30s
 
+  # One-shot deployment job. NOT started by `docker-compose up` (profile-
+  # gated) — run explicitly, once per deploy, BEFORE `docker-compose up -d
+  # backend`:
+  #   docker-compose --profile migrate run --rm migrate
+  # Literal executable order: verify the build-pinned manifest, THEN run
+  # `alembic upgrade head` — never the reverse, never in parallel. Exits
+  # non-zero and runs no DDL at all if the manifest check fails. This
+  # service only ever performs a plain upgrade (empty DB, or a DB already
+  # stamped at B0 — a no-op). It never runs legacy adoption — that remains
+  # a separate, explicit, manual command
+  # (ops/schema_audit/adopt_legacy_schema.py), on purpose, so it can never
+  # fire unattended from a deploy pipeline.
+  migrate:
+    image: docai-backend:latest
+    container_name: kence-migrate
+    profiles: ["migrate"]
+    environment:
+      - DATABASE_URL=postgresql://kence:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/kenceai
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "python verify_manifest.py && alembic upgrade head"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   backend:
     image: docai-backend:latest
     container_name: kence-backend

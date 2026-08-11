@@ -1,0 +1,207 @@
+=== alembic_version table (post rollback) ===
+ alembic_version_table 
+-----------------------
+ 
+(1 row)
+
+=== workspace_shares partial unique indexes (post rollback) ===
+ uq_user | uq_org 
+---------+--------
+         | 
+(1 row)
+
+=== columns: all migration/ensure_schema_upgrades-touched tables ===
+        table_name        |   column_name    |        data_type         | is_nullable |                    column_default                    
+--------------------------+------------------+--------------------------+-------------+------------------------------------------------------
+ agent_tasks              | id               | integer                  | NO          | nextval('agent_tasks_id_seq'::regclass)
+ agent_tasks              | org_id           | integer                  | NO          | 
+ agent_tasks              | username         | character varying        | NO          | 
+ agent_tasks              | task_type        | character varying        | NO          | 
+ agent_tasks              | status           | character varying        | NO          | 
+ agent_tasks              | input_data       | json                     | NO          | 
+ agent_tasks              | output_data      | json                     | YES         | 
+ agent_tasks              | steps            | json                     | NO          | 
+ agent_tasks              | error            | text                     | YES         | 
+ agent_tasks              | started_at       | timestamp with time zone | YES         | 
+ agent_tasks              | finished_at      | timestamp with time zone | YES         | 
+ agent_tasks              | created_at       | timestamp with time zone | YES         | now()
+ agent_tasks              | session_id       | character varying        | YES         | 
+ chat_messages            | id               | integer                  | NO          | nextval('chat_messages_id_seq'::regclass)
+ chat_messages            | session_id       | character varying        | NO          | 
+ chat_messages            | org_id           | integer                  | YES         | 
+ chat_messages            | role             | character varying        | NO          | 
+ chat_messages            | content          | text                     | NO          | 
+ chat_messages            | created_at       | timestamp with time zone | YES         | now()
+ document_library         | id               | integer                  | NO          | nextval('document_library_id_seq'::regclass)
+ document_library         | org_id           | integer                  | NO          | 
+ document_library         | owner_username   | character varying        | NO          | 
+ document_library         | name             | character varying        | NO          | 
+ document_library         | description      | character varying        | YES         | 
+ document_library         | file_path        | character varying        | NO          | 
+ document_library         | file_size_bytes  | integer                  | NO          | 
+ document_library         | mime_type        | character varying        | YES         | 
+ document_library         | is_shared        | boolean                  | NO          | 
+ document_library         | tags             | json                     | YES         | 
+ document_library         | created_at       | timestamp with time zone | YES         | now()
+ document_library         | last_accessed    | timestamp with time zone | YES         | 
+ document_library         | doc_kind         | character varying        | NO          | 'document'::character varying
+ document_library         | direction        | character varying        | YES         | 
+ document_library         | issuer           | character varying        | YES         | 
+ document_library         | doc_number       | character varying        | YES         | 
+ document_library         | doc_date         | character varying        | YES         | 
+ document_library         | session_id       | character varying        | YES         | 
+ graph_extraction_jobs    | id               | integer                  | NO          | nextval('graph_extraction_jobs_id_seq'::regclass)
+ graph_extraction_jobs    | org_id           | integer                  | NO          | 
+ graph_extraction_jobs    | session_id       | character varying        | NO          | 
+ graph_extraction_jobs    | status           | character varying        | NO          | 
+ graph_extraction_jobs    | entity_count     | integer                  | YES         | 
+ graph_extraction_jobs    | rel_count        | integer                  | YES         | 
+ graph_extraction_jobs    | error            | text                     | YES         | 
+ graph_extraction_jobs    | started_at       | timestamp with time zone | YES         | 
+ graph_extraction_jobs    | finished_at      | timestamp with time zone | YES         | 
+ graph_extraction_jobs    | created_at       | timestamp with time zone | YES         | now()
+ knowledge_graph_nodes    | id               | integer                  | NO          | nextval('knowledge_graph_nodes_id_seq'::regclass)
+ knowledge_graph_nodes    | org_id           | integer                  | NO          | 
+ knowledge_graph_nodes    | session_id       | character varying        | YES         | 
+ knowledge_graph_nodes    | neo4j_id         | character varying        | NO          | 
+ knowledge_graph_nodes    | entity_type      | character varying        | NO          | 
+ knowledge_graph_nodes    | label            | character varying        | NO          | 
+ knowledge_graph_nodes    | created_at       | timestamp with time zone | YES         | now()
+ library_document_content | id               | integer                  | NO          | nextval('library_document_content_id_seq'::regclass)
+ library_document_content | library_doc_id   | integer                  | NO          | 
+ library_document_content | markdown_text    | text                     | YES         | 
+ library_document_content | preview          | text                     | YES         | 
+ library_document_content | char_count       | integer                  | NO          | 
+ library_document_content | has_vector_store | boolean                  | NO          | 
+ library_document_content | indexed_at       | timestamp with time zone | YES         | 
+ library_document_content | created_at       | timestamp with time zone | YES         | now()
+ library_document_content | updated_at       | timestamp with time zone | YES         | now()
+ translation_jobs         | id               | integer                  | NO          | nextval('translation_jobs_id_seq'::regclass)
+ translation_jobs         | org_id           | integer                  | YES         | 
+ translation_jobs         | username         | character varying        | YES         | 
+ translation_jobs         | session_id       | character varying        | YES         | 
+ translation_jobs         | document_name    | character varying        | YES         | 
+ translation_jobs         | source_language  | character varying        | YES         | 
+ translation_jobs         | target_language  | character varying        | NO          | 
+ translation_jobs         | status           | character varying        | NO          | 
+ translation_jobs         | progress         | integer                  | NO          | 
+ translation_jobs         | total_chunks     | integer                  | NO          | 
+ translation_jobs         | done_chunks      | integer                  | NO          | 
+ translation_jobs         | source_chars     | integer                  | NO          | 
+ translation_jobs         | source_text      | text                     | YES         | 
+ translation_jobs         | translated_text  | text                     | YES         | 
+ translation_jobs         | error            | text                     | YES         | 
+ translation_jobs         | retry_count      | integer                  | NO          | 
+ translation_jobs         | max_retries      | integer                  | NO          | 
+ translation_jobs         | created_at       | timestamp with time zone | YES         | now()
+ translation_jobs         | started_at       | timestamp with time zone | YES         | 
+ translation_jobs         | finished_at      | timestamp with time zone | YES         | 
+ translation_jobs         | updated_at       | timestamp with time zone | YES         | now()
+ usage_logs               | id               | integer                  | NO          | nextval('usage_logs_id_seq'::regclass)
+ usage_logs               | event_type       | character varying        | NO          | 
+ usage_logs               | username         | character varying        | YES         | 
+ usage_logs               | session_id       | character varying        | YES         | 
+ usage_logs               | file_format      | character varying        | YES         | 
+ usage_logs               | org_id           | integer                  | YES         | 
+ usage_logs               | extra            | json                     | YES         | 
+ usage_logs               | created_at       | timestamp with time zone | YES         | now()
+ workspace_shares         | id               | integer                  | NO          | nextval('workspace_shares_id_seq'::regclass)
+ workspace_shares         | session_id       | character varying        | NO          | 
+ workspace_shares         | shared_by        | character varying        | NO          | 
+ workspace_shares         | shared_with      | character varying        | YES         | 
+ workspace_shares         | org_id           | integer                  | NO          | 
+ workspace_shares         | permission       | character varying        | NO          | 
+ workspace_shares         | created_at       | timestamp with time zone | YES         | now()
+ workspace_shares         | expires_at       | timestamp with time zone | YES         | 
+(100 rows)
+
+=== FKs + ondelete ===
+      table_name       | column_name | foreign_table | delete_rule |            constraint_name            
+-----------------------+-------------+---------------+-------------+---------------------------------------
+ agent_tasks           | org_id      | organizations | NO ACTION   | agent_tasks_org_id_fkey
+ agent_tasks           | username    | users         | NO ACTION   | agent_tasks_username_fkey
+ chat_messages         | org_id      | organizations | NO ACTION   | chat_messages_org_id_fkey
+ chat_messages         | session_id  | doc_sessions  | CASCADE     | chat_messages_session_id_fkey
+ graph_extraction_jobs | org_id      | organizations | NO ACTION   | graph_extraction_jobs_org_id_fkey
+ graph_extraction_jobs | session_id  | doc_sessions  | CASCADE     | graph_extraction_jobs_session_id_fkey
+ knowledge_graph_nodes | org_id      | organizations | NO ACTION   | knowledge_graph_nodes_org_id_fkey
+ knowledge_graph_nodes | session_id  | doc_sessions  | SET NULL    | knowledge_graph_nodes_session_id_fkey
+ usage_logs            | org_id      | organizations | NO ACTION   | usage_logs_org_id_fkey
+ workspace_shares      | org_id      | organizations | NO ACTION   | workspace_shares_org_id_fkey
+ workspace_shares      | session_id  | doc_sessions  | CASCADE     | workspace_shares_session_id_fkey
+ workspace_shares      | shared_by   | users         | NO ACTION   | workspace_shares_shared_by_fkey
+ workspace_shares      | shared_with | users         | NO ACTION   | workspace_shares_shared_with_fkey
+(13 rows)
+
+=== indexes ===
+        tablename         |                 indexname                  |                                                            indexdef                                                            
+--------------------------+--------------------------------------------+--------------------------------------------------------------------------------------------------------------------------------
+ agent_tasks              | agent_tasks_pkey                           | CREATE UNIQUE INDEX agent_tasks_pkey ON public.agent_tasks USING btree (id)
+ agent_tasks              | ix_agent_tasks_org_id                      | CREATE INDEX ix_agent_tasks_org_id ON public.agent_tasks USING btree (org_id)
+ agent_tasks              | ix_agent_tasks_org_status                  | CREATE INDEX ix_agent_tasks_org_status ON public.agent_tasks USING btree (org_id, status)
+ agent_tasks              | ix_agent_tasks_session_id                  | CREATE INDEX ix_agent_tasks_session_id ON public.agent_tasks USING btree (session_id)
+ agent_tasks              | ix_agent_tasks_username                    | CREATE INDEX ix_agent_tasks_username ON public.agent_tasks USING btree (username)
+ agent_tasks              | ix_agent_tasks_username_status             | CREATE INDEX ix_agent_tasks_username_status ON public.agent_tasks USING btree (username, status)
+ chat_messages            | chat_messages_pkey                         | CREATE UNIQUE INDEX chat_messages_pkey ON public.chat_messages USING btree (id)
+ chat_messages            | ix_chat_messages_org_id                    | CREATE INDEX ix_chat_messages_org_id ON public.chat_messages USING btree (org_id)
+ chat_messages            | ix_chat_messages_session_created           | CREATE INDEX ix_chat_messages_session_created ON public.chat_messages USING btree (session_id, created_at)
+ chat_messages            | ix_chat_messages_session_id                | CREATE INDEX ix_chat_messages_session_id ON public.chat_messages USING btree (session_id)
+ document_library         | document_library_pkey                      | CREATE UNIQUE INDEX document_library_pkey ON public.document_library USING btree (id)
+ document_library         | ix_document_library_direction              | CREATE INDEX ix_document_library_direction ON public.document_library USING btree (direction)
+ document_library         | ix_document_library_issuer                 | CREATE INDEX ix_document_library_issuer ON public.document_library USING btree (issuer)
+ document_library         | ix_document_library_org_id                 | CREATE INDEX ix_document_library_org_id ON public.document_library USING btree (org_id)
+ document_library         | ix_document_library_owner_username         | CREATE INDEX ix_document_library_owner_username ON public.document_library USING btree (owner_username)
+ document_library         | ix_document_library_session_id             | CREATE INDEX ix_document_library_session_id ON public.document_library USING btree (session_id)
+ graph_extraction_jobs    | graph_extraction_jobs_pkey                 | CREATE UNIQUE INDEX graph_extraction_jobs_pkey ON public.graph_extraction_jobs USING btree (id)
+ graph_extraction_jobs    | ix_graph_extraction_jobs_org_id            | CREATE INDEX ix_graph_extraction_jobs_org_id ON public.graph_extraction_jobs USING btree (org_id)
+ graph_extraction_jobs    | ix_graph_extraction_jobs_session_id        | CREATE INDEX ix_graph_extraction_jobs_session_id ON public.graph_extraction_jobs USING btree (session_id)
+ knowledge_graph_nodes    | ix_kg_nodes_session_id                     | CREATE INDEX ix_kg_nodes_session_id ON public.knowledge_graph_nodes USING btree (session_id)
+ knowledge_graph_nodes    | ix_kg_org_label                            | CREATE INDEX ix_kg_org_label ON public.knowledge_graph_nodes USING btree (org_id, label)
+ knowledge_graph_nodes    | ix_knowledge_graph_nodes_org_id            | CREATE INDEX ix_knowledge_graph_nodes_org_id ON public.knowledge_graph_nodes USING btree (org_id)
+ knowledge_graph_nodes    | knowledge_graph_nodes_pkey                 | CREATE UNIQUE INDEX knowledge_graph_nodes_pkey ON public.knowledge_graph_nodes USING btree (id)
+ library_document_content | ix_library_document_content_library_doc_id | CREATE UNIQUE INDEX ix_library_document_content_library_doc_id ON public.library_document_content USING btree (library_doc_id)
+ library_document_content | library_document_content_pkey              | CREATE UNIQUE INDEX library_document_content_pkey ON public.library_document_content USING btree (id)
+ translation_jobs         | ix_translation_jobs_created_at             | CREATE INDEX ix_translation_jobs_created_at ON public.translation_jobs USING btree (created_at)
+ translation_jobs         | ix_translation_jobs_org_id                 | CREATE INDEX ix_translation_jobs_org_id ON public.translation_jobs USING btree (org_id)
+ translation_jobs         | ix_translation_jobs_session_id             | CREATE INDEX ix_translation_jobs_session_id ON public.translation_jobs USING btree (session_id)
+ translation_jobs         | ix_translation_jobs_status                 | CREATE INDEX ix_translation_jobs_status ON public.translation_jobs USING btree (status)
+ translation_jobs         | ix_translation_jobs_status_created         | CREATE INDEX ix_translation_jobs_status_created ON public.translation_jobs USING btree (status, created_at)
+ translation_jobs         | ix_translation_jobs_user_created           | CREATE INDEX ix_translation_jobs_user_created ON public.translation_jobs USING btree (username, created_at)
+ translation_jobs         | ix_translation_jobs_username               | CREATE INDEX ix_translation_jobs_username ON public.translation_jobs USING btree (username)
+ translation_jobs         | translation_jobs_pkey                      | CREATE UNIQUE INDEX translation_jobs_pkey ON public.translation_jobs USING btree (id)
+ usage_logs               | ix_usage_logs_created_at                   | CREATE INDEX ix_usage_logs_created_at ON public.usage_logs USING btree (created_at)
+ usage_logs               | ix_usage_logs_event_type                   | CREATE INDEX ix_usage_logs_event_type ON public.usage_logs USING btree (event_type)
+ usage_logs               | ix_usage_logs_org_created                  | CREATE INDEX ix_usage_logs_org_created ON public.usage_logs USING btree (org_id, created_at)
+ usage_logs               | ix_usage_logs_org_event                    | CREATE INDEX ix_usage_logs_org_event ON public.usage_logs USING btree (org_id, event_type)
+ usage_logs               | ix_usage_logs_org_id                       | CREATE INDEX ix_usage_logs_org_id ON public.usage_logs USING btree (org_id)
+ usage_logs               | ix_usage_logs_username                     | CREATE INDEX ix_usage_logs_username ON public.usage_logs USING btree (username)
+ usage_logs               | usage_logs_pkey                            | CREATE UNIQUE INDEX usage_logs_pkey ON public.usage_logs USING btree (id)
+ workspace_shares         | ix_workspace_shares_org_id                 | CREATE INDEX ix_workspace_shares_org_id ON public.workspace_shares USING btree (org_id)
+ workspace_shares         | ix_workspace_shares_session_id             | CREATE INDEX ix_workspace_shares_session_id ON public.workspace_shares USING btree (session_id)
+ workspace_shares         | ix_workspace_shares_shared_by              | CREATE INDEX ix_workspace_shares_shared_by ON public.workspace_shares USING btree (shared_by)
+ workspace_shares         | ix_workspace_shares_shared_with            | CREATE INDEX ix_workspace_shares_shared_with ON public.workspace_shares USING btree (shared_with)
+ workspace_shares         | workspace_shares_pkey                      | CREATE UNIQUE INDEX workspace_shares_pkey ON public.workspace_shares USING btree (id)
+(45 rows)
+
+=== enums/extensions/triggers/functions/RLS (re-confirm Stage A) ===
+ typname 
+---------
+(0 rows)
+
+ extname 
+---------
+ plpgsql
+(1 row)
+
+ tgname 
+--------
+(0 rows)
+
+ proname 
+---------
+(0 rows)
+
+ relname 
+---------
+(0 rows)
+

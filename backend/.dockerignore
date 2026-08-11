@@ -8,3 +8,4 @@ org_storage/
 *.log
 .pytest_cache/
 .git/
+alembic/versions_archive/

@@ -1,0 +1,99 @@
+{
+  "audit_date": "2026-08-04",
+  "git_commit": "65a31d5f467b2cb7a0b694ece668383b9ae1005d",
+  "git_branch": "master-clean",
+  "alembic_head": "e5b9c2d47a10",
+  "production_alembic_version": null,
+  "drifts": [
+    {
+      "id": 1,
+      "object": "workspace_shares.uq_session_share_user, workspace_shares.uq_session_share_org",
+      "expected_migration_state": "both partial unique indexes present (migration 02805ff7fe64)",
+      "production_state": "both absent",
+      "alembic_only_state": "n/a (table does not exist in this state)",
+      "model_only_state": "both absent (not expressible via SQLAlchemy __table_args__)",
+      "model_state": "comment-only reference, not ORM-enforced",
+      "probable_cause": "migration 02805ff7fe64 never executed against production via the Alembic CLI",
+      "severity": "medium",
+      "data_risk": "none currently — 0 rows in workspace_shares, 0 duplicates for either predicate (verified live)",
+      "recommended_fix": "forward-only repair migration: CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS for both, with in-migration preflight duplicate check",
+      "requires_user_decision": false
+    },
+    {
+      "id": 2,
+      "object": "usage_logs_org_id_fkey (ON DELETE behavior)",
+      "expected_migration_state": "ON DELETE SET NULL (migration c9e2f1a3b4d5)",
+      "production_state": "NO ACTION",
+      "alembic_only_state": "n/a",
+      "model_only_state": "NO ACTION (matches production)",
+      "model_state": "no ondelete specified",
+      "probable_cause": "model never updated to match migration's stated intent; production followed the model/create_all() path",
+      "severity": "low-medium",
+      "data_risk": "none — FK already enforced, 0 orphans confirmed",
+      "recommended_fix": "decision needed: (a) forward migration to DROP+ADD FK with ON DELETE SET NULL [recommended], or (b) declare NO ACTION intentional and update migration docstring + model",
+      "requires_user_decision": true
+    },
+    {
+      "id": 3,
+      "object": "ix_kg_nodes_session_id",
+      "expected_migration_state": "not created by any migration; sole authority is main.py::_ensure_schema_upgrades()",
+      "production_state": "present",
+      "alembic_only_state": "n/a",
+      "model_only_state": "absent in pure create_all(); present and stable after 2x _ensure_schema_upgrades() runs",
+      "model_state": "no index=True on knowledge_graph_nodes.session_id",
+      "probable_cause": "index created only by runtime raw-SQL mechanism, never added to the model or a migration",
+      "severity": "low",
+      "data_risk": "none",
+      "recommended_fix": "eventually migrate into a tracked Alembic migration; not urgent, production already correct",
+      "requires_user_decision": false
+    },
+    {
+      "id": 4,
+      "object": "document_library.doc_kind server_default",
+      "expected_migration_state": "not created by any migration; main.py sets DEFAULT 'document' only when it creates the column",
+      "production_state": "server_default 'document'::character varying present",
+      "alembic_only_state": "n/a",
+      "model_only_state": "no server_default, proven to persist after 2x _ensure_schema_upgrades() runs (ADD COLUMN IF NOT EXISTS cannot retrofit a default)",
+      "model_state": "Python-side default=\"document\" only, no server_default",
+      "probable_cause": "production's column predates the model including it; fresh installs create the column via the model first (no default), permanently short-circuiting the runtime ADD COLUMN...DEFAULT statement",
+      "severity": "low",
+      "data_risk": "none — ORM inserts always supply the value",
+      "recommended_fix": "add server_default=\"document\" to the model column",
+      "requires_user_decision": false
+    },
+    {
+      "id": 5,
+      "object": "alembic_version table",
+      "expected_migration_state": "should exist, pointing at e5b9c2d47a10",
+      "production_state": "does not exist",
+      "alembic_only_state": "does not exist after failed run (whole upgrade rolled back in one transaction)",
+      "model_only_state": "n/a",
+      "model_state": "n/a",
+      "probable_cause": "direct consequence of drift #1 — a completed alembic upgrade run would have created/populated this table",
+      "severity": "informational",
+      "data_risk": "none",
+      "recommended_fix": "NOT remediated via stamp in this task; see report section 7.3 for the four gating conditions required before stamping may even be proposed as a separate future task",
+      "requires_user_decision": false
+    },
+    {
+      "id": 6,
+      "object": "column ordering (agent_tasks.session_id, document_library trailing columns)",
+      "expected_migration_state": "n/a",
+      "production_state": "trailing (appended via historical ALTER TABLE)",
+      "alembic_only_state": "n/a",
+      "model_only_state": "declared position (via CREATE TABLE)",
+      "model_state": "n/a",
+      "probable_cause": "ALTER TABLE ADD COLUMN always appends; create_all() uses declaration order",
+      "severity": "none - cosmetic only",
+      "data_risk": "none",
+      "recommended_fix": "no action; documented so it is not mistaken for a hidden difference",
+      "requires_user_decision": false
+    }
+  ],
+  "structural_findings": [
+    "Alembic migration chain cannot provision a fresh database from scratch unaided (fails at migration 0002 against a truly empty DB; entire upgrade rolls back in one transaction, leaving zero objects including alembic_version itself)",
+    "main.py::_ensure_schema_upgrades() provides zero bootstrap capability of its own (silently no-ops via try/except when run against a database create_all() never touched)",
+    "main.py::_ensure_schema_upgrades() is idempotent once run against an already-bootstrapped schema, proven via empty schema+data diff on a second run",
+    "docai-backend:latest image does not contain alembic.ini/alembic/ at all — migrations are not runnable from the deployed container as shipped"
+  ]
+}

@@ -1,0 +1,49 @@
+--- prod_norm.sql	2026-08-04 12:21:22.194037921 +0500
++++ model_only_norm.sql	2026-08-04 12:21:22.199037787 +0500
+@@ -21,14 +21,14 @@
+     username character varying(64) NOT NULL,
+     task_type character varying(64) NOT NULL,
+     status character varying(32) NOT NULL,
++    session_id character varying(64),
+     input_data json NOT NULL,
+     output_data json,
+     steps json NOT NULL,
+     error text,
+     started_at timestamp with time zone,
+     finished_at timestamp with time zone,
+-    created_at timestamp with time zone DEFAULT now(),
+-    session_id character varying(64)
++    created_at timestamp with time zone DEFAULT now()
+ );
+ --
+ -- Name: agent_tasks_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+@@ -190,14 +190,14 @@
+     mime_type character varying(128),
+     is_shared boolean NOT NULL,
+     tags json,
+-    created_at timestamp with time zone DEFAULT now(),
+-    last_accessed timestamp with time zone,
+-    doc_kind character varying(32) DEFAULT 'document'::character varying NOT NULL,
++    doc_kind character varying(32) NOT NULL,
+     direction character varying(128),
+     issuer character varying(256),
+     doc_number character varying(128),
+     doc_date character varying(32),
+-    session_id character varying(64)
++    session_id character varying(64),
++    created_at timestamp with time zone DEFAULT now(),
++    last_accessed timestamp with time zone
+ );
+ --
+ -- Name: document_library_id_seq; Type: SEQUENCE; Schema: public; Owner: -
+@@ -921,10 +921,6 @@
+ --
+ CREATE INDEX ix_graph_extraction_jobs_session_id ON public.graph_extraction_jobs USING btree (session_id);
+ --
+--- Name: ix_kg_nodes_session_id; Type: INDEX; Schema: public; Owner: -
+---
+-CREATE INDEX ix_kg_nodes_session_id ON public.knowledge_graph_nodes USING btree (session_id);
+---
+ -- Name: ix_kg_org_label; Type: INDEX; Schema: public; Owner: -
+ --
+ CREATE INDEX ix_kg_org_label ON public.knowledge_graph_nodes USING btree (org_id, label);
