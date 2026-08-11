@@ -82,7 +82,7 @@ function HistoryTab({ sessionId }) {
             key={i}
             className={`history-tab__bubble history-tab__bubble--${m.role === 'user' ? 'user' : 'bot'}`}
           >
-            {m.content.length > 80 ? m.content.slice(0, 80) + '…' : m.content}
+            {(m.content || '').length > 80 ? m.content.slice(0, 80) + '…' : (m.content || '')}
           </div>
         ))}
       </div>

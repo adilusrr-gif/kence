@@ -5,6 +5,7 @@ import io
 import logging
 from datetime import datetime, timezone
 from typing import Any, Optional
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -16,6 +17,14 @@ from app.services import audit_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/insights", tags=["insights"])
+
+
+def _content_disposition(filename: str) -> str:
+    """Builds a Content-Disposition header safe for non-ASCII (e.g. Cyrillic)
+    filenames — HTTP headers are latin-1 only, so a raw Unicode filename in
+    `filename=` crashes response encoding. ASCII fallback + RFC 5987 filename*."""
+    ascii_fallback = filename.encode("ascii", "ignore").decode("ascii") or "export.pdf"
+    return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(filename)}"
 
 
 class ExportRequest(BaseModel):
@@ -207,7 +216,12 @@ def _build_pdf(req: ExportRequest, username: str) -> bytes:
     if actions:
         section("Рекомендуемые действия")
         for idx, a in enumerate(actions[:6], 1):
-            text = a if isinstance(a, str) else (a.get("action") or a.get("title") or str(a))
+            if isinstance(a, str):
+                text = a
+            elif isinstance(a, dict):
+                text = a.get("action") or a.get("title") or str(a)
+            else:
+                text = str(a)
             bullet(f"{idx}. {text}")
 
     # ── Timeline ─────────────────────────────────────────────────────────────
@@ -279,7 +293,7 @@ async def export_brief_pdf(
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": _content_disposition(filename)},
     )
 
 
@@ -436,6 +450,9 @@ def _build_gov_pdf(req: ExportGovBriefRequest, username: str) -> bytes:
     if decisions:
         section("Требуемые решения", color=colors.HexColor("#fef2f2"))
         for i, d in enumerate(decisions, 1):
+            if not isinstance(d, dict):
+                bullet(f"{i}. {d}")
+                continue
             dec_text = f"{i}. {d.get('decision', '')}"
             if d.get("responsible"):
                 dec_text += f"  [Ответственный: {d['responsible']}]"
@@ -450,8 +467,12 @@ def _build_gov_pdf(req: ExportGovBriefRequest, username: str) -> bytes:
     if actions:
         section("Рекомендуемые действия")
         for i, a in enumerate(actions[:8], 1):
-            action_text = a.get("action") or str(a)
-            priority = a.get("priority", "")
+            if isinstance(a, dict):
+                action_text = a.get("action") or str(a)
+                priority = a.get("priority", "")
+            else:
+                action_text = str(a)
+                priority = ""
             bullet(f"{i}. [{priority}] {action_text}" if priority else f"{i}. {action_text}")
 
     # ── Deadlines ────────────────────────────────────────────────────────────
@@ -459,9 +480,12 @@ def _build_gov_pdf(req: ExportGovBriefRequest, username: str) -> bytes:
     if deadlines:
         section("Ключевые сроки")
         for dl in deadlines[:8]:
-            date = dl.get("date") or dl.get("timestamp") or ""
-            event = dl.get("event") or dl.get("description") or str(dl)
-            bullet(f"{date}  {event}" if date else event)
+            if isinstance(dl, dict):
+                date = dl.get("date") or dl.get("timestamp") or ""
+                event = dl.get("event") or dl.get("description") or str(dl)
+                bullet(f"{date}  {event}" if date else event)
+            else:
+                bullet(str(dl))
 
     # ── Risks ────────────────────────────────────────────────────────────────
     risks = b.get("risks") or {}
@@ -551,5 +575,5 @@ async def export_gov_brief_pdf(
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": _content_disposition(filename)},
     )
