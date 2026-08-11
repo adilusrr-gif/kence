@@ -80,6 +80,9 @@
     "activity": "7 күндік белсенділік",
     "more": "Толығырақ",
     "search": "Іздеу…",
+    "dateFrom": "Күннен бастап",
+    "dateTo": "Күнге дейін",
+    "clearDates": "Тазалау",
     "noSessions": "Соңғы сессиялар жоқ",
     "uploadFirst": "Құжат жүктеу",
     "noResults": "«{{query}}» бойынша ештеңе табылмады",
@@ -312,6 +315,10 @@
       "title": "Титулдық",
       "content": "Мазмұн (тізім)",
       "chart": "Диаграмма",
+      "kpi_row": "KPI-метрикалар (карточкалар)",
+      "big_number": "Негізгі көрсеткіш",
+      "two_column": "Салыстыру (екі баған)",
+      "section_divider": "Бөлім бөлгіші",
       "quote": "Дәйексөз",
       "summary": "Қорытынды"
     },
@@ -335,7 +342,13 @@
       "slideNum": "{{n}} слайд",
       "titlePlaceholder": "Слайд тақырыбы",
       "pointsPlaceholder": "Тармақтар (әр жолға бір)",
-      "dataHintPlaceholder": "Диаграмма деректеріне кеңес (міндетті емес)",
+      "chartDataLabel": "Диаграмма деректері (құжаттағы нақты сандар)",
+      "chartLabelPlaceholder": "Белгі",
+      "chartValuePlaceholder": "Мән",
+      "chartAddRow": "Мән қосу",
+      "chartUnitPlaceholder": "Өлш. бірл.",
+      "leftTitlePlaceholder": "Сол баған тақырыбы",
+      "rightTitlePlaceholder": "Оң баған тақырыбы",
       "addSlide": "Слайд қосу"
     },
     "step2": {
@@ -717,10 +730,6 @@
       "consultation_prompt": {
         "label": "Құжат бойынша кеңес",
         "hint": "Айнымалылар: {context} — құжат үзінділері, {question} — сұрақ. Түсіндірмесі бар кеңейтілген жауап."
-      },
-      "presentation_prompt": {
-        "label": "Презентация промпты",
-        "hint": "Айнымалылар: {context} — құжат мазмұны. JSON жауап: \"title\" және \"slides\"."
       },
       "comparison_technical_prompt": {
         "label": "Техн. салыстыру",

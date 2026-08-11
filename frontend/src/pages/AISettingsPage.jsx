@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, FileSearch, MessagesSquare, LayoutTemplate, Settings2, ScanSearch, RotateCcw, Save, AlertTriangle, User, Globe } from 'lucide-react'
+import { MessageSquare, FileSearch, MessagesSquare, Settings2, ScanSearch, RotateCcw, Save, AlertTriangle, User, Globe } from 'lucide-react'
 import { apiGetPrompts, apiUpdatePrompt, apiResetPrompt, apiResetAllPrompts } from '../lib/api'
 
 const TABS = [
@@ -22,12 +22,6 @@ const TABS = [
     Icon: MessagesSquare,
     labelKey: 'aiSettings.tabs.consultation_prompt.label',
     hintKey: 'aiSettings.tabs.consultation_prompt.hint',
-  },
-  {
-    key: 'presentation_prompt',
-    Icon: LayoutTemplate,
-    labelKey: 'aiSettings.tabs.presentation_prompt.label',
-    hintKey: 'aiSettings.tabs.presentation_prompt.hint',
   },
   {
     key: 'comparison_technical_prompt',

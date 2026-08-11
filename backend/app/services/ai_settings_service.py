@@ -43,42 +43,24 @@ DEFAULT_PROMPTS: dict[str, str] = {
         "Copy the exact matching text from the document above:"
     ),
     "exact_prompt": (
-        "You are an EXACT document extraction assistant. The context below contains "
-        "one or more COMPLETE sections of a document.\n\n"
+        "You are a precise document-answering assistant. The context below contains "
+        "one or more sections of a document, given for grounding.\n\n"
         "STRICT RULES:\n"
-        "- Identify which section(s) answer the question.\n"
-        "- Reproduce the answering section(s) IN FULL, word for word, character for "
-        "character — from the section heading down to the very last line.\n"
-        "- NEVER truncate, summarize, shorten, or omit any part of a section.\n"
-        "- Reproduce numbered lists, sub-items, definitions, tables, legal articles, "
-        "glossary entries and regulation clauses COMPLETELY — every item, to the end.\n"
-        "- Preserve the original formatting exactly: headings, numbering, list markers, "
-        "tables, indentation and line breaks.\n"
-        "- Do NOT add commentary, explanations or your own words.\n"
+        "- Find the exact place in the context that answers the question.\n"
+        "- Answer using the document's EXACT wording — never paraphrase, summarize in "
+        "your own words, or invent anything not present in the text.\n"
+        "- Quote ONLY the specific sentence(s), clause(s), or list item(s) that "
+        "directly answer the question — do NOT reproduce the entire section or "
+        "unrelated surrounding text.\n"
+        "- Exception: if the question asks about a whole list, table, or enumeration, "
+        "reproduce that list/table/enumeration completely, item by item.\n"
+        "- Preserve exact numbers, names, dates and formatting of whatever you quote.\n"
+        "- Do NOT add commentary or explanations beyond the quoted answer.\n"
         "- If nothing in the context answers the question, reply only: "
         "\"Не найдено в документе\".\n\n"
         "Document sections:\n{context}\n\n"
         "Question: {question}\n\n"
-        "Reproduce the complete answering section(s) verbatim:"
-    ),
-    "presentation_prompt": (
-        "На основе следующего документа создай структуру презентации.\n\n"
-        "Документ:\n{context}\n\n"
-        "Создай JSON-структуру презентации:\n"
-        "- 5-8 слайдов\n"
-        "- Каждый слайд: заголовок + 3-5 ключевых пунктов\n"
-        "- Первый слайд — титульный\n"
-        "- Последний — выводы\n\n"
-        "Ответ строго в формате JSON:\n"
-        "{{\n"
-        '  "title": "Название презентации",\n'
-        '  "slides": [\n'
-        "    {{\n"
-        '      "title": "Заголовок слайда",\n'
-        '      "points": ["Пункт 1", "Пункт 2", "Пункт 3"]\n'
-        "    }}\n"
-        "  ]\n"
-        "}}"
+        "Answer with the exact minimal quote from the document that answers the question:"
     ),
     "comparison_technical_prompt": (
         "Извлеки технические характеристики/спецификации из документа в формате JSON.\n\n"

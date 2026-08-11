@@ -456,24 +456,6 @@ class LLMService:
         kwargs = {} if timeout is None else {"timeout": timeout}
         return await _guarded_invoke_standalone(_call, **kwargs)
 
-    def generate_presentation_structure(self, session_id: str) -> dict:
-        retriever = doc_processor.get_retriever(session_id)
-        docs = retriever.invoke("основное содержание документа")
-        context = "\n\n".join([d.page_content for d in docs[:10]])
-        prompt_text = self._get_prompt("presentation_prompt").format(context=context)
-        # Guard the call (same semaphore/circuit-breaker/queue as chat). Must run
-        # off the event-loop thread — call via asyncio.to_thread if invoked from async.
-        async def _call():
-            return await asyncio.to_thread(self.llm.invoke, prompt_text)
-        response = run_guarded_sync(_call)
-
-        import json, re
-        json_match = re.search(r'\{.*\}', response, re.DOTALL)
-        if json_match:
-            return json.loads(json_match.group())
-        return {"title": "Презентация",
-                "slides": [{"title": "Слайд 1", "points": ["Пункт 1"]}]}
-
 
 async def _guarded_invoke_standalone(fn, timeout: float = _LLM_CALL_TIMEOUT_SEC):
     """Module-level guard used by agenerate/agenerate_raw (outside class method).

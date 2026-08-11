@@ -81,6 +81,9 @@
     "activity": "Активность за 7 дней",
     "more": "Подробнее",
     "search": "Поиск…",
+    "dateFrom": "С даты",
+    "dateTo": "По дату",
+    "clearDates": "Сбросить",
     "noSessions": "Нет недавних сессий",
     "uploadFirst": "Загрузить документ",
     "noResults": "Ничего по «{{query}}»",
@@ -315,6 +318,10 @@
       "title": "Титульный",
       "content": "Контент (список)",
       "chart": "График / Диаграмма",
+      "kpi_row": "KPI-метрики (карточки)",
+      "big_number": "Ключевая цифра",
+      "two_column": "Сравнение (два столбца)",
+      "section_divider": "Разделитель раздела",
       "quote": "Цитата",
       "summary": "Выводы"
     },
@@ -338,7 +345,13 @@
       "slideNum": "Слайд {{n}}",
       "titlePlaceholder": "Заголовок слайда",
       "pointsPlaceholder": "Пункты (каждый с новой строки)",
-      "dataHintPlaceholder": "Подсказка для данных графика (необязательно)",
+      "chartDataLabel": "Данные графика (реальные цифры из документа)",
+      "chartLabelPlaceholder": "Подпись",
+      "chartValuePlaceholder": "Значение",
+      "chartAddRow": "Добавить значение",
+      "chartUnitPlaceholder": "Ед. изм.",
+      "leftTitlePlaceholder": "Заголовок левой колонки",
+      "rightTitlePlaceholder": "Заголовок правой колонки",
       "addSlide": "Добавить слайд"
     },
     "step2": {
@@ -720,10 +733,6 @@
       "consultation_prompt": {
         "label": "Консультация по документу",
         "hint": "Переменные: {context} — фрагменты документа, {question} — вопрос. Развёрнутый ответ с интерпретацией."
-      },
-      "presentation_prompt": {
-        "label": "Промпт презентации",
-        "hint": "Переменные: {context} — содержание документа. Ответ JSON: \"title\" и \"slides\"."
       },
       "comparison_technical_prompt": {
         "label": "Техн. сравнение",

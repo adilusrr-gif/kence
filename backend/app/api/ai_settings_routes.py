@@ -22,11 +22,6 @@ PROMPT_META = {
         "variables": ["{context}", "{question}"],
         "description": "Режим консультации — развёрнутые ответы с интерпретацией. Используйте {context} и {question}.",
     },
-    "presentation_prompt": {
-        "label": "Промпт презентации",
-        "variables": ["{context}"],
-        "description": "Ответ должен быть JSON с полями 'title' и 'slides'. Используйте {{ }} для экранирования фигурных скобок в JSON.",
-    },
     "comparison_technical_prompt": {
         "label": "Тех. сравнение",
         "variables": ["{text}"],
