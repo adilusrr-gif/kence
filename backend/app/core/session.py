@@ -109,7 +109,7 @@ class SessionManager:
 
     # ── public API ─────────────────────────────────────────────────────────
 
-    def create_session(self) -> str:
+    def create_session(self, owner_username: Optional[str] = None) -> str:
         session_id = str(uuid.uuid4())
         (self.upload_dir / session_id).mkdir(parents=True, exist_ok=True)
 
@@ -121,6 +121,7 @@ class SessionManager:
             "preview": None,
             "markdown_text": None,
             "presentation_plan": None,
+            "owner_username": owner_username,
         }
         self._mem[session_id] = data
 

@@ -36,13 +36,13 @@ logger = logging.getLogger(__name__)
 
 def _verify_session_access(session_id: str, session: dict, current_user: dict) -> None:
     """Raises 403 if the user does not own the session, isn't an admin, and
-    doesn't hold a share grant for it. Sessions without an owner (created
-    before ownership tracking) remain accessible."""
+    doesn't hold a share grant for it. A session with no owner on record
+    (predates ownership tracking) is admin/share-only — no implicit access."""
     if current_user.get("role") == "admin":
         return
     owner = session.get("owner_username")
     username = current_user.get("username")
-    if not owner or owner == username:
+    if owner == username:
         return
     if check_session_access(session_id, username) is not None:
         return
@@ -55,8 +55,8 @@ def require_session(session_id: str, current_user: dict) -> dict:
     Loads the session (404 if missing) and enforces ownership (403 if not the
     owner, not an admin, and not a share recipient). Centralising both steps
     here means a route that reaches a session through this helper can never
-    accidentally skip the owner check. A freshly created, still-unowned
-    session passes — upload claims it.
+    accidentally skip the owner check. create_session stamps the owner at
+    creation time, so every session reaching this helper already has one.
     """
     session = session_manager.get_session(session_id)
     if not session:
@@ -120,7 +120,7 @@ class TranslateTextRequest(BaseModel):
 
 @router.post("/sessions")
 async def create_session(user: dict = Depends(get_current_user)):
-    session_id = session_manager.create_session()
+    session_id = session_manager.create_session(owner_username=user.get("username"))
     return {"session_id": session_id, "status": "created"}
 
 @router.get("/sessions")
@@ -253,8 +253,9 @@ async def upload_document(request: Request, session_id: str, file: UploadFile = 
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    # A user must not upload into another user's session (I-06). An unowned,
-    # freshly created session passes and is claimed below (owner_username set).
+    # A user must not upload into another user's session (I-06). create_session
+    # now stamps the owner up front, so this only ever passes for the creator,
+    # an admin, or a share grant.
     _verify_session_access(session_id, session, user)
 
     # Strip any directory components and enforce max filename length
