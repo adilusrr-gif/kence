@@ -2738,42 +2738,6 @@ select:focus-visible {
   margin-bottom: 2rem;
 }
 
-.agents-card {
-  background: var(--bg-surface-1);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem;
-  cursor: pointer;
-  transition: border-color var(--duration-base) var(--ease-standard),
-              box-shadow var(--duration-base) var(--ease-standard);
-}
-
-.agents-card:hover {
-  border-color: color-mix(in srgb, var(--accent-primary) 40%, transparent);
-}
-
-.agents-card--active {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 20%, transparent);
-}
-
-.agents-card__icon {
-  font-size: 1.75rem;
-  margin-bottom: 8px;
-}
-
-.agents-card__title {
-  font-weight: 600;
-  font-size: var(--text-sm);
-  margin-bottom: 4px;
-}
-
-.agents-card__desc {
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-  line-height: var(--leading-normal);
-}
-
 .agents-config {
   background: var(--bg-surface-1);
   border: 1px solid var(--border-default);
