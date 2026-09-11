@@ -49,6 +49,12 @@ from app.services.user_service import create_user, get_user
 settings = get_settings()
 
 
+class SchemaVerificationError(RuntimeError):
+    """The database is reachable but its schema is not the one this image was
+    built against. Never caught by _init_db's degrade-to-no-DB handler: a
+    wrong schema must abort startup, not serve traffic against it."""
+
+
 def _init_db():
     try:
         from app.core.database import engine
@@ -63,6 +69,10 @@ def _init_db():
         logger.info("DB tables ready")
         _migrate_users_from_json()
         _ensure_default_org()
+    except SchemaVerificationError:
+        # Deliberately re-raised past the handler below — this is the
+        # fail-closed guarantee the manifest gate exists to provide.
+        raise
     except Exception as e:
         logger.warning("DB init failed — running without persistent DB: %s", e)
 
@@ -81,11 +91,12 @@ def _verify_schema_at_expected_revision():
     """
     import hashlib
     from sqlalchemy import text
+    from sqlalchemy.exc import ProgrammingError
     from app.core.database import engine
 
     manifest_path = Path(__file__).resolve().parent / "_schema_manifest.json"
     if not manifest_path.is_file():
-        raise RuntimeError(
+        raise SchemaVerificationError(
             f"{manifest_path} not found — this image was not built with the "
             "schema manifest step (see backend/Dockerfile); refusing to "
             "start against an unverifiable schema"
@@ -96,20 +107,31 @@ def _verify_schema_at_expected_revision():
     for rel_name, expected_hash in manifest["migration_file_hashes"].items():
         actual_path = versions_dir / rel_name
         if not actual_path.is_file():
-            raise RuntimeError(f"manifest references missing migration file {actual_path}")
+            raise SchemaVerificationError(f"manifest references missing migration file {actual_path}")
         actual_hash = hashlib.sha256(actual_path.read_bytes()).hexdigest()
         if actual_hash != expected_hash:
-            raise RuntimeError(
+            raise SchemaVerificationError(
                 f"{rel_name} hash mismatch: image manifest expects "
                 f"{expected_hash}, found {actual_hash} — migration file was "
                 "modified after the image was built; refusing to start"
             )
 
-    with engine.connect() as conn:
-        rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
+    try:
+        with engine.connect() as conn:
+            rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
+    except ProgrammingError as e:
+        # Reachable database, but no alembic_version at all — an unversioned
+        # legacy schema. Distinct from OperationalError (database unreachable),
+        # which stays a degrade-to-no-DB case rather than a startup abort.
+        raise SchemaVerificationError(
+            "alembic_version table does not exist — this database was never "
+            "stamped by alembic; run the migrate job before starting this "
+            "build (see docs/ALEMBIC_SCHEMA_RECONCILIATION_STAGE_E3_"
+            "IMPLEMENTATION_2026-08-05.md)"
+        ) from e
     expected_head = manifest["alembic_head"]
     if rows != [(expected_head,)]:
-        raise RuntimeError(
+        raise SchemaVerificationError(
             f"database alembic_version is {rows}, image expects exactly "
             f"[('{expected_head}',)] — run the migrate job before starting "
             "this build (see docs/ALEMBIC_SCHEMA_RECONCILIATION_STAGE_E2_REV3_"
