@@ -20,6 +20,13 @@ class VisionService:
         self._model = settings.VISION_MODEL
         self._available: Optional[bool] = None
 
+    def _client(self):
+        # Bare `ollama.list()`/`ollama.chat()` default to 127.0.0.1:11434,
+        # which is wrong here: Ollama runs in a separate container, reachable
+        # only via settings.OLLAMA_BASE_URL. Must pass host explicitly.
+        import ollama
+        return ollama.Client(host=settings.OLLAMA_BASE_URL)
+
     def _encode(self, path: str) -> str:
         with open(path, "rb") as f:
             return base64.b64encode(f.read()).decode()
@@ -30,8 +37,7 @@ class VisionService:
         if self._available is not None:
             return self._available
         try:
-            import ollama
-            tags = ollama.list()
+            tags = self._client().list()
             names = [m.model for m in tags.models]
             self._available = any(self._model.split(":")[0] in n for n in names)
         except Exception:
@@ -39,29 +45,26 @@ class VisionService:
         return self._available
 
     def describe(self, image_path: str) -> str:
-        import ollama
         encoded = self._encode(image_path)
-        response = ollama.chat(
+        response = self._client().chat(
             model=self._model,
             messages=[{"role": "user", "content": _DESCRIBE_PROMPT, "images": [encoded]}],
         )
         return response["message"]["content"]
 
     def answer(self, image_path: str, question: str) -> str:
-        import ollama
         encoded = self._encode(image_path)
-        response = ollama.chat(
+        response = self._client().chat(
             model=self._model,
             messages=[{"role": "user", "content": question, "images": [encoded]}],
         )
         return response["message"]["content"]
 
     async def answer_stream(self, image_path: str, question: str) -> AsyncGenerator[str, None]:
-        import ollama
         encoded = self._encode(image_path)
 
         def _sync_stream():
-            return ollama.chat(
+            return self._client().chat(
                 model=self._model,
                 messages=[{"role": "user", "content": question, "images": [encoded]}],
                 stream=True,
