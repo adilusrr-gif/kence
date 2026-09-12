@@ -2456,6 +2456,44 @@
 .dashboard-search__input::placeholder { color: var(--text-tertiary, #94a3b8); }
 .dashboard-search__input:focus { border-color: color-mix(in srgb, var(--accent-primary) 40%, transparent); }
 
+.dashboard-sessions-header__controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dashboard-date-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dashboard-date-filter__input {
+  padding: 5px 8px;
+  background: var(--bg-surface-1, rgba(30,41,59,0.6));
+  border: 1px solid var(--border-default, var(--tint-med));
+  border-radius: var(--radius-md, 0.5rem);
+  color: var(--text-primary, #fff);
+  font-size: 0.75rem;
+  font-family: inherit;
+  outline: none;
+  color-scheme: light dark;
+  transition: border-color 150ms;
+}
+.dashboard-date-filter__input:focus { border-color: color-mix(in srgb, var(--accent-primary) 40%, transparent); }
+.dashboard-date-filter__sep { color: var(--text-tertiary, #94a3b8); font-size: 0.75rem; }
+.dashboard-date-filter__clear {
+  padding: 5px 9px;
+  background: transparent;
+  border: 1px solid var(--border-default, var(--tint-med));
+  border-radius: var(--radius-md, 0.5rem);
+  color: var(--text-tertiary, #94a3b8);
+  font-size: 0.72rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 150ms, border-color 150ms;
+}
+.dashboard-date-filter__clear:hover { color: var(--text-primary, #fff); border-color: var(--accent-primary); }
+
 /* ── Dashboard v2: session card chevron ──────────────────── */
 .dashboard-session-card__chevron {
   color: var(--text-tertiary, #94a3b8);
@@ -2698,42 +2736,6 @@ select:focus-visible {
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 12px;
   margin-bottom: 2rem;
-}
-
-.agents-card {
-  background: var(--bg-surface-1);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem;
-  cursor: pointer;
-  transition: border-color var(--duration-base) var(--ease-standard),
-              box-shadow var(--duration-base) var(--ease-standard);
-}
-
-.agents-card:hover {
-  border-color: color-mix(in srgb, var(--accent-primary) 40%, transparent);
-}
-
-.agents-card--active {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-primary) 20%, transparent);
-}
-
-.agents-card__icon {
-  font-size: 1.75rem;
-  margin-bottom: 8px;
-}
-
-.agents-card__title {
-  font-weight: 600;
-  font-size: var(--text-sm);
-  margin-bottom: 4px;
-}
-
-.agents-card__desc {
-  font-size: var(--text-xs);
-  color: var(--text-secondary);
-  line-height: var(--leading-normal);
 }
 
 .agents-config {

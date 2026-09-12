@@ -49,99 +49,94 @@ from app.services.user_service import create_user, get_user
 settings = get_settings()
 
 
+class SchemaVerificationError(RuntimeError):
+    """The database is reachable but its schema is not the one this image was
+    built against. Never caught by _init_db's degrade-to-no-DB handler: a
+    wrong schema must abort startup, not serve traffic against it."""
+
+
 def _init_db():
     try:
-        from app.core.database import create_tables
-        create_tables()
-        _ensure_schema_upgrades()
+        from app.core.database import engine
+        if engine.url.get_backend_name() == "sqlite":
+            # Test suite only — SQLite has no ADD COLUMN IF NOT EXISTS and no
+            # partial-unique-index syntax; create_all() is the only thing
+            # that has ever built its schema, and that stays true here.
+            from app.core.database import create_tables
+            create_tables()
+        else:
+            _verify_schema_at_expected_revision()
         logger.info("DB tables ready")
         _migrate_users_from_json()
         _ensure_default_org()
+    except SchemaVerificationError:
+        # Deliberately re-raised past the handler below — this is the
+        # fail-closed guarantee the manifest gate exists to provide.
+        raise
     except Exception as e:
         logger.warning("DB init failed — running without persistent DB: %s", e)
 
 
-def _ensure_schema_upgrades():
-    """Idempotent column additions for tables that predate new features.
-
-    create_all() never ALTERs existing tables, so additive columns on
-    document_library are applied here via ADD COLUMN IF NOT EXISTS (Postgres).
+def _verify_schema_at_expected_revision():
+    """PostgreSQL only. Alembic is the sole schema authority — this function
+    executes zero DDL. It reads the build-pinned manifest (baked into the
+    image at build time, see ops/schema_audit/generate_manifest.py and
+    backend/Dockerfile), re-hashes the migration files actually present in
+    this container, and confirms the database's `alembic_version` matches
+    the manifest's expected head. Any mismatch — including zero or more
+    than one version row — raises, and the caller (`_init_db`) logs it as a
+    startup failure. This is what closes test case F ("clean application
+    startup performs no implicit production schema creation, and refuses to
+    start against an unexpected schema").
     """
+    import hashlib
     from sqlalchemy import text
+    from sqlalchemy.exc import ProgrammingError
     from app.core.database import engine
 
-    statements = [
-        "ALTER TABLE document_library ADD COLUMN IF NOT EXISTS doc_kind VARCHAR(32) NOT NULL DEFAULT 'document'",
-        "ALTER TABLE document_library ADD COLUMN IF NOT EXISTS direction VARCHAR(128)",
-        "ALTER TABLE document_library ADD COLUMN IF NOT EXISTS issuer VARCHAR(256)",
-        "ALTER TABLE document_library ADD COLUMN IF NOT EXISTS doc_number VARCHAR(128)",
-        "ALTER TABLE document_library ADD COLUMN IF NOT EXISTS doc_date VARCHAR(32)",
-        "ALTER TABLE document_library ADD COLUMN IF NOT EXISTS session_id VARCHAR(64)",
-        "CREATE INDEX IF NOT EXISTS ix_document_library_direction ON document_library (direction)",
-        "CREATE INDEX IF NOT EXISTS ix_document_library_issuer ON document_library (issuer)",
-        "CREATE INDEX IF NOT EXISTS ix_document_library_session_id ON document_library (session_id)",
-        # Per-document knowledge-graph filtering: tag nodes with the source session.
-        "ALTER TABLE knowledge_graph_nodes ADD COLUMN IF NOT EXISTS session_id VARCHAR(64)",
-        "CREATE INDEX IF NOT EXISTS ix_kg_nodes_session_id ON knowledge_graph_nodes (session_id)",
-        # Denormalized session_id on agent_tasks so tasks_by_session filters in SQL.
-        "ALTER TABLE agent_tasks ADD COLUMN IF NOT EXISTS session_id VARCHAR(64)",
-        "CREATE INDEX IF NOT EXISTS ix_agent_tasks_session_id ON agent_tasks (session_id)",
-    ]
-    try:
-        with engine.begin() as conn:
-            for stmt in statements:
-                conn.execute(text(stmt))
-        logger.info("Schema upgrades applied")
-    except Exception as e:
-        # SQLite (tests) lacks ADD COLUMN IF NOT EXISTS — create_all already has the columns there.
-        logger.debug("Schema upgrade skipped/failed: %s", e)
+    manifest_path = Path(__file__).resolve().parent / "_schema_manifest.json"
+    if not manifest_path.is_file():
+        raise SchemaVerificationError(
+            f"{manifest_path} not found — this image was not built with the "
+            "schema manifest step (see backend/Dockerfile); refusing to "
+            "start against an unverifiable schema"
+        )
+    manifest = json.loads(manifest_path.read_text())
 
-    # Recreate the knowledge_graph_nodes → doc_sessions FK with ON DELETE SET NULL so
-    # deleting a document/session doesn't fail on the graph-mirror reference. Runs in its
-    # own transaction (idempotent drop+add) so it can't roll back the column upgrades above.
-    try:
-        with engine.begin() as conn:
-            conn.execute(text(
-                "ALTER TABLE knowledge_graph_nodes "
-                "DROP CONSTRAINT IF EXISTS knowledge_graph_nodes_session_id_fkey"
-            ))
-            conn.execute(text(
-                "ALTER TABLE knowledge_graph_nodes "
-                "ADD CONSTRAINT knowledge_graph_nodes_session_id_fkey "
-                "FOREIGN KEY (session_id) REFERENCES doc_sessions(session_id) ON DELETE SET NULL"
-            ))
-        logger.info("knowledge_graph_nodes session_id FK set to ON DELETE SET NULL")
-    except Exception as e:
-        logger.debug("KG FK upgrade skipped/failed: %s", e)
+    versions_dir = Path(__file__).resolve().parent.parent / "alembic" / "versions"
+    for rel_name, expected_hash in manifest["migration_file_hashes"].items():
+        actual_path = versions_dir / rel_name
+        if not actual_path.is_file():
+            raise SchemaVerificationError(f"manifest references missing migration file {actual_path}")
+        actual_hash = hashlib.sha256(actual_path.read_bytes()).hexdigest()
+        if actual_hash != expected_hash:
+            raise SchemaVerificationError(
+                f"{rel_name} hash mismatch: image manifest expects "
+                f"{expected_hash}, found {actual_hash} — migration file was "
+                "modified after the image was built; refusing to start"
+            )
 
-    # Same fix for graph_extraction_jobs and workspace_shares: both are nullable=False
-    # children of doc_sessions, so cleanup_session()'s DELETE on doc_sessions was failing
-    # with a FK violation and leaving expired sessions stuck forever (never removed from
-    # RAM or DB, retried every cleanup_expired cycle). ON DELETE CASCADE lets the session
-    # delete succeed and take its jobs/shares with it, matching chat_messages' FK above.
     try:
-        with engine.begin() as conn:
-            conn.execute(text(
-                "ALTER TABLE graph_extraction_jobs "
-                "DROP CONSTRAINT IF EXISTS graph_extraction_jobs_session_id_fkey"
-            ))
-            conn.execute(text(
-                "ALTER TABLE graph_extraction_jobs "
-                "ADD CONSTRAINT graph_extraction_jobs_session_id_fkey "
-                "FOREIGN KEY (session_id) REFERENCES doc_sessions(session_id) ON DELETE CASCADE"
-            ))
-            conn.execute(text(
-                "ALTER TABLE workspace_shares "
-                "DROP CONSTRAINT IF EXISTS workspace_shares_session_id_fkey"
-            ))
-            conn.execute(text(
-                "ALTER TABLE workspace_shares "
-                "ADD CONSTRAINT workspace_shares_session_id_fkey "
-                "FOREIGN KEY (session_id) REFERENCES doc_sessions(session_id) ON DELETE CASCADE"
-            ))
-        logger.info("graph_extraction_jobs/workspace_shares session_id FKs set to ON DELETE CASCADE")
-    except Exception as e:
-        logger.debug("graph_extraction_jobs/workspace_shares FK upgrade skipped/failed: %s", e)
+        with engine.connect() as conn:
+            rows = conn.execute(text("SELECT version_num FROM alembic_version")).fetchall()
+    except ProgrammingError as e:
+        # Reachable database, but no alembic_version at all — an unversioned
+        # legacy schema. Distinct from OperationalError (database unreachable),
+        # which stays a degrade-to-no-DB case rather than a startup abort.
+        raise SchemaVerificationError(
+            "alembic_version table does not exist — this database was never "
+            "stamped by alembic; run the migrate job before starting this "
+            "build (see docs/ALEMBIC_SCHEMA_RECONCILIATION_STAGE_E3_"
+            "IMPLEMENTATION_2026-08-05.md)"
+        ) from e
+    expected_head = manifest["alembic_head"]
+    if rows != [(expected_head,)]:
+        raise SchemaVerificationError(
+            f"database alembic_version is {rows}, image expects exactly "
+            f"[('{expected_head}',)] — run the migrate job before starting "
+            "this build (see docs/ALEMBIC_SCHEMA_RECONCILIATION_STAGE_E2_REV3_"
+            "2026-08-05.md)"
+        )
 
 
 def _ensure_default_org():

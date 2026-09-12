@@ -6,6 +6,7 @@ import useAgentStore from '../shared/stores/agentStore'
 import { useToastStore } from '../shared/stores/toastStore'
 import { apiGetAgentTypes, apiGetLibrary, apiGetTaxonomy } from '../lib/api'
 import { SkeletonCard } from '../shared/ui/skeleton/Skeleton'
+import AgentTypeStack from '../components/AgentTypeStack'
 
 export default function AgentLauncherPage() {
   const { t } = useTranslation()
@@ -84,19 +85,13 @@ export default function AgentLauncherPage() {
         </div>
       )}
 
-      <div className="agents-grid">
-        {Object.entries(agentTypes ?? {}).map(([type, info]) => (
-          <div
-            key={type}
-            className={`agents-card${selected === type ? ' agents-card--active' : ''}`}
-            onClick={() => { setSelected(type); setForm({}) }}
-          >
-            <div className="agents-card__icon">🤖</div>
-            <div className="agents-card__title">{info.label}</div>
-            <div className="agents-card__desc">{info.description}</div>
-          </div>
-        ))}
-      </div>
+      {agentTypes !== null && !agentTypesError && (
+        <AgentTypeStack
+          items={Object.entries(agentTypes)}
+          selected={selected}
+          onSelect={type => { setSelected(type); setForm({}) }}
+        />
+      )}
 
       {selected && agentTypes[selected] && (
         <div className="agents-config">

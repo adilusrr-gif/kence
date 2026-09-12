@@ -1,4 +1,3 @@
-from docling.document_converter import DocumentConverter
 from pathlib import Path
 from typing import Dict, List, Tuple
 import difflib
@@ -17,9 +16,14 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
+
 class DocumentComparator:
     def __init__(self):
-        self.converter = DocumentConverter()
+        # OCR disabled: this environment can't reach the Hugging Face model
+        # hub (TLS to huggingface.co fails), so an OCR-enabled converter
+        # throws on every PDF. Mirrors app.services.document's DocumentProcessor.
+        from app.services.document import _make_converter
+        self.converter = _make_converter(do_ocr=False)
         self.embeddings = embeddings_service.embeddings
         self.text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=settings.CHUNK_SIZE,
@@ -28,10 +32,28 @@ class DocumentComparator:
         )
 
     def extract_document(self, file_path: str) -> str:
-        """Извлекает текст из документа через Docling"""
-        from app.services.document import DocumentTooLargeError
-        result = self.converter.convert(file_path)
-        text = result.document.export_to_markdown()
+        """Извлекает текст из документа через Docling, с фолбэком на случай сбоя."""
+        from app.services.document import DocumentTooLargeError, DocumentProcessor, _pdf_text_fallback
+        path = Path(file_path)
+        ext = path.suffix.lower()
+
+        if ext in DocumentProcessor._IMAGE_EXTS:
+            from app.services.vision_service import vision_service
+            text = vision_service.describe_with_ocr_fallback(str(path))
+        else:
+            try:
+                result = self.converter.convert(file_path)
+                text = result.document.export_to_markdown()
+            except Exception as docling_err:
+                if ext != ".pdf":
+                    raise
+                logger.warning(
+                    "Docling failed for %s (%s), using text-only fallback", path.name, docling_err
+                )
+                text = _pdf_text_fallback(str(path))
+                if not text.strip():
+                    text = f"[Документ: {path.stem}]\n\nТекст не удалось извлечь автоматически."
+
         if len(text) > settings.MAX_DOCUMENT_CHARS:
             raise DocumentTooLargeError(len(text), settings.MAX_DOCUMENT_CHARS)
         return text

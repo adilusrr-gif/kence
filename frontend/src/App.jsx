@@ -54,6 +54,7 @@ function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, se
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.18, ease: 'easeOut' }}
           >
+          <ErrorBoundary key={location.pathname}>
             <Routes location={location}>
               <Route path="/"             element={<DashboardPage sessionHistory={sessionHistory} currentUser={currentUser} onNewSession={onNewSession} onRestoreSession={onRestoreSession} onDeleteSession={onDeleteSession} />} />
               <Route path="/home"         element={<LandingPage />} />
@@ -78,6 +79,7 @@ function LegacyRoutesCanvas({ currentUser, documentName, location, sessionId, se
               <Route path="/vector-base"     element={<Navigate to="/admin" replace />} />
               <Route path="/login"           element={<Navigate to="/" replace />} />
             </Routes>
+          </ErrorBoundary>
           </motion.div>
         </AnimatePresence>
       </div>

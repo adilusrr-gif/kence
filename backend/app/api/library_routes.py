@@ -158,7 +158,7 @@ async def upload_doc_to_library(
     if file.size and file.size > _settings.MAX_FILE_SIZE:
         raise HTTPException(status_code=413, detail=f"Файл слишком большой. Максимум {_settings.MAX_FILE_SIZE // 1024 // 1024} МБ")
 
-    session_id = session_manager.create_session()
+    session_id = session_manager.create_session(owner_username=current_user["username"])
     upload_root = Path(_settings.UPLOAD_DIR).resolve()
     file_path = (upload_root / session_id / safe_name).resolve()
     if not file_path.is_relative_to(upload_root):
@@ -282,7 +282,7 @@ async def open_library_doc_in_session(org_id: int, doc_id: int, current_user: di
     if not doc or not os.path.exists(doc["file_path"]):
         raise HTTPException(status_code=404, detail="Файл не найден")
 
-    session_id = session_manager.create_session()
+    session_id = session_manager.create_session(owner_username=current_user["username"])
     upload_dir = _settings.UPLOAD_DIR
     dest_dir = os.path.join(upload_dir, session_id)
     os.makedirs(dest_dir, exist_ok=True)

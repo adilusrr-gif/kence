@@ -36,13 +36,13 @@ logger = logging.getLogger(__name__)
 
 def _verify_session_access(session_id: str, session: dict, current_user: dict) -> None:
     """Raises 403 if the user does not own the session, isn't an admin, and
-    doesn't hold a share grant for it. Sessions without an owner (created
-    before ownership tracking) remain accessible."""
+    doesn't hold a share grant for it. A session with no owner on record
+    (predates ownership tracking) is admin/share-only — no implicit access."""
     if current_user.get("role") == "admin":
         return
     owner = session.get("owner_username")
     username = current_user.get("username")
-    if not owner or owner == username:
+    if owner == username:
         return
     if check_session_access(session_id, username) is not None:
         return
@@ -55,8 +55,8 @@ def require_session(session_id: str, current_user: dict) -> dict:
     Loads the session (404 if missing) and enforces ownership (403 if not the
     owner, not an admin, and not a share recipient). Centralising both steps
     here means a route that reaches a session through this helper can never
-    accidentally skip the owner check. A freshly created, still-unowned
-    session passes — upload claims it.
+    accidentally skip the owner check. create_session stamps the owner at
+    creation time, so every session reaching this helper already has one.
     """
     session = session_manager.get_session(session_id)
     if not session:
@@ -120,30 +120,58 @@ class TranslateTextRequest(BaseModel):
 
 @router.post("/sessions")
 async def create_session(user: dict = Depends(get_current_user)):
-    session_id = session_manager.create_session()
+    session_id = session_manager.create_session(owner_username=user.get("username"))
     return {"session_id": session_id, "status": "created"}
 
 @router.get("/sessions")
-async def list_sessions(user: dict = Depends(get_current_user)):
+async def list_sessions(
+    date_from: Optional[str] = Query(None, description="ISO date/datetime, inclusive lower bound on last_activity"),
+    date_to: Optional[str] = Query(None, description="ISO date/datetime, inclusive upper bound on last_activity"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    user: dict = Depends(get_current_user),
+):
     """Returns active sessions owned by the current user (admins see all)."""
     try:
+        from datetime import datetime, timezone
         from app.core.database import SessionLocal
         from app.models.models import DocSession
+
+        def _parse_bound(value: str, end_of_day: bool) -> datetime:
+            dt = datetime.fromisoformat(value)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if end_of_day and len(value) <= 10:  # bare date like "2026-08-04"
+                dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+            return dt
+
         with SessionLocal() as db:
             q = db.query(DocSession).filter(DocSession.has_vector_store == True)
             if user.get("role") != "admin":
                 q = q.filter(DocSession.owner_username == user["username"])
-            rows = q.order_by(DocSession.last_activity.desc()).limit(50).all()
-            return [
-                {
-                    "session_id": r.session_id,
-                    "document_name": r.document_name,
-                    "has_vector_store": r.has_vector_store,
-                    "created_at": r.created_at.isoformat() if r.created_at else None,
-                    "last_activity": r.last_activity.isoformat() if r.last_activity else None,
-                }
-                for r in rows
-            ]
+            if date_from:
+                q = q.filter(DocSession.last_activity >= _parse_bound(date_from, end_of_day=False))
+            if date_to:
+                q = q.filter(DocSession.last_activity <= _parse_bound(date_to, end_of_day=True))
+            total = q.count()
+            rows = q.order_by(DocSession.last_activity.desc()).offset(offset).limit(limit).all()
+            return {
+                "total": total,
+                "offset": offset,
+                "limit": limit,
+                "sessions": [
+                    {
+                        "session_id": r.session_id,
+                        "document_name": r.document_name,
+                        "has_vector_store": r.has_vector_store,
+                        "created_at": r.created_at.isoformat() if r.created_at else None,
+                        "last_activity": r.last_activity.isoformat() if r.last_activity else None,
+                    }
+                    for r in rows
+                ],
+            }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid date format: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -225,8 +253,9 @@ async def upload_document(request: Request, session_id: str, file: UploadFile = 
     session = session_manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
-    # A user must not upload into another user's session (I-06). An unowned,
-    # freshly created session passes and is claimed below (owner_username set).
+    # A user must not upload into another user's session (I-06). create_session
+    # now stamps the owner up front, so this only ever passes for the creator,
+    # an admin, or a share grant.
     _verify_session_access(session_id, session, user)
 
     # Strip any directory components and enforce max filename length

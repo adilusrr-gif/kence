@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, Text, DateTime, Integer, UniqueConstraint, JSON, ForeignKey, Index
+from sqlalchemy import Column, String, Boolean, Text, DateTime, Integer, UniqueConstraint, JSON, ForeignKey, Index, text
 from sqlalchemy.sql import func
 from app.core.database import Base
 
@@ -212,7 +212,7 @@ class DocumentLibrary(Base):
     is_shared        = Column(Boolean, nullable=False, default=False)
     tags             = Column(JSON, nullable=True)
     # Library taxonomy: doc_kind distinguishes ordinary documents from regulatory acts (НПА).
-    doc_kind         = Column(String(32), nullable=False, default="document")  # document | npa
+    doc_kind         = Column(String(32), nullable=False, default="document", server_default=text("'document'"))  # document | npa
     direction        = Column(String(128), nullable=True, index=True)          # направление (managed dict)
     issuer           = Column(String(256), nullable=True, index=True)          # от кого идёт документ / орган
     doc_number       = Column(String(128), nullable=True)                       # номер НПА/документа

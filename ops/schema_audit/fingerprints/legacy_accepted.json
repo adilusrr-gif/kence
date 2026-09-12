@@ -1,0 +1,3279 @@
+{
+  "enums": {},
+  "extensions": {
+    "plpgsql": "1.0"
+  },
+  "fingerprint_format_version": 1,
+  "foreign_keys": {
+    "agent_tasks": {
+      "agent_tasks_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      },
+      "agent_tasks_username_fkey": {
+        "def": "FOREIGN KEY (username) REFERENCES users(username)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "api_keys": {
+      "api_keys_created_by_fkey": {
+        "def": "FOREIGN KEY (created_by) REFERENCES users(username)",
+        "deferrable": false,
+        "deferred": false
+      },
+      "api_keys_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "audit_events": {
+      "audit_events_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE SET NULL",
+        "deferrable": false,
+        "deferred": false
+      },
+      "audit_events_username_fkey": {
+        "def": "FOREIGN KEY (username) REFERENCES users(username) ON DELETE SET NULL",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "chat_messages": {
+      "chat_messages_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      },
+      "chat_messages_session_id_fkey": {
+        "def": "FOREIGN KEY (session_id) REFERENCES doc_sessions(session_id) ON DELETE CASCADE",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "doc_sessions": {
+      "doc_sessions_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      },
+      "doc_sessions_owner_username_fkey": {
+        "def": "FOREIGN KEY (owner_username) REFERENCES users(username)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "document_contexts": {
+      "document_contexts_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "document_library": {
+      "document_library_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      },
+      "document_library_owner_username_fkey": {
+        "def": "FOREIGN KEY (owner_username) REFERENCES users(username)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "graph_extraction_jobs": {
+      "graph_extraction_jobs_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      },
+      "graph_extraction_jobs_session_id_fkey": {
+        "def": "FOREIGN KEY (session_id) REFERENCES doc_sessions(session_id) ON DELETE CASCADE",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "knowledge_graph_nodes": {
+      "knowledge_graph_nodes_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      },
+      "knowledge_graph_nodes_session_id_fkey": {
+        "def": "FOREIGN KEY (session_id) REFERENCES doc_sessions(session_id) ON DELETE SET NULL",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "kpi_snapshots": {
+      "kpi_snapshots_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "library_document_content": {
+      "library_document_content_library_doc_id_fkey": {
+        "def": "FOREIGN KEY (library_doc_id) REFERENCES document_library(id) ON DELETE CASCADE",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "library_taxonomy": {
+      "library_taxonomy_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "org_branding": {
+      "org_branding_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "org_memberships": {
+      "org_memberships_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      },
+      "org_memberships_username_fkey": {
+        "def": "FOREIGN KEY (username) REFERENCES users(username)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "org_quotas": {
+      "org_quotas_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "translation_jobs": {
+      "translation_jobs_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE SET NULL",
+        "deferrable": false,
+        "deferred": false
+      },
+      "translation_jobs_username_fkey": {
+        "def": "FOREIGN KEY (username) REFERENCES users(username) ON DELETE SET NULL",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "usage_logs": {
+      "usage_logs_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "user_prompts": {
+      "user_prompts_username_fkey": {
+        "def": "FOREIGN KEY (username) REFERENCES users(username)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "user_quotas": {
+      "user_quotas_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      },
+      "user_quotas_username_fkey": {
+        "def": "FOREIGN KEY (username) REFERENCES users(username)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "users": {
+      "users_default_org_id_fkey": {
+        "def": "FOREIGN KEY (default_org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      }
+    },
+    "workspace_shares": {
+      "workspace_shares_org_id_fkey": {
+        "def": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+        "deferrable": false,
+        "deferred": false
+      },
+      "workspace_shares_session_id_fkey": {
+        "def": "FOREIGN KEY (session_id) REFERENCES doc_sessions(session_id) ON DELETE CASCADE",
+        "deferrable": false,
+        "deferred": false
+      },
+      "workspace_shares_shared_by_fkey": {
+        "def": "FOREIGN KEY (shared_by) REFERENCES users(username)",
+        "deferrable": false,
+        "deferred": false
+      },
+      "workspace_shares_shared_with_fkey": {
+        "def": "FOREIGN KEY (shared_with) REFERENCES users(username)",
+        "deferrable": false,
+        "deferred": false
+      }
+    }
+  },
+  "functions": {},
+  "indexes": {
+    "agent_tasks": {
+      "agent_tasks_pkey": "CREATE UNIQUE INDEX agent_tasks_pkey ON public.agent_tasks USING btree (id)",
+      "ix_agent_tasks_org_id": "CREATE INDEX ix_agent_tasks_org_id ON public.agent_tasks USING btree (org_id)",
+      "ix_agent_tasks_org_status": "CREATE INDEX ix_agent_tasks_org_status ON public.agent_tasks USING btree (org_id, status)",
+      "ix_agent_tasks_session_id": "CREATE INDEX ix_agent_tasks_session_id ON public.agent_tasks USING btree (session_id)",
+      "ix_agent_tasks_username": "CREATE INDEX ix_agent_tasks_username ON public.agent_tasks USING btree (username)",
+      "ix_agent_tasks_username_status": "CREATE INDEX ix_agent_tasks_username_status ON public.agent_tasks USING btree (username, status)"
+    },
+    "ai_prompts": {
+      "ai_prompts_pkey": "CREATE UNIQUE INDEX ai_prompts_pkey ON public.ai_prompts USING btree (prompt_type)"
+    },
+    "api_keys": {
+      "api_keys_key_hash_key": "CREATE UNIQUE INDEX api_keys_key_hash_key ON public.api_keys USING btree (key_hash)",
+      "api_keys_pkey": "CREATE UNIQUE INDEX api_keys_pkey ON public.api_keys USING btree (id)",
+      "ix_api_keys_org_id": "CREATE INDEX ix_api_keys_org_id ON public.api_keys USING btree (org_id)"
+    },
+    "audit_events": {
+      "audit_events_pkey": "CREATE UNIQUE INDEX audit_events_pkey ON public.audit_events USING btree (id)",
+      "ix_audit_events_action": "CREATE INDEX ix_audit_events_action ON public.audit_events USING btree (action)",
+      "ix_audit_events_created_at": "CREATE INDEX ix_audit_events_created_at ON public.audit_events USING btree (created_at)",
+      "ix_audit_events_org_action": "CREATE INDEX ix_audit_events_org_action ON public.audit_events USING btree (org_id, action)",
+      "ix_audit_events_org_created": "CREATE INDEX ix_audit_events_org_created ON public.audit_events USING btree (org_id, created_at)",
+      "ix_audit_events_org_id": "CREATE INDEX ix_audit_events_org_id ON public.audit_events USING btree (org_id)",
+      "ix_audit_events_session_id": "CREATE INDEX ix_audit_events_session_id ON public.audit_events USING btree (session_id)",
+      "ix_audit_events_username": "CREATE INDEX ix_audit_events_username ON public.audit_events USING btree (username)"
+    },
+    "chat_messages": {
+      "chat_messages_pkey": "CREATE UNIQUE INDEX chat_messages_pkey ON public.chat_messages USING btree (id)",
+      "ix_chat_messages_org_id": "CREATE INDEX ix_chat_messages_org_id ON public.chat_messages USING btree (org_id)",
+      "ix_chat_messages_session_created": "CREATE INDEX ix_chat_messages_session_created ON public.chat_messages USING btree (session_id, created_at)",
+      "ix_chat_messages_session_id": "CREATE INDEX ix_chat_messages_session_id ON public.chat_messages USING btree (session_id)"
+    },
+    "doc_sessions": {
+      "doc_sessions_pkey": "CREATE UNIQUE INDEX doc_sessions_pkey ON public.doc_sessions USING btree (session_id)",
+      "ix_doc_sessions_org_activity": "CREATE INDEX ix_doc_sessions_org_activity ON public.doc_sessions USING btree (org_id, last_activity)",
+      "ix_doc_sessions_org_id": "CREATE INDEX ix_doc_sessions_org_id ON public.doc_sessions USING btree (org_id)",
+      "ix_doc_sessions_owner_activity": "CREATE INDEX ix_doc_sessions_owner_activity ON public.doc_sessions USING btree (owner_username, last_activity)",
+      "ix_doc_sessions_owner_username": "CREATE INDEX ix_doc_sessions_owner_username ON public.doc_sessions USING btree (owner_username)"
+    },
+    "document_contexts": {
+      "document_contexts_pkey": "CREATE UNIQUE INDEX document_contexts_pkey ON public.document_contexts USING btree (id)",
+      "ix_document_contexts_username": "CREATE INDEX ix_document_contexts_username ON public.document_contexts USING btree (username)",
+      "uq_user_doc_context": "CREATE UNIQUE INDEX uq_user_doc_context ON public.document_contexts USING btree (username, document_name)"
+    },
+    "document_library": {
+      "document_library_pkey": "CREATE UNIQUE INDEX document_library_pkey ON public.document_library USING btree (id)",
+      "ix_document_library_direction": "CREATE INDEX ix_document_library_direction ON public.document_library USING btree (direction)",
+      "ix_document_library_issuer": "CREATE INDEX ix_document_library_issuer ON public.document_library USING btree (issuer)",
+      "ix_document_library_org_id": "CREATE INDEX ix_document_library_org_id ON public.document_library USING btree (org_id)",
+      "ix_document_library_owner_username": "CREATE INDEX ix_document_library_owner_username ON public.document_library USING btree (owner_username)",
+      "ix_document_library_session_id": "CREATE INDEX ix_document_library_session_id ON public.document_library USING btree (session_id)"
+    },
+    "graph_extraction_jobs": {
+      "graph_extraction_jobs_pkey": "CREATE UNIQUE INDEX graph_extraction_jobs_pkey ON public.graph_extraction_jobs USING btree (id)",
+      "ix_graph_extraction_jobs_org_id": "CREATE INDEX ix_graph_extraction_jobs_org_id ON public.graph_extraction_jobs USING btree (org_id)",
+      "ix_graph_extraction_jobs_session_id": "CREATE INDEX ix_graph_extraction_jobs_session_id ON public.graph_extraction_jobs USING btree (session_id)"
+    },
+    "knowledge_graph_nodes": {
+      "ix_kg_nodes_session_id": "CREATE INDEX ix_kg_nodes_session_id ON public.knowledge_graph_nodes USING btree (session_id)",
+      "ix_kg_org_label": "CREATE INDEX ix_kg_org_label ON public.knowledge_graph_nodes USING btree (org_id, label)",
+      "ix_knowledge_graph_nodes_org_id": "CREATE INDEX ix_knowledge_graph_nodes_org_id ON public.knowledge_graph_nodes USING btree (org_id)",
+      "knowledge_graph_nodes_pkey": "CREATE UNIQUE INDEX knowledge_graph_nodes_pkey ON public.knowledge_graph_nodes USING btree (id)"
+    },
+    "kpi_snapshots": {
+      "ix_kpi_snapshots_org_id": "CREATE INDEX ix_kpi_snapshots_org_id ON public.kpi_snapshots USING btree (org_id)",
+      "ix_kpi_snapshots_snapshot_at": "CREATE INDEX ix_kpi_snapshots_snapshot_at ON public.kpi_snapshots USING btree (snapshot_at)",
+      "kpi_snapshots_pkey": "CREATE UNIQUE INDEX kpi_snapshots_pkey ON public.kpi_snapshots USING btree (id)"
+    },
+    "library_document_content": {
+      "ix_library_document_content_library_doc_id": "CREATE UNIQUE INDEX ix_library_document_content_library_doc_id ON public.library_document_content USING btree (library_doc_id)",
+      "library_document_content_pkey": "CREATE UNIQUE INDEX library_document_content_pkey ON public.library_document_content USING btree (id)"
+    },
+    "library_taxonomy": {
+      "ix_library_taxonomy_org_id": "CREATE INDEX ix_library_taxonomy_org_id ON public.library_taxonomy USING btree (org_id)",
+      "ix_library_taxonomy_org_kind": "CREATE INDEX ix_library_taxonomy_org_kind ON public.library_taxonomy USING btree (org_id, kind)",
+      "library_taxonomy_pkey": "CREATE UNIQUE INDEX library_taxonomy_pkey ON public.library_taxonomy USING btree (id)",
+      "uq_library_taxonomy_org_kind_value": "CREATE UNIQUE INDEX uq_library_taxonomy_org_kind_value ON public.library_taxonomy USING btree (org_id, kind, value)"
+    },
+    "org_branding": {
+      "org_branding_pkey": "CREATE UNIQUE INDEX org_branding_pkey ON public.org_branding USING btree (org_id)"
+    },
+    "org_memberships": {
+      "ix_org_memberships_org_id": "CREATE INDEX ix_org_memberships_org_id ON public.org_memberships USING btree (org_id)",
+      "ix_org_memberships_username": "CREATE INDEX ix_org_memberships_username ON public.org_memberships USING btree (username)",
+      "org_memberships_pkey": "CREATE UNIQUE INDEX org_memberships_pkey ON public.org_memberships USING btree (id)",
+      "uq_org_member": "CREATE UNIQUE INDEX uq_org_member ON public.org_memberships USING btree (org_id, username)"
+    },
+    "org_quotas": {
+      "org_quotas_org_id_key": "CREATE UNIQUE INDEX org_quotas_org_id_key ON public.org_quotas USING btree (org_id)",
+      "org_quotas_pkey": "CREATE UNIQUE INDEX org_quotas_pkey ON public.org_quotas USING btree (id)"
+    },
+    "organizations": {
+      "ix_organizations_slug": "CREATE UNIQUE INDEX ix_organizations_slug ON public.organizations USING btree (slug)",
+      "organizations_pkey": "CREATE UNIQUE INDEX organizations_pkey ON public.organizations USING btree (id)"
+    },
+    "translation_jobs": {
+      "ix_translation_jobs_created_at": "CREATE INDEX ix_translation_jobs_created_at ON public.translation_jobs USING btree (created_at)",
+      "ix_translation_jobs_org_id": "CREATE INDEX ix_translation_jobs_org_id ON public.translation_jobs USING btree (org_id)",
+      "ix_translation_jobs_session_id": "CREATE INDEX ix_translation_jobs_session_id ON public.translation_jobs USING btree (session_id)",
+      "ix_translation_jobs_status": "CREATE INDEX ix_translation_jobs_status ON public.translation_jobs USING btree (status)",
+      "ix_translation_jobs_status_created": "CREATE INDEX ix_translation_jobs_status_created ON public.translation_jobs USING btree (status, created_at)",
+      "ix_translation_jobs_user_created": "CREATE INDEX ix_translation_jobs_user_created ON public.translation_jobs USING btree (username, created_at)",
+      "ix_translation_jobs_username": "CREATE INDEX ix_translation_jobs_username ON public.translation_jobs USING btree (username)",
+      "translation_jobs_pkey": "CREATE UNIQUE INDEX translation_jobs_pkey ON public.translation_jobs USING btree (id)"
+    },
+    "usage_logs": {
+      "ix_usage_logs_created_at": "CREATE INDEX ix_usage_logs_created_at ON public.usage_logs USING btree (created_at)",
+      "ix_usage_logs_event_type": "CREATE INDEX ix_usage_logs_event_type ON public.usage_logs USING btree (event_type)",
+      "ix_usage_logs_org_created": "CREATE INDEX ix_usage_logs_org_created ON public.usage_logs USING btree (org_id, created_at)",
+      "ix_usage_logs_org_event": "CREATE INDEX ix_usage_logs_org_event ON public.usage_logs USING btree (org_id, event_type)",
+      "ix_usage_logs_org_id": "CREATE INDEX ix_usage_logs_org_id ON public.usage_logs USING btree (org_id)",
+      "ix_usage_logs_username": "CREATE INDEX ix_usage_logs_username ON public.usage_logs USING btree (username)",
+      "usage_logs_pkey": "CREATE UNIQUE INDEX usage_logs_pkey ON public.usage_logs USING btree (id)"
+    },
+    "user_prompts": {
+      "ix_user_prompts_username": "CREATE INDEX ix_user_prompts_username ON public.user_prompts USING btree (username)",
+      "uq_user_prompt": "CREATE UNIQUE INDEX uq_user_prompt ON public.user_prompts USING btree (username, prompt_type)",
+      "user_prompts_pkey": "CREATE UNIQUE INDEX user_prompts_pkey ON public.user_prompts USING btree (id)"
+    },
+    "user_quotas": {
+      "user_quotas_pkey": "CREATE UNIQUE INDEX user_quotas_pkey ON public.user_quotas USING btree (id)",
+      "user_quotas_username_key": "CREATE UNIQUE INDEX user_quotas_username_key ON public.user_quotas USING btree (username)"
+    },
+    "users": {
+      "ix_users_default_org_id": "CREATE INDEX ix_users_default_org_id ON public.users USING btree (default_org_id)",
+      "users_pkey": "CREATE UNIQUE INDEX users_pkey ON public.users USING btree (username)"
+    },
+    "workspace_shares": {
+      "ix_workspace_shares_org_id": "CREATE INDEX ix_workspace_shares_org_id ON public.workspace_shares USING btree (org_id)",
+      "ix_workspace_shares_session_id": "CREATE INDEX ix_workspace_shares_session_id ON public.workspace_shares USING btree (session_id)",
+      "ix_workspace_shares_shared_by": "CREATE INDEX ix_workspace_shares_shared_by ON public.workspace_shares USING btree (shared_by)",
+      "ix_workspace_shares_shared_with": "CREATE INDEX ix_workspace_shares_shared_with ON public.workspace_shares USING btree (shared_with)",
+      "workspace_shares_pkey": "CREATE UNIQUE INDEX workspace_shares_pkey ON public.workspace_shares USING btree (id)"
+    }
+  },
+  "policies": {},
+  "primary_keys": {
+    "agent_tasks": {
+      "columns": [
+        "id"
+      ],
+      "name": "agent_tasks_pkey"
+    },
+    "ai_prompts": {
+      "columns": [
+        "prompt_type"
+      ],
+      "name": "ai_prompts_pkey"
+    },
+    "api_keys": {
+      "columns": [
+        "id"
+      ],
+      "name": "api_keys_pkey"
+    },
+    "audit_events": {
+      "columns": [
+        "id"
+      ],
+      "name": "audit_events_pkey"
+    },
+    "chat_messages": {
+      "columns": [
+        "id"
+      ],
+      "name": "chat_messages_pkey"
+    },
+    "doc_sessions": {
+      "columns": [
+        "session_id"
+      ],
+      "name": "doc_sessions_pkey"
+    },
+    "document_contexts": {
+      "columns": [
+        "id"
+      ],
+      "name": "document_contexts_pkey"
+    },
+    "document_library": {
+      "columns": [
+        "id"
+      ],
+      "name": "document_library_pkey"
+    },
+    "graph_extraction_jobs": {
+      "columns": [
+        "id"
+      ],
+      "name": "graph_extraction_jobs_pkey"
+    },
+    "knowledge_graph_nodes": {
+      "columns": [
+        "id"
+      ],
+      "name": "knowledge_graph_nodes_pkey"
+    },
+    "kpi_snapshots": {
+      "columns": [
+        "id"
+      ],
+      "name": "kpi_snapshots_pkey"
+    },
+    "library_document_content": {
+      "columns": [
+        "id"
+      ],
+      "name": "library_document_content_pkey"
+    },
+    "library_taxonomy": {
+      "columns": [
+        "id"
+      ],
+      "name": "library_taxonomy_pkey"
+    },
+    "org_branding": {
+      "columns": [
+        "org_id"
+      ],
+      "name": "org_branding_pkey"
+    },
+    "org_memberships": {
+      "columns": [
+        "id"
+      ],
+      "name": "org_memberships_pkey"
+    },
+    "org_quotas": {
+      "columns": [
+        "id"
+      ],
+      "name": "org_quotas_pkey"
+    },
+    "organizations": {
+      "columns": [
+        "id"
+      ],
+      "name": "organizations_pkey"
+    },
+    "translation_jobs": {
+      "columns": [
+        "id"
+      ],
+      "name": "translation_jobs_pkey"
+    },
+    "usage_logs": {
+      "columns": [
+        "id"
+      ],
+      "name": "usage_logs_pkey"
+    },
+    "user_prompts": {
+      "columns": [
+        "id"
+      ],
+      "name": "user_prompts_pkey"
+    },
+    "user_quotas": {
+      "columns": [
+        "id"
+      ],
+      "name": "user_quotas_pkey"
+    },
+    "users": {
+      "columns": [
+        "username"
+      ],
+      "name": "users_pkey"
+    },
+    "workspace_shares": {
+      "columns": [
+        "id"
+      ],
+      "name": "workspace_shares_pkey"
+    }
+  },
+  "rls": {
+    "agent_tasks": {
+      "enabled": false,
+      "forced": false
+    },
+    "ai_prompts": {
+      "enabled": false,
+      "forced": false
+    },
+    "api_keys": {
+      "enabled": false,
+      "forced": false
+    },
+    "audit_events": {
+      "enabled": false,
+      "forced": false
+    },
+    "chat_messages": {
+      "enabled": false,
+      "forced": false
+    },
+    "doc_sessions": {
+      "enabled": false,
+      "forced": false
+    },
+    "document_contexts": {
+      "enabled": false,
+      "forced": false
+    },
+    "document_library": {
+      "enabled": false,
+      "forced": false
+    },
+    "graph_extraction_jobs": {
+      "enabled": false,
+      "forced": false
+    },
+    "knowledge_graph_nodes": {
+      "enabled": false,
+      "forced": false
+    },
+    "kpi_snapshots": {
+      "enabled": false,
+      "forced": false
+    },
+    "library_document_content": {
+      "enabled": false,
+      "forced": false
+    },
+    "library_taxonomy": {
+      "enabled": false,
+      "forced": false
+    },
+    "org_branding": {
+      "enabled": false,
+      "forced": false
+    },
+    "org_memberships": {
+      "enabled": false,
+      "forced": false
+    },
+    "org_quotas": {
+      "enabled": false,
+      "forced": false
+    },
+    "organizations": {
+      "enabled": false,
+      "forced": false
+    },
+    "translation_jobs": {
+      "enabled": false,
+      "forced": false
+    },
+    "usage_logs": {
+      "enabled": false,
+      "forced": false
+    },
+    "user_prompts": {
+      "enabled": false,
+      "forced": false
+    },
+    "user_quotas": {
+      "enabled": false,
+      "forced": false
+    },
+    "users": {
+      "enabled": false,
+      "forced": false
+    },
+    "workspace_shares": {
+      "enabled": false,
+      "forced": false
+    }
+  },
+  "sequences": {
+    "agent_tasks_id_seq": {
+      "owner_column": "id",
+      "owner_table": "agent_tasks"
+    },
+    "api_keys_id_seq": {
+      "owner_column": "id",
+      "owner_table": "api_keys"
+    },
+    "audit_events_id_seq": {
+      "owner_column": "id",
+      "owner_table": "audit_events"
+    },
+    "chat_messages_id_seq": {
+      "owner_column": "id",
+      "owner_table": "chat_messages"
+    },
+    "document_contexts_id_seq": {
+      "owner_column": "id",
+      "owner_table": "document_contexts"
+    },
+    "document_library_id_seq": {
+      "owner_column": "id",
+      "owner_table": "document_library"
+    },
+    "graph_extraction_jobs_id_seq": {
+      "owner_column": "id",
+      "owner_table": "graph_extraction_jobs"
+    },
+    "knowledge_graph_nodes_id_seq": {
+      "owner_column": "id",
+      "owner_table": "knowledge_graph_nodes"
+    },
+    "kpi_snapshots_id_seq": {
+      "owner_column": "id",
+      "owner_table": "kpi_snapshots"
+    },
+    "library_document_content_id_seq": {
+      "owner_column": "id",
+      "owner_table": "library_document_content"
+    },
+    "library_taxonomy_id_seq": {
+      "owner_column": "id",
+      "owner_table": "library_taxonomy"
+    },
+    "org_memberships_id_seq": {
+      "owner_column": "id",
+      "owner_table": "org_memberships"
+    },
+    "org_quotas_id_seq": {
+      "owner_column": "id",
+      "owner_table": "org_quotas"
+    },
+    "organizations_id_seq": {
+      "owner_column": "id",
+      "owner_table": "organizations"
+    },
+    "translation_jobs_id_seq": {
+      "owner_column": "id",
+      "owner_table": "translation_jobs"
+    },
+    "usage_logs_id_seq": {
+      "owner_column": "id",
+      "owner_table": "usage_logs"
+    },
+    "user_prompts_id_seq": {
+      "owner_column": "id",
+      "owner_table": "user_prompts"
+    },
+    "user_quotas_id_seq": {
+      "owner_column": "id",
+      "owner_table": "user_quotas"
+    },
+    "workspace_shares_id_seq": {
+      "owner_column": "id",
+      "owner_table": "workspace_shares"
+    }
+  },
+  "tables": {
+    "agent_tasks": {
+      "columns": {
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "error": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "finished_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('agent_tasks_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "input_data": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "json",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "output_data": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "json",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "session_id": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "started_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "status": {
+          "character_maximum_length": 32,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "steps": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "json",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "task_type": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "username": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "ai_prompts": {
+      "columns": {
+        "content": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "prompt_type": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "updated_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "api_keys": {
+      "columns": {
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "created_by": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "expires_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('api_keys_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "is_active": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "boolean",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "key_hash": {
+          "character_maximum_length": 128,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "key_prefix": {
+          "character_maximum_length": 16,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "last_used_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "name": {
+          "character_maximum_length": 128,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        }
+      }
+    },
+    "audit_events": {
+      "columns": {
+        "action": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "detail": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "json",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "document_name": {
+          "character_maximum_length": 256,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('audit_events_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "ip_address": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "result": {
+          "character_maximum_length": 16,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "session_id": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "username": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "chat_messages": {
+      "columns": {
+        "content": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('chat_messages_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "role": {
+          "character_maximum_length": 16,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "session_id": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "doc_sessions": {
+      "columns": {
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "document_name": {
+          "character_maximum_length": 256,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "has_vector_store": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "boolean",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "html_text": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "last_activity": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "markdown_text": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "owner_username": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "presentation_plan": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "json",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "preview": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "session_id": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "document_contexts": {
+      "columns": {
+        "context": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "document_name": {
+          "character_maximum_length": 256,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('document_contexts_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "updated_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "username": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "document_library": {
+      "columns": {
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "description": {
+          "character_maximum_length": 1024,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "direction": {
+          "character_maximum_length": 128,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "doc_date": {
+          "character_maximum_length": 32,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "doc_kind": {
+          "character_maximum_length": 32,
+          "collation_name": null,
+          "column_default": "'document'::character varying",
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "doc_number": {
+          "character_maximum_length": 128,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "file_path": {
+          "character_maximum_length": 512,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "file_size_bytes": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('document_library_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "is_shared": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "boolean",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "issuer": {
+          "character_maximum_length": 256,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "last_accessed": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "mime_type": {
+          "character_maximum_length": 128,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "name": {
+          "character_maximum_length": 256,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "owner_username": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "session_id": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "tags": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "json",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "graph_extraction_jobs": {
+      "columns": {
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "entity_count": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "error": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "finished_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('graph_extraction_jobs_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "rel_count": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "session_id": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "started_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "status": {
+          "character_maximum_length": 32,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "knowledge_graph_nodes": {
+      "columns": {
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "entity_type": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('knowledge_graph_nodes_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "label": {
+          "character_maximum_length": 256,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "neo4j_id": {
+          "character_maximum_length": 128,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "session_id": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "kpi_snapshots": {
+      "columns": {
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('kpi_snapshots_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "metrics": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "json",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "period": {
+          "character_maximum_length": 16,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "snapshot_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "library_document_content": {
+      "columns": {
+        "char_count": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "has_vector_store": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "boolean",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('library_document_content_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "indexed_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "library_doc_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "markdown_text": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "preview": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "updated_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "library_taxonomy": {
+      "columns": {
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('library_taxonomy_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "kind": {
+          "character_maximum_length": 16,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "value": {
+          "character_maximum_length": 256,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "org_branding": {
+      "columns": {
+        "accent_color": {
+          "character_maximum_length": 16,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "app_name": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "custom_css": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "favicon_url": {
+          "character_maximum_length": 512,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "logo_url": {
+          "character_maximum_length": 512,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "updated_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "org_memberships": {
+      "columns": {
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('org_memberships_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "joined_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "org_role": {
+          "character_maximum_length": 32,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "username": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "org_quotas": {
+      "columns": {
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('org_quotas_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "max_api_calls_per_day": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "max_sessions": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "max_storage_mb": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        }
+      }
+    },
+    "organizations": {
+      "columns": {
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "display_name": {
+          "character_maximum_length": 128,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('organizations_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "is_active": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "boolean",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "plan": {
+          "character_maximum_length": 32,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "slug": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "translation_jobs": {
+      "columns": {
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "document_name": {
+          "character_maximum_length": 256,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "done_chunks": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "error": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "finished_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('translation_jobs_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "max_retries": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "progress": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "retry_count": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "session_id": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "source_chars": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "source_language": {
+          "character_maximum_length": 8,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "source_text": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "started_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "status": {
+          "character_maximum_length": 16,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "target_language": {
+          "character_maximum_length": 8,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "total_chunks": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "translated_text": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "updated_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "username": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "usage_logs": {
+      "columns": {
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "event_type": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "extra": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "json",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "file_format": {
+          "character_maximum_length": 32,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('usage_logs_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "session_id": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "username": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "user_prompts": {
+      "columns": {
+        "content": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "text",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('user_prompts_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "prompt_type": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "updated_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "username": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "user_quotas": {
+      "columns": {
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('user_quotas_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "max_api_calls_per_day": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "max_sessions": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "username": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "users": {
+      "columns": {
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "default_org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "hashed_password": {
+          "character_maximum_length": 256,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "is_active": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "boolean",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "role": {
+          "character_maximum_length": 32,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "username": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    },
+    "workspace_shares": {
+      "columns": {
+        "created_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "now()",
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "expires_at": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "timestamp with time zone",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": "nextval('workspace_shares_id_seq'::regclass)",
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "org_id": {
+          "character_maximum_length": null,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "integer",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": 32,
+          "numeric_scale": 0
+        },
+        "permission": {
+          "character_maximum_length": 16,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "session_id": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "shared_by": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "NO",
+          "numeric_precision": null,
+          "numeric_scale": null
+        },
+        "shared_with": {
+          "character_maximum_length": 64,
+          "collation_name": null,
+          "column_default": null,
+          "data_type": "character varying",
+          "generation_expression": null,
+          "identity_generation": null,
+          "is_generated": "NEVER",
+          "is_identity": "NO",
+          "is_nullable": "YES",
+          "numeric_precision": null,
+          "numeric_scale": null
+        }
+      }
+    }
+  },
+  "triggers": {},
+  "unique_check_constraints": {
+    "api_keys": {
+      "api_keys_key_hash_key": {
+        "def": "UNIQUE (key_hash)",
+        "type": "u",
+        "validated": true
+      }
+    },
+    "document_contexts": {
+      "uq_user_doc_context": {
+        "def": "UNIQUE (username, document_name)",
+        "type": "u",
+        "validated": true
+      }
+    },
+    "library_taxonomy": {
+      "uq_library_taxonomy_org_kind_value": {
+        "def": "UNIQUE (org_id, kind, value)",
+        "type": "u",
+        "validated": true
+      }
+    },
+    "org_memberships": {
+      "uq_org_member": {
+        "def": "UNIQUE (org_id, username)",
+        "type": "u",
+        "validated": true
+      }
+    },
+    "org_quotas": {
+      "org_quotas_org_id_key": {
+        "def": "UNIQUE (org_id)",
+        "type": "u",
+        "validated": true
+      }
+    },
+    "user_prompts": {
+      "uq_user_prompt": {
+        "def": "UNIQUE (username, prompt_type)",
+        "type": "u",
+        "validated": true
+      }
+    },
+    "user_quotas": {
+      "user_quotas_username_key": {
+        "def": "UNIQUE (username)",
+        "type": "u",
+        "validated": true
+      }
+    }
+  }
+}

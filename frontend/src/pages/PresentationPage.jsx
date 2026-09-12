@@ -1,11 +1,11 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   AlertCircle, CheckCircle, ChevronLeft, ChevronRight,
   Download, Loader2, Presentation, RefreshCw, Plus, Trash2, Check,
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTranslation } from 'react-i18next'
-import { apiPresentationPlan, apiUpdatePresentationPlan, apiBuildPresentation, apiDownloadPresentation } from '../lib/api'
+import { apiPresentationPlan, apiUpdatePresentationPlan, apiBuildPresentation, apiDownloadPresentation, apiPresentationThemes } from '../lib/api'
 import { useToast } from '@/shared/ui/toast'
 import Skeleton from '@/shared/ui/skeleton/Skeleton'
 import { Badge } from '@/shared/ui/badge'
@@ -17,26 +17,16 @@ import { usePresentationBuild } from '../hooks/usePresentationBuild'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const SLIDE_COLORS = [
-  ['#1A5F7A', '#0d3a4a'], ['#57C5B6', '#2a8a80'],
-  ['#1a2d40', '#0f1a26'], ['#2C3E50', '#1a2535'],
-  ['#1A5F7A', '#163050'], ['#0d3a4a', '#061a22'],
-]
-
-const THEMES = {
+// Fallback shown until the backend's theme list (source of truth) loads.
+const FALLBACK_THEMES = {
   corporate: { label: 'Corporate', bg: '#1A2744', accent: '#3B82F6', text: '#FFFFFF' },
-  light:     { label: 'Light',     bg: '#FFFFFF', accent: '#2563EB', text: '#111827' },
-  dark:      { label: 'Dark',      bg: '#0F172A', accent: '#60A5FA', text: '#F1F5F9' },
-  green:     { label: 'Green',     bg: '#064E3B', accent: '#10B981', text: '#FFFFFF' },
-  minimal:   { label: 'Minimal',   bg: '#F8FAFC', accent: '#6366F1', text: '#0F172A' },
-  ocean:     { label: 'Ocean',     bg: '#0C2340', accent: '#38BDF8', text: '#E0F2FE' },
-  sunset:    { label: 'Sunset',    bg: '#1C0A00', accent: '#F97316', text: '#FFF7ED' },
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function SlideThumb({ slide, index, active, onClick }) {
-  const [bg1, bg2] = SLIDE_COLORS[index % SLIDE_COLORS.length]
+function SlideThumb({ slide, index, active, onClick, themeColors }) {
+  const { bg, accent, text } = themeColors
+  const gradient = `linear-gradient(135deg, ${bg}, color-mix(in srgb, ${bg} 55%, ${accent} 45%))`
   return (
     <motion.div
       onClick={onClick}
@@ -45,11 +35,13 @@ function SlideThumb({ slide, index, active, onClick }) {
       initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05, duration: 0.25 }}
     >
-      <div className="slide-thumb__preview" style={{ background: `linear-gradient(135deg, ${bg1}, ${bg2})` }}>
-        <div className="slide-thumb__num">{index + 1}</div>
-        <div className="slide-thumb__mini-title">{slide.title?.slice(0, 22)}{slide.title?.length > 22 ? '…' : ''}</div>
+      <div className="slide-thumb__preview" style={{ background: gradient }}>
+        <div className="slide-thumb__num" style={{ color: `color-mix(in srgb, ${text} 55%, transparent)` }}>{index + 1}</div>
+        <div className="slide-thumb__mini-title" style={{ color: text }}>{slide.title?.slice(0, 22)}{slide.title?.length > 22 ? '…' : ''}</div>
         <div className="slide-thumb__mini-dots">
-          {(slide.points || []).slice(0, 3).map((_, i) => <div key={i} className="slide-thumb__mini-dot" />)}
+          {(slide.points || []).slice(0, 3).map((_, i) => (
+            <div key={i} className="slide-thumb__mini-dot" style={{ background: `color-mix(in srgb, ${text} 35%, transparent)` }} />
+          ))}
         </div>
       </div>
       <p className="slide-thumb__label">{index + 1}. {slide.title?.slice(0, 28)}{slide.title?.length > 28 ? '…' : ''}</p>
@@ -57,25 +49,28 @@ function SlideThumb({ slide, index, active, onClick }) {
   )
 }
 
-function SlideDetail({ slide, index, total, onPrev, onNext }) {
+function SlideDetail({ slide, index, total, onPrev, onNext, themeColors }) {
   const { t } = useTranslation()
-  const [bg1, bg2] = SLIDE_COLORS[index % SLIDE_COLORS.length]
+  const { bg, accent, text } = themeColors
+  const gradient = `linear-gradient(145deg, ${bg}, color-mix(in srgb, ${bg} 60%, ${accent} 40%))`
   return (
     <motion.div
       className="slide-detail" key={index}
       initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}
       exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.22 }}
     >
-      <div className="slide-detail__card" style={{ background: `linear-gradient(145deg, ${bg1}, ${bg2})` }}>
-        <div className="slide-detail__num">{t('presentation.slideOf', { current: index + 1, total })}</div>
-        <h3 className="slide-detail__title">{slide.title}</h3>
+      <div className="slide-detail__card" style={{ background: gradient }}>
+        <div className="slide-detail__num" style={{ color: `color-mix(in srgb, ${text} 45%, transparent)` }}>
+          {t('presentation.slideOf', { current: index + 1, total })}
+        </div>
+        <h3 className="slide-detail__title" style={{ color: text }}>{slide.title}</h3>
         <ul className="slide-detail__points">
           {(slide.points || []).map((point, i) => (
-            <motion.li key={i} className="slide-detail__point"
+            <motion.li key={i} className="slide-detail__point" style={{ color: `color-mix(in srgb, ${text} 85%, transparent)` }}
               initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.08, duration: 0.2 }}
             >
-              <span className="slide-detail__bullet">›</span>{point}
+              <span className="slide-detail__bullet" style={{ color: accent }}>›</span>{point}
             </motion.li>
           ))}
         </ul>
@@ -86,6 +81,117 @@ function SlideDetail({ slide, index, total, onPrev, onNext }) {
         <button className="slide-nav-btn" onClick={onNext} disabled={index === total - 1}><ChevronRight size={18} /></button>
       </div>
     </motion.div>
+  )
+}
+
+function ChartDataEditor({ slide, idx, updateSlide, t }) {
+  const data = slide.data || {}
+  const rows = (data.labels && data.labels.length)
+    ? data.labels.map((l, i) => ({ label: l, value: data.values?.[i] ?? '' }))
+    : [{ label: '', value: '' }]
+
+  const commit = (newRows, unit = data.unit || '') => {
+    updateSlide(idx, 'data', {
+      labels: newRows.map(r => r.label),
+      values: newRows.map(r => Number(r.value) || 0),
+      unit,
+    })
+  }
+
+  const updateRow = (i, field, value) => commit(rows.map((r, ri) => ri === i ? { ...r, [field]: value } : r))
+  const addRow = () => commit([...rows, { label: '', value: '' }])
+  const removeRow = (i) => commit(rows.filter((_, ri) => ri !== i))
+
+  const fieldStyle = {
+    background: 'var(--bg-surface-2)', color: 'var(--text-primary)',
+    border: '1px solid var(--border-subtle)', borderRadius: 6,
+    padding: '4px 8px', fontSize: 12, fontFamily: 'inherit',
+  }
+
+  return (
+    <Stack gap="xs">
+      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{t('presentation.step1.chartDataLabel')}</span>
+      {rows.map((row, i) => (
+        <Inline key={i} gap="xs" align="center">
+          <input
+            value={row.label}
+            onChange={e => updateRow(i, 'label', e.target.value)}
+            placeholder={t('presentation.step1.chartLabelPlaceholder')}
+            style={{ ...fieldStyle, flex: 2 }}
+          />
+          <input
+            type="number"
+            value={row.value}
+            onChange={e => updateRow(i, 'value', e.target.value)}
+            placeholder={t('presentation.step1.chartValuePlaceholder')}
+            style={{ ...fieldStyle, flex: 1 }}
+          />
+          <button
+            onClick={() => removeRow(i)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, flexShrink: 0 }}
+          >
+            <Trash2 size={12} />
+          </button>
+        </Inline>
+      ))}
+      <Inline gap="sm" align="center">
+        <button onClick={addRow}
+          style={{ fontSize: 11, color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+          + {t('presentation.step1.chartAddRow')}
+        </button>
+        <input
+          value={data.unit || ''}
+          onChange={e => commit(rows, e.target.value)}
+          placeholder={t('presentation.step1.chartUnitPlaceholder')}
+          style={{ ...fieldStyle, width: 100, color: 'var(--text-muted)' }}
+        />
+      </Inline>
+    </Stack>
+  )
+}
+
+function TwoColumnEditor({ slide, idx, updateSlide, t }) {
+  const fieldStyle = {
+    background: 'var(--bg-surface-2)', color: 'var(--text-primary)',
+    border: '1px solid var(--border-subtle)', borderRadius: 8,
+    padding: '6px 10px', fontSize: 12, width: '100%', fontFamily: 'inherit',
+  }
+  const updatePointsField = (field, text) => {
+    updateSlide(idx, field, text.split('\n').map(l => l.trim()).filter(Boolean))
+  }
+  return (
+    <Inline gap="sm" align="stretch">
+      <Stack gap="xs" style={{ flex: 1 }}>
+        <input
+          value={slide.left_title || ''}
+          onChange={e => updateSlide(idx, 'left_title', e.target.value)}
+          placeholder={t('presentation.step1.leftTitlePlaceholder')}
+          style={fieldStyle}
+        />
+        <textarea
+          value={(slide.left_points || []).join('\n')}
+          onChange={e => updatePointsField('left_points', e.target.value)}
+          placeholder={t('presentation.step1.pointsPlaceholder')}
+          rows={3}
+          style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.6 }}
+        />
+      </Stack>
+      <Stack gap="xs" style={{ flex: 1 }}>
+        <input
+          value={slide.right_title || ''}
+          onChange={e => updateSlide(idx, 'right_title', e.target.value)}
+          placeholder={t('presentation.step1.rightTitlePlaceholder')}
+          style={fieldStyle}
+        />
+        <textarea
+          value={(slide.right_points || []).join('\n')}
+          onChange={e => updatePointsField('right_points', e.target.value)}
+          placeholder={t('presentation.step1.pointsPlaceholder')}
+          rows={3}
+          style={{ ...fieldStyle, resize: 'vertical', lineHeight: 1.6 }}
+        />
+      </Stack>
+    </Inline>
   )
 }
 
@@ -133,7 +239,14 @@ export default function PresentationPage({ sessionId }) {
   const [built,            setBuilt]            = useState(false)
   const [userInstructions, setUserInstructions] = useState('')
   const [numSlides,        setNumSlides]        = useState(6)
+  const [themes,           setThemes]           = useState(FALLBACK_THEMES)
   const toast = useToast()
+
+  useEffect(() => {
+    apiPresentationThemes()
+      .then(data => { if (data?.themes) setThemes(data.themes) })
+      .catch(() => { /* keep fallback theme list */ })
+  }, [])
 
   const { building, buildStatus, handleBuild } = usePresentationBuild({
     sessionId,
@@ -144,11 +257,15 @@ export default function PresentationPage({ sessionId }) {
   })
 
   const SLIDE_TYPES = {
-    title:   t('presentation.slideTypes.title'),
-    content: t('presentation.slideTypes.content'),
-    chart:   t('presentation.slideTypes.chart'),
-    quote:   t('presentation.slideTypes.quote'),
-    summary: t('presentation.slideTypes.summary'),
+    title:           t('presentation.slideTypes.title'),
+    content:         t('presentation.slideTypes.content'),
+    chart:           t('presentation.slideTypes.chart'),
+    kpi_row:         t('presentation.slideTypes.kpi_row'),
+    big_number:      t('presentation.slideTypes.big_number'),
+    two_column:      t('presentation.slideTypes.two_column'),
+    section_divider: t('presentation.slideTypes.section_divider'),
+    quote:           t('presentation.slideTypes.quote'),
+    summary:         t('presentation.slideTypes.summary'),
   }
 
   const STEP_LABELS = [
@@ -245,6 +362,7 @@ export default function PresentationPage({ sessionId }) {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const builtSlides = plan?.slides.filter(s => selectedIds.includes(s.id)) || []
+  const activeThemeColors = themes[theme] || Object.values(themes)[0]
 
   return (
     <Stack gap="xl" className="pres-shell">
@@ -423,7 +541,7 @@ export default function PresentationPage({ sessionId }) {
                           }}
                         />
 
-                        {slide.type !== 'title' && (
+                        {slide.type !== 'title' && slide.type !== 'two_column' && (
                           <textarea
                             value={(slide.points || []).join('\n')}
                             onChange={e => updatePoints(idx, e.target.value)}
@@ -438,17 +556,12 @@ export default function PresentationPage({ sessionId }) {
                           />
                         )}
 
-                        {slide.type === 'chart' && (
-                          <input
-                            value={slide.data_hint || ''}
-                            onChange={e => updateSlide(idx, 'data_hint', e.target.value)}
-                            placeholder={t('presentation.step1.dataHintPlaceholder')}
-                            style={{
-                              background: 'var(--bg-surface-2)', color: 'var(--text-muted)',
-                              border: '1px solid var(--border-subtle)', borderRadius: 8,
-                              padding: '5px 10px', fontSize: 12, width: '100%', fontFamily: 'inherit',
-                            }}
-                          />
+                        {(slide.type === 'chart' || slide.type === 'kpi_row') && (
+                          <ChartDataEditor slide={slide} idx={idx} updateSlide={updateSlide} t={t} />
+                        )}
+
+                        {slide.type === 'two_column' && (
+                          <TwoColumnEditor slide={slide} idx={idx} updateSlide={updateSlide} t={t} />
                         )}
                       </Stack>
                     </Card>
@@ -483,7 +596,7 @@ export default function PresentationPage({ sessionId }) {
               <Stack gap="sm">
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>{t('presentation.step2.themeLabel')}</span>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
-                  {Object.entries(THEMES).map(([id, th]) => (
+                  {Object.entries(themes).map(([id, th]) => (
                     <ThemeCard key={id} id={id} theme={th} selected={theme === id} onClick={() => setTheme(id)} />
                   ))}
                 </div>
@@ -575,7 +688,8 @@ export default function PresentationPage({ sessionId }) {
                   <p className="pres-thumbs__header">{t('presentation.step3.slidesHeader')}</p>
                   {builtSlides.map((slide, index) => (
                     <SlideThumb key={slide.id} slide={slide} index={index}
-                      active={index === activeIdx} onClick={() => setActiveIdx(index)} />
+                      active={index === activeIdx} onClick={() => setActiveIdx(index)}
+                      themeColors={activeThemeColors} />
                   ))}
                 </div>
                 <div className="pres-detail-wrap">
@@ -584,6 +698,7 @@ export default function PresentationPage({ sessionId }) {
                       <SlideDetail slide={builtSlides[activeIdx]} index={activeIdx} total={builtSlides.length}
                         onPrev={() => setActiveIdx(i => Math.max(0, i - 1))}
                         onNext={() => setActiveIdx(i => Math.min(builtSlides.length - 1, i + 1))}
+                        themeColors={activeThemeColors}
                       />
                     )}
                   </AnimatePresence>

@@ -55,7 +55,13 @@ services:
       # Reuse models already pulled by the host's systemd ollama service (read-only,
       # avoids re-downloading qwen3.5:122b/bge-m3/etc.)
       - /usr/share/.ollama/models:/root/.ollama/models:ro
+      # Host trusts KZ's mandatory HTTPS-interception root CA (State Technical
+      # Service / USIAG) in its system store; this image's base Ubuntu CA bundle
+      # doesn't ship it, so registry.ollama.ai TLS verification fails inside the
+      # container without this. Go's x509 reads SSL_CERT_FILE as an override.
+      - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
     environment:
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
       - OLLAMA_HOST=0.0.0.0
       - OLLAMA_GPU_OVERHEAD=536870912
       - OLLAMA_MAX_LOADED_MODELS=2   # allow 2 models in memory for parallel requests
@@ -95,6 +101,31 @@ services:
       retries: 5
       start_period: 30s
 
+  # One-shot deployment job. NOT started by `docker-compose up` (profile-
+  # gated) — run explicitly, once per deploy, BEFORE `docker-compose up -d
+  # backend`:
+  #   docker-compose --profile migrate run --rm migrate
+  # Literal executable order: verify the build-pinned manifest, THEN run
+  # `alembic upgrade head` — never the reverse, never in parallel. Exits
+  # non-zero and runs no DDL at all if the manifest check fails. This
+  # service only ever performs a plain upgrade (empty DB, or a DB already
+  # stamped at B0 — a no-op). It never runs legacy adoption — that remains
+  # a separate, explicit, manual command
+  # (ops/schema_audit/adopt_legacy_schema.py), on purpose, so it can never
+  # fire unattended from a deploy pipeline.
+  migrate:
+    image: docai-backend:latest
+    container_name: kence-migrate
+    profiles: ["migrate"]
+    environment:
+      - DATABASE_URL=postgresql://kence:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/kenceai
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "python verify_manifest.py && alembic upgrade head"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   backend:
     image: docai-backend:latest
     container_name: kence-backend
@@ -105,7 +136,20 @@ services:
       - ./backend/chroma_db:/app/chroma_db
       - ./backend/data:/app/data
       - ./backend/org_storage:/app/org_storage
+      # Docling's layout/table-structure models (~500MB, fetched from huggingface.co
+      # on first use). Kept in a bind mount so a container recreate doesn't lose them
+      # and force a re-download.
+      - ./backend/hf_cache:/root/.cache/huggingface
+      # Host trusts KZ's mandatory HTTPS-interception root CA (State Technical
+      # Service / USIAG) in its system store; this image's base Debian CA bundle
+      # doesn't ship it, so TLS to huggingface.co (Docling model downloads) fails
+      # inside the container without this.
+      - /etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt:ro
     environment:
+      # requests/huggingface_hub bundle their own certifi CA file and ignore the
+      # OS trust store by default — must point them at it explicitly.
+      - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
       - OLLAMA_BASE_URL=http://ollama:11434
       - LLM_MODEL=qwen3.5:122b
       - EMBEDDING_MODEL=bge-m3

@@ -1,0 +1,12 @@
+{
+  "alembic_head": "bc59de168869",
+  "fingerprint_format_version": 1,
+  "migration_file_hashes": {
+    "bc59de168869_b0_squashed_baseline.py": "34a080918c9a6c152018fdbb7e77c4279f4dd5e11dbe326a2cb16cc25d6f25bd"
+  },
+  "referenced_hashes": {
+    "backend/alembic/versions/b0_baseline.sql": "05836fc44709d29089eb8531d36fa33f3f69fe1e242aa7dc7ba199e970d7a006",
+    "ops/schema_audit/fingerprints/b0_target.json": "eb805af07aa061e8f7d08b69669f6dfde9748b24907ec7ed60b03d8e337a2c30",
+    "ops/schema_audit/fingerprints/legacy_accepted.json": "1e68a5b2b89993a5794f6bb63f7f2ba044116d3195fd86f645bf4fefcf153de3"
+  }
+}

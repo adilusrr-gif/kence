@@ -81,6 +81,9 @@
     "activity": "Activity (7 days)",
     "more": "Details",
     "search": "Search…",
+    "dateFrom": "From date",
+    "dateTo": "To date",
+    "clearDates": "Clear",
     "noSessions": "No recent sessions",
     "uploadFirst": "Upload a document",
     "noResults": "Nothing for «{{query}}»",
@@ -314,6 +317,10 @@
       "title": "Title slide",
       "content": "Content (list)",
       "chart": "Chart / Diagram",
+      "kpi_row": "KPI metrics (cards)",
+      "big_number": "Big number (hero stat)",
+      "two_column": "Comparison (two columns)",
+      "section_divider": "Section divider",
       "quote": "Quote",
       "summary": "Summary"
     },
@@ -337,7 +344,13 @@
       "slideNum": "Slide {{n}}",
       "titlePlaceholder": "Slide title",
       "pointsPlaceholder": "Points (one per line)",
-      "dataHintPlaceholder": "Chart data hint (optional)",
+      "chartDataLabel": "Chart data (real figures from the document)",
+      "chartLabelPlaceholder": "Label",
+      "chartValuePlaceholder": "Value",
+      "chartAddRow": "Add value",
+      "chartUnitPlaceholder": "Unit",
+      "leftTitlePlaceholder": "Left column title",
+      "rightTitlePlaceholder": "Right column title",
       "addSlide": "Add slide"
     },
     "step2": {
@@ -719,10 +732,6 @@
       "consultation_prompt": {
         "label": "Document consultation",
         "hint": "Variables: {context} — document fragments, {question} — user question. Expanded answer with interpretation."
-      },
-      "presentation_prompt": {
-        "label": "Presentation prompt",
-        "hint": "Variables: {context} — document content. JSON response: \"title\" and \"slides\"."
       },
       "comparison_technical_prompt": {
         "label": "Tech. comparison",

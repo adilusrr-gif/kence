@@ -175,6 +175,8 @@ export default function DashboardPage({ sessionHistory = [], currentUser, onNewS
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const debounceRef = useRef(null)
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const FEATURES = [
     { icon: Plus,         label: t('dashboard.features.new'),          desc: t('dashboard.features.newDesc'),          action: 'new',           accent: true },
@@ -189,9 +191,18 @@ export default function DashboardPage({ sessionHistory = [], currentUser, onNewS
     const token = localStorage.getItem('kence_token')
     if (!token) return
 
-    apiListSessions()
-      .then(data => Array.isArray(data) && setServerSessions(data))
+    const params = { limit: 100 }
+    if (dateFrom) params.date_from = dateFrom
+    if (dateTo) params.date_to = dateTo
+
+    apiListSessions(params)
+      .then(data => setServerSessions(Array.isArray(data) ? data : (data?.sessions || [])))
       .catch(() => toast.error(t('common.loadError')))
+  }, [dateFrom, dateTo])
+
+  useEffect(() => {
+    const token = localStorage.getItem('kence_token')
+    if (!token) return
 
     Promise.allSettled([apiAnalyticsOverview(), apiAnalyticsTimeline(7)])
       .then(([ovResult, tlResult]) => {
@@ -220,11 +231,14 @@ export default function DashboardPage({ sessionHistory = [], currentUser, onNewS
         name: s.document_name || t('common.untitled'),
         at: s.last_activity ? new Date(s.last_activity).getTime() : Date.now(),
       }))
+    const fromMin = dateFrom ? new Date(dateFrom).getTime() : -Infinity
+    const fromMax = dateTo ? new Date(dateTo).setHours(23, 59, 59, 999) : Infinity
     return [...sessionHistory, ...fromServer]
       .filter(e => !deletedIds.has(e.id))
+      .filter(e => e.at >= fromMin && e.at <= fromMax)
       .sort((a, b) => b.at - a.at)
-      .slice(0, 12)
-  }, [sessionHistory, serverSessions, deletedIds, t])
+      .slice(0, 100)
+  }, [sessionHistory, serverSessions, deletedIds, dateFrom, dateTo, t])
 
   useEffect(() => {
     clearTimeout(debounceRef.current)
@@ -320,18 +334,48 @@ export default function DashboardPage({ sessionHistory = [], currentUser, onNewS
       <Stack gap="sm">
         <div className="dashboard-sessions-header">
           <h2 className="dashboard-page__section-title">{t('dashboard.recentSessions')}</h2>
-          {mergedHistory.length > 3 && (
-            <div className="dashboard-search">
-              <Search size={12} className="dashboard-search__icon" />
+          <div className="dashboard-sessions-header__controls">
+            <div className="dashboard-date-filter">
               <input
-                type="text"
-                className="dashboard-search__input"
-                placeholder={t('dashboard.search')}
-                value={search}
-                onChange={e => setSearch(e.target.value)}
+                type="date"
+                className="dashboard-date-filter__input"
+                aria-label={t('dashboard.dateFrom')}
+                value={dateFrom}
+                max={dateTo || undefined}
+                onChange={e => setDateFrom(e.target.value)}
               />
+              <span className="dashboard-date-filter__sep">–</span>
+              <input
+                type="date"
+                className="dashboard-date-filter__input"
+                aria-label={t('dashboard.dateTo')}
+                value={dateTo}
+                min={dateFrom || undefined}
+                onChange={e => setDateTo(e.target.value)}
+              />
+              {(dateFrom || dateTo) && (
+                <button
+                  type="button"
+                  className="dashboard-date-filter__clear"
+                  onClick={() => { setDateFrom(''); setDateTo('') }}
+                >
+                  {t('dashboard.clearDates')}
+                </button>
+              )}
             </div>
-          )}
+            {mergedHistory.length > 3 && (
+              <div className="dashboard-search">
+                <Search size={12} className="dashboard-search__icon" />
+                <input
+                  type="text"
+                  className="dashboard-search__input"
+                  placeholder={t('dashboard.search')}
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+              </div>
+            )}
+          </div>
         </div>
 
         {mergedHistory.length === 0 ? (

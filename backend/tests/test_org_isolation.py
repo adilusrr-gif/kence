@@ -231,3 +231,21 @@ def test_10_admin_bypasses_session_owner_but_not_org_membership(c):
     # But global admin is NOT auto-member of an org → library still 403.
     r_lib = c.get(f"/api/orgs/{_STATE['org_b']}/library/{_STATE['doc_b']}")
     assert r_lib.status_code == 403
+
+
+# ── 12: create_session stamps an owner, closing the unowned-session hole ──────
+
+def test_12_new_session_is_owned_by_its_creator_not_open_to_everyone(c):
+    """POST /sessions must stamp owner_username immediately (I-06 follow-up):
+    previously a session with no owner recorded was treated as open to any
+    authenticated user, including one just created and never uploaded to."""
+    as_user(USER_A)
+    sid = c.post("/api/sessions").json()["session_id"]
+
+    as_user(USER_B)
+    r = c.delete(f"/api/sessions/{sid}")
+    assert r.status_code == 403
+
+    as_user(USER_A)
+    r = c.delete(f"/api/sessions/{sid}")
+    assert r.status_code == 200

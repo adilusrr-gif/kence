@@ -77,14 +77,15 @@ async def build(session_id: str, body: BuildRequest, user: dict = Depends(get_cu
     if not plan:
         raise HTTPException(status_code=400, detail="No plan found — call POST /plan first")
     try:
-        path = await asyncio.to_thread(
-            build_presentation, plan, body.theme, body.slide_ids, session_id, llm_service
-        )
         _u = user.get("username")
+        org_id = analytics_service.resolve_org_id(_u)
+        path = await asyncio.to_thread(
+            build_presentation, plan, body.theme, body.slide_ids, session_id, org_id
+        )
         asyncio.create_task(asyncio.to_thread(
             analytics_service.log_event, "presentation",
             username=_u, session_id=session_id, theme=body.theme,
-            org_id=analytics_service.resolve_org_id(_u),
+            org_id=org_id,
         ))
         return {
             "status": "built",
@@ -112,6 +113,7 @@ async def build_stream(
         raise HTTPException(status_code=400, detail="No plan found — call POST /plan first")
 
     ids = [s for s in slide_ids.split(",") if s]
+    org_id = analytics_service.resolve_org_id(user.get("username"))
 
     queue: asyncio.Queue = asyncio.Queue()
     loop = asyncio.get_running_loop()
@@ -122,7 +124,7 @@ async def build_stream(
     async def run_build():
         try:
             await asyncio.to_thread(
-                build_presentation, plan, theme, ids, session_id, llm_service, progress_cb
+                build_presentation, plan, theme, ids, session_id, org_id, progress_cb
             )
             await queue.put({"done": True, "download_url": f"/api/presentations/download/{session_id}"})
         except Exception as exc:

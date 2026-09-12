@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     # Background translation worker. Set False on web-only nodes (so only a
     # dedicated worker node processes the queue) or in tests for determinism.
     TRANSLATION_WORKER_ENABLED: bool = True
-    SESSION_TIMEOUT: int = 28800  # 8 hours for government work sessions
+    SESSION_TIMEOUT: int = 2_592_000  # 30 days — retain session history for government work
     MAX_FILE_SIZE: int = 100 * 1024 * 1024
     ALLOWED_UPLOAD_FORMATS: frozenset = frozenset({
         ".pdf", ".docx", ".pptx", ".xlsx",

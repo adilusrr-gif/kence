@@ -21,7 +21,9 @@ def test_create_session_returns_valid_uuid(client):
 def test_list_sessions_returns_list(client):
     r = client.get("/api/sessions")
     assert r.status_code == 200
-    assert isinstance(r.json(), list)
+    body = r.json()
+    assert isinstance(body["sessions"], list)
+    assert {"total", "offset", "limit", "sessions"} <= body.keys()
 
 
 def test_delete_session(client):

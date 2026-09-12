@@ -46,6 +46,10 @@ temp/
 # Test databases
 backend/*.db
 
+# Coverage artifacts
+.coverage
+backend/.coverage
+
 # ChromaDB vector storage
 backend/chroma_db/
 chroma_db/
@@ -67,3 +71,9 @@ backend/.env
 
 # Root package (only needed for playwright dev dep)
 package-lock.json
+
+# Docling model cache (HF downloads, ~500MB, host-bind-mounted per docker-compose.yml)
+backend/hf_cache/
+
+# Project Sentinel audit run artifacts
+.project-sentinel/

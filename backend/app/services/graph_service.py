@@ -173,9 +173,12 @@ async def export_graph_for_d3(org_id: int, doc_id: Optional[str] = None) -> dict
                 """,
                 org_id=org_id, doc_id=doc_id,
             )
-            links = [{"source": r["source"], "target": r["target"], "type": r["type"]} async for r in edges_result]
+            raw_links = [{"source": r["source"], "target": r["target"], "type": r["type"]} async for r in edges_result]
 
-        truncated = len(nodes) >= 500 or len(links) >= 1000
+        node_ids = {n["id"] for n in nodes}
+        links = [l for l in raw_links if l["source"] in node_ids and l["target"] in node_ids]
+
+        truncated = len(nodes) >= 500 or len(raw_links) >= 1000
         return {"nodes": nodes, "links": links, "truncated": truncated}
     except Exception as e:
         logger.error("export_graph_for_d3 error: %s", e)
